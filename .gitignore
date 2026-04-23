@@ -1,0 +1,34 @@
+# Build directories
+build/
+build-mingw/
+build-vs/
+_deps/
+
+# Executable and DLLs
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Object files and libraries
+*.o
+*.a
+*.lib
+*.obj
+
+# IDE and editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# CMake
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.cmake
+
+# Dependencies (vcpkg)
+vcpkg_installed/
