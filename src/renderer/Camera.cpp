@@ -54,3 +54,20 @@ void Camera::DoCollisionPush(const glm::vec3& charPos, std::function<bool(glm::v
 		}
 	}
 }
+
+void Camera::Reset(glm::vec3 characterPos) {
+	target = characterPos;
+	glm::vec3 offset(0.0f, heightOffset, -followDistance);
+	glm::mat4 rotation(1.0f);
+	rotation = glm::rotate(rotation, glm::radians(yaw), glm::vec3(0.0f, 1.0f, 0.0f));
+	rotation = glm::rotate(rotation, glm::radians(pitch), glm::vec3(1.0f, 0.0f, 0.0f));
+	position = characterPos + glm::vec3(rotation * glm::vec4(offset, 1.0f));
+}
+
+glm::vec3 Camera::GetForward() const {
+	return glm::normalize(target - position);
+}
+
+glm::vec3 Camera::GetUp() const {
+	return glm::vec3(0.0f, 1.0f, 0.0f);
+}

@@ -22,4 +22,8 @@ public:
 	void Update(glm::vec3 characterPos, float dt);
 	void ProcessMouseMovement(float xoffset, float yoffset);
 	void DoCollisionPush(const glm::vec3& charPos, std::function<bool(glm::vec3, glm::vec3)> raycastFn);
+	void Reset(glm::vec3 characterPos);
+	
+	glm::vec3 GetForward() const;
+	glm::vec3 GetUp() const;
 };

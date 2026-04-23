@@ -5,6 +5,7 @@
 #include <vector>
 #include <memory>
 #include "GBuffer.h"
+#include "PostFXState.h"
 #include "ShadowMap.h"
 #include "Shader.h"
 
@@ -12,11 +13,6 @@ class DayNightCycle;
 class Camera;
 
 struct RenderCommand {
-    // Forward declared for future use
-};
-
-struct PostFXState {
-    float exposure = 1.0f;
     // Forward declared for future use
 };
 

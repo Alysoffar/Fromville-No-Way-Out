@@ -34,6 +34,18 @@ bool Window::Init() {
 		return false;
 	}
 
+	GLFWmonitor* primaryMonitor = glfwGetPrimaryMonitor();
+	if (primaryMonitor) {
+		const GLFWvidmode* mode = glfwGetVideoMode(primaryMonitor);
+		if (mode) {
+			const int x = (mode->width - width) / 2;
+			const int y = (mode->height - height) / 2;
+			glfwSetWindowPos(handle, x, y);
+		}
+	}
+	glfwShowWindow(handle);
+	glfwFocusWindow(handle);
+
 	glfwMakeContextCurrent(handle);
 	glfwSetWindowUserPointer(handle, this);
 

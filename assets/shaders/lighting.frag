@@ -13,14 +13,14 @@ layout(binding = 6) uniform samplerCube shadowCubemaps[8];
 
 struct PointLight {
     vec3 position;
-    vec3 color;
     float radius;
+    vec3 color;
     float intensity;
 };
 
 layout(std430, binding=1) buffer LightBuffer {
+    PointLight lights[32];
     int lightCount;
-    PointLight lights[];
 };
 
 uniform mat4 lightSpaceMatrix;
@@ -35,6 +35,43 @@ uniform float fogDensity;
 uniform float time;
 
 const float PI = 3.14159265359;
+
+float DirectionalShadowPCF(vec3 fragPos, vec3 N, vec3 L) {
+    vec4 fragPosLightSpace = lightSpaceMatrix * vec4(fragPos, 1.0);
+    vec3 projCoords = fragPosLightSpace.xyz / max(fragPosLightSpace.w, 0.0001);
+    projCoords = projCoords * 0.5 + 0.5;
+
+    if (projCoords.z > 1.0 || projCoords.x < 0.0 || projCoords.x > 1.0 || projCoords.y < 0.0 || projCoords.y > 1.0) {
+        return 0.0;
+    }
+
+    float currentDepth = projCoords.z;
+    float bias = max(0.005 * (1.0 - dot(N, L)), 0.0005);
+    vec2 texelSize = 1.0 / vec2(textureSize(shadowMap, 0));
+
+    float shadow = 0.0;
+    for(int x = -1; x <= 1; ++x) {
+        for(int y = -1; y <= 1; ++y) {
+            float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
+            shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
+        }
+    }
+
+    return shadow / 9.0;
+}
+
+float PointShadow(int index, vec3 fragPos, vec3 lightPos, float lightRadius) {
+    if (index < 0 || index >= 8) {
+        return 0.0;
+    }
+
+    vec3 fragToLight = fragPos - lightPos;
+    float currentDepth = length(fragToLight);
+    float closestDepth = texture(shadowCubemaps[index], fragToLight).r * farPlane;
+    float bias = max(0.01 * (currentDepth / max(lightRadius, 0.001)), 0.01);
+
+    return (currentDepth - bias > closestDepth) ? 1.0 : 0.0;
+}
 
 float DistributionGGX(vec3 N, vec3 H, float roughness) {
     float a = roughness*roughness;
@@ -74,57 +111,33 @@ vec3 FresnelSchlick(float cosTheta, vec3 F0) {
 
 void main()
 {
-    // 1. Sample G-Buffer
     vec3 fragPos = texture(gPosition, TexCoords).xyz;
     vec3 normal = texture(gNormal, TexCoords).xyz;
     vec4 albedoSpec = texture(gAlbedoSpec, TexCoords);
-    vec3 albedo = albedoSpec.rgb;
+    vec3 albedo = pow(albedoSpec.rgb, vec3(2.2));
     vec3 emission = texture(gEmission, TexCoords).rgb;
-    float ssao = texture(ssaoBlur, TexCoords).r;
+    float ao = clamp(texture(ssaoBlur, TexCoords).r, 0.0, 1.0);
 
-    // Background mask check
     if(length(normal) < 0.1) {
-        fragColor = vec4(albedo + emission, 1.0);
+        fragColor = vec4(emission, 1.0);
         return;
     }
 
-    // 2. Reconstruct material properties
-    float roughness = albedoSpec.a;
-    float metallic = 0.0; // No metallic map yet
+    float roughness = clamp(albedoSpec.a, 0.04, 1.0);
+    float metallic = 0.0;
     
     vec3 N = normalize(normal);
     vec3 V = normalize(viewPos - fragPos);
 
-    // 3. F0
-    vec3 F0 = vec3(0.04); 
-    F0 = mix(F0, albedo, metallic);
+    vec3 F0 = mix(vec3(0.04), albedo, metallic);
 
     vec3 Lo = vec3(0.0);
 
-    // 4. Directional Light (Moon)
-    vec3 L = normalize(lightDir);
+    vec3 L = normalize(-lightDir);
     vec3 H = normalize(V + L);
-    
-    // PCF shadow
-    vec4 fragPosLightSpace = lightSpaceMatrix * vec4(fragPos, 1.0);
-    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
-    projCoords = projCoords * 0.5 + 0.5;
-    
-    float shadow = 0.0;
-    if(projCoords.z <= 1.0) {
-        float currentDepth = projCoords.z;
-        float bias = max(0.005 * (1.0 - dot(N, L)), 0.0005);
-        vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
-        for(int x = -1; x <= 1; ++x) {
-            for(int y = -1; y <= 1; ++y) {
-                float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r; 
-                shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;        
-            }    
-        }
-        shadow /= 9.0;
-    }
-    
-    // Cook-Torrance BRDF
+
+    float shadow = DirectionalShadowPCF(fragPos, N, L);
+
     float NDF = DistributionGGX(N, H, roughness);
     float G = GeometrySmith(N, V, L, roughness);
     vec3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
@@ -140,27 +153,26 @@ void main()
     float NdotL = max(dot(N, L), 0.0);
     Lo += (kD * albedo / PI + specular) * lightColor * NdotL * (1.0 - shadow);
 
-    // 5. Point Lights
     int count = min(lightCount, 32);
     for(int i = 0; i < count; i++) {
-        vec3 pL = normalize(lights[i].position - fragPos);
-        vec3 pH = normalize(V + pL);
-        float dist = length(lights[i].position - fragPos);
-        
-        // Attenuation
-        float distDiv = clamp(1.0 - pow(dist / lights[i].radius, 2.0), 0.0, 1.0);
-        float attenuation = distDiv * distDiv * lights[i].intensity;
-        
-        float pointShadow = 0.0;
-        if(i < 8) {
-            vec3 fragToLight = fragPos - lights[i].position;
-            float closestDepth = texture(shadowCubemaps[i], fragToLight).r;
-            closestDepth *= farPlane; // Undo [0,1] mapping
-            float pointBias = 0.05; 
-            pointShadow = (dist - pointBias > closestDepth) ? 1.0 : 0.0;
+        vec3 lightVec = lights[i].position - fragPos;
+        float dist = length(lightVec);
+
+        if (dist > lights[i].radius || lights[i].radius <= 0.0) {
+            continue;
         }
 
-        // Cook-Torrance
+        vec3 pL = normalize(lightVec);
+        vec3 pH = normalize(V + pL);
+
+        float distDiv = clamp(1.0 - pow(dist / lights[i].radius, 2.0), 0.0, 1.0);
+        float attenuation = distDiv * distDiv * lights[i].intensity;
+
+        float pointShadow = 0.0;
+        if(i < 8) {
+            pointShadow = PointShadow(i, fragPos, lights[i].position, lights[i].radius);
+        }
+
         float pNDF = DistributionGGX(N, pH, roughness);
         float pG = GeometrySmith(N, V, pL, roughness);
         vec3 pF = FresnelSchlick(max(dot(pH, V), 0.0), F0);
@@ -177,15 +189,12 @@ void main()
         Lo += (pkD * albedo / PI + pSpecular) * lights[i].color * pNdotL * attenuation * (1.0 - pointShadow);
     }
 
-    // 6. Ambient
-    vec3 ambient = ambientStrength * albedo * ssao;
+    vec3 ambient = ambientStrength * albedo * ao;
 
-    // 7. Combine + Emission
     vec3 color = ambient + Lo + emission;
 
-    // 8. Exponential-squared fog
-    float viewDist = length(viewPos - fragPos);
-    float fogFactor = exp(-pow(fogDensity * viewDist, 2.0));
+    float dist = length(viewPos - fragPos);
+    float fogFactor = exp(-pow(fogDensity * dist, 2.0));
     fogFactor = clamp(fogFactor, 0.0, 1.0);
     color = mix(fogColor, color, fogFactor);
 

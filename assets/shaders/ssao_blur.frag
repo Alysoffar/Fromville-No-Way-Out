@@ -9,13 +9,14 @@ void main()
 {
     vec2 texelSize = 1.0 / vec2(textureSize(ssaoInput, 0));
     float result = 0.0;
-    for (int x = -2; x < 2; ++x) 
+    for (int x = 0; x < 4; ++x) 
     {
-        for (int y = -2; y < 2; ++y) 
+        for (int y = 0; y < 4; ++y) 
         {
-            vec2 offset = vec2(float(x), float(y)) * texelSize;
+            vec2 centered = vec2(float(x) - 1.5, float(y) - 1.5);
+            vec2 offset = centered * texelSize;
             result += texture(ssaoInput, TexCoords + offset).r;
         }
     }
-    fragColor = result / (4.0 * 4.0);
+    fragColor = result * (1.0 / 16.0);
 }
