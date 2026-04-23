@@ -51,6 +51,24 @@ PFNGLUNIFORMMATRIX3FVPROC glad_glUniformMatrix3fv = nullptr;
 PFNGLUNIFORMMATRIX4FVPROC glad_glUniformMatrix4fv = nullptr;
 PFNGLDETACHSHADERPROC glad_glDetachShader = nullptr;
 
+PFNGLDELETEFRAMEBUFFERSPROC glad_glDeleteFramebuffers = nullptr;
+PFNGLDELETERENDERBUFFERSPROC glad_glDeleteRenderbuffers = nullptr;
+PFNGLFRAMEBUFFERRENDERBUFFERPROC glad_glFramebufferRenderbuffer = nullptr;
+PFNGLRENDERBUFFERSTORAGEPROC glad_glRenderbufferStorage = nullptr;
+PFNGLBINDRENDERBUFFERPROC glad_glBindRenderbuffer = nullptr;
+PFNGLGENRENDERBUFFERSPROC glad_glGenRenderbuffers = nullptr;
+PFNGLDRAWBUFFERSPROC glad_glDrawBuffers = nullptr;
+PFNGLFRAMEBUFFERTEXTURE2DPROC glad_glFramebufferTexture2D = nullptr;
+PFNGLGENFRAMEBUFFERSPROC glad_glGenFramebuffers = nullptr;
+PFNGLCHECKFRAMEBUFFERSTATUSPROC glad_glCheckFramebufferStatus = nullptr;
+PFNGLBLITFRAMEBUFFERPROC glad_glBlitFramebuffer = nullptr;
+PFNGLBINDFRAMEBUFFERPROC glad_glBindFramebuffer = nullptr;
+PFNGLFRAMEBUFFERTEXTUREPROC glad_glFramebufferTexture = nullptr;
+PFNGLREADBUFFERPROC glad_glReadBuffer = nullptr;
+PFNGLDRAWBUFFERPROC glad_glDrawBuffer = nullptr;
+PFNGLTEXPARAMETERFVPROC glad_glTexParameterfv = nullptr;
+PFNGLDRAWARRAYSPROC glad_glDrawArrays = nullptr;
+
 int gladLoadGLLoader(GLADloadproc loadProc) {
 	if (!loadProc) {
 		return 0;
@@ -105,9 +123,27 @@ int gladLoadGLLoader(GLADloadproc loadProc) {
 	glad_glUniformMatrix4fv = reinterpret_cast<PFNGLUNIFORMMATRIX4FVPROC>(loadProc("glUniformMatrix4fv"));
 	glad_glDetachShader = reinterpret_cast<PFNGLDETACHSHADERPROC>(loadProc("glDetachShader"));
 
+	glad_glDeleteFramebuffers = reinterpret_cast<PFNGLDELETEFRAMEBUFFERSPROC>(loadProc("glDeleteFramebuffers"));
+	glad_glDeleteRenderbuffers = reinterpret_cast<PFNGLDELETERENDERBUFFERSPROC>(loadProc("glDeleteRenderbuffers"));
+	glad_glFramebufferRenderbuffer = reinterpret_cast<PFNGLFRAMEBUFFERRENDERBUFFERPROC>(loadProc("glFramebufferRenderbuffer"));
+	glad_glRenderbufferStorage = reinterpret_cast<PFNGLRENDERBUFFERSTORAGEPROC>(loadProc("glRenderbufferStorage"));
+	glad_glBindRenderbuffer = reinterpret_cast<PFNGLBINDRENDERBUFFERPROC>(loadProc("glBindRenderbuffer"));
+	glad_glGenRenderbuffers = reinterpret_cast<PFNGLGENRENDERBUFFERSPROC>(loadProc("glGenRenderbuffers"));
+	glad_glDrawBuffers = reinterpret_cast<PFNGLDRAWBUFFERSPROC>(loadProc("glDrawBuffers"));
+	glad_glFramebufferTexture2D = reinterpret_cast<PFNGLFRAMEBUFFERTEXTURE2DPROC>(loadProc("glFramebufferTexture2D"));
+	glad_glGenFramebuffers = reinterpret_cast<PFNGLGENFRAMEBUFFERSPROC>(loadProc("glGenFramebuffers"));
+	glad_glCheckFramebufferStatus = reinterpret_cast<PFNGLCHECKFRAMEBUFFERSTATUSPROC>(loadProc("glCheckFramebufferStatus"));
+	glad_glBlitFramebuffer = reinterpret_cast<PFNGLBLITFRAMEBUFFERPROC>(loadProc("glBlitFramebuffer"));
+	glad_glBindFramebuffer = reinterpret_cast<PFNGLBINDFRAMEBUFFERPROC>(loadProc("glBindFramebuffer"));
+	glad_glFramebufferTexture = reinterpret_cast<PFNGLFRAMEBUFFERTEXTUREPROC>(loadProc("glFramebufferTexture"));
+	glad_glReadBuffer = reinterpret_cast<PFNGLREADBUFFERPROC>(loadProc("glReadBuffer"));
+	glad_glDrawBuffer = reinterpret_cast<PFNGLDRAWBUFFERPROC>(loadProc("glDrawBuffer"));
+	glad_glTexParameterfv = reinterpret_cast<PFNGLTEXPARAMETERFVPROC>(loadProc("glTexParameterfv"));
+	glad_glDrawArrays = reinterpret_cast<PFNGLDRAWARRAYSPROC>(loadProc("glDrawArrays"));
+
 	GLVersion.major = 4;
 	GLVersion.minor = 5;
-	return glad_glClear && glad_glClearColor && glad_glViewport && glad_glEnable && glad_glDepthFunc && glad_glCullFace && glad_glGetString && glad_glGenBuffers && glad_glBindBuffer && glad_glBufferData && glad_glDeleteBuffers && glad_glGenVertexArrays && glad_glBindVertexArray && glad_glDeleteVertexArrays && glad_glEnableVertexAttribArray && glad_glVertexAttribPointer && glad_glVertexAttribIPointer && glad_glDrawElements && glad_glDrawElementsInstanced && glad_glActiveTexture && glad_glGenTextures && glad_glBindTexture && glad_glTexParameteri && glad_glTexImage2D && glad_glGenerateMipmap && glad_glDeleteTextures && glad_glCreateShader && glad_glShaderSource && glad_glCompileShader && glad_glGetShaderiv && glad_glGetShaderInfoLog && glad_glDeleteShader && glad_glCreateProgram && glad_glAttachShader && glad_glLinkProgram && glad_glGetProgramiv && glad_glGetProgramInfoLog && glad_glDeleteProgram && glad_glUseProgram && glad_glGetUniformLocation && glad_glUniform1i && glad_glUniform1f && glad_glUniform2fv && glad_glUniform3fv && glad_glUniform4fv && glad_glUniformMatrix3fv && glad_glUniformMatrix4fv && glad_glDetachShader;
+	return glad_glClear && glad_glClearColor && glad_glViewport && glad_glEnable && glad_glDepthFunc && glad_glCullFace && glad_glGetString && glad_glGenBuffers && glad_glBindBuffer && glad_glBufferData && glad_glDeleteBuffers && glad_glGenVertexArrays && glad_glBindVertexArray && glad_glDeleteVertexArrays && glad_glEnableVertexAttribArray && glad_glVertexAttribPointer && glad_glVertexAttribIPointer && glad_glDrawElements && glad_glDrawElementsInstanced && glad_glActiveTexture && glad_glGenTextures && glad_glBindTexture && glad_glTexParameteri && glad_glTexImage2D && glad_glGenerateMipmap && glad_glDeleteTextures && glad_glCreateShader && glad_glShaderSource && glad_glCompileShader && glad_glGetShaderiv && glad_glGetShaderInfoLog && glad_glDeleteShader && glad_glCreateProgram && glad_glAttachShader && glad_glLinkProgram && glad_glGetProgramiv && glad_glGetProgramInfoLog && glad_glDeleteProgram && glad_glUseProgram && glad_glGetUniformLocation && glad_glUniform1i && glad_glUniform1f && glad_glUniform2fv && glad_glUniform3fv && glad_glUniform4fv && glad_glUniformMatrix3fv && glad_glUniformMatrix4fv && glad_glDetachShader && glad_glDeleteFramebuffers && glad_glDeleteRenderbuffers && glad_glFramebufferRenderbuffer && glad_glRenderbufferStorage && glad_glBindRenderbuffer && glad_glGenRenderbuffers && glad_glDrawBuffers && glad_glFramebufferTexture2D && glad_glGenFramebuffers && glad_glCheckFramebufferStatus && glad_glBlitFramebuffer && glad_glBindFramebuffer && glad_glFramebufferTexture && glad_glReadBuffer && glad_glDrawBuffer && glad_glTexParameterfv && glad_glDrawArrays;
 }
 
 int gladLoadGL(void) {
