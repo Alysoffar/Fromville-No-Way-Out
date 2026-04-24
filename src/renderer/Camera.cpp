@@ -29,7 +29,7 @@ void Camera::Update(glm::vec3 characterPos, float dt) {
 	rotation = glm::rotate(rotation, glm::radians(yaw), glm::vec3(0.0f, 1.0f, 0.0f));
 	rotation = glm::rotate(rotation, glm::radians(pitch), glm::vec3(1.0f, 0.0f, 0.0f));
 	glm::vec3 desiredPosition = focusPoint + glm::vec3(rotation * glm::vec4(offset, 1.0f));
-	const float followFactor = std::clamp(8.0f * dt, 0.0f, 1.0f);
+	const float followFactor = std::clamp(20.0f * dt, 0.0f, 1.0f);
 	position = glm::mix(position, desiredPosition, followFactor);
 	target = glm::mix(target, focusPoint, followFactor);
 }

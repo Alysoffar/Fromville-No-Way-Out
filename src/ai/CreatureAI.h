@@ -7,6 +7,7 @@
 
 #include "renderer/Model.h"
 #include "renderer/SkeletalAnimator.h"
+#include "renderer/AnimationNames.h"
 
 class Character;
 class NavMesh;
@@ -44,6 +45,7 @@ struct Creature {
 	int pathIndex = 0;
 	NPC* whisperTarget = nullptr;
 	float pathRefreshTimer = 0.0f;
+	float attackAnimTimer = 0.0f;
 
 	Model* humanModel = nullptr;
 	Model* monsterModel = nullptr;

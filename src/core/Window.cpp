@@ -54,8 +54,14 @@ bool Window::Init() {
 	glViewport(0, 0, width, height);
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LEQUAL);
+	
+	// Set winding order to CCW (default)
+	glFrontFace(GL_CCW); 
 	glEnable(GL_CULL_FACE);
-	glCullFace(GL_BACK);
+	glCullFace(GL_BACK); // Cull the back faces
+	
+	// glDisable(GL_CULL_FACE); // Uncomment to temporarily disable culling for debugging
+	
 	glEnable(GL_MULTISAMPLE);
 	glfwSetFramebufferSizeCallback(handle, FramebufferSizeCallback);
 
@@ -81,6 +87,12 @@ void Window::SwapBuffers() {
 
 bool Window::ShouldClose() const {
 	return handle ? glfwWindowShouldClose(handle) != GLFW_FALSE : true;
+}
+
+void Window::Close() {
+	if (handle) {
+		glfwSetWindowShouldClose(handle, GLFW_TRUE);
+	}
 }
 
 void Window::SetVSync(bool enabled) {

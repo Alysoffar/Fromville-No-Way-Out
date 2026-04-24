@@ -8,6 +8,7 @@
 #include <stb_image.h>
 
 #include "renderer/Shader.h"
+#include "renderer/Texture.h"
 
 namespace {
 
@@ -56,11 +57,68 @@ GLuint CreateTerrainTexture(int width, int height, const glm::vec3& baseColor, c
     return texture;
 }
 
+GLuint LoadGrassTexture() {
+    static GLuint texture = 0;
+    if (texture != 0) {
+        return texture;
+    }
+
+    texture = Texture::Load("assets/textures/grass.png");
+    if (texture == 0) {
+        // Fallback to procedural if file missing
+        const int width = 256;
+        const int height = 256;
+        std::vector<unsigned char> pixels(static_cast<size_t>(width * height * 4), 0);
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x) {
+                const float u = static_cast<float>(x) / static_cast<float>(width - 1);
+                const float v = static_cast<float>(y) / static_cast<float>(height - 1);
+                const float blade = 0.5f + 0.5f * std::sin(u * 78.0f + v * 41.0f + static_cast<float>((x * 13 + y * 17) % 29));
+                const float clump = 0.5f + 0.5f * std::sin(u * 14.0f + v * 9.0f + static_cast<float>((x * 7 + y * 5) % 11));
+                const float dirt = glm::clamp(0.15f + 0.55f * std::sin(u * 5.0f + v * 6.0f), 0.0f, 1.0f);
+                const float moisture = glm::clamp(0.5f + 0.5f * std::cos(u * 3.2f + v * 2.7f), 0.0f, 1.0f);
+                const float patch = 0.5f + 0.5f * std::sin(u * 10.0f + v * 7.0f + static_cast<float>((x * 19 + y * 31) % 23));
+                const float clover = 0.5f + 0.5f * std::sin(u * 24.0f + v * 19.0f + static_cast<float>((x * 11 + y * 13) % 17));
+
+                glm::vec3 color(0.15f, 0.30f, 0.11f);
+                color = glm::mix(color, glm::vec3(0.21f, 0.40f, 0.17f), blade * 0.72f);
+                color = glm::mix(color, glm::vec3(0.12f, 0.24f, 0.09f), clump * 0.52f);
+                color = glm::mix(color, glm::vec3(0.24f, 0.43f, 0.18f), patch * 0.34f);
+                color += glm::vec3(0.03f, 0.05f, 0.02f) * moisture;
+                color -= glm::vec3(0.05f, 0.03f, 0.02f) * dirt;
+                color += glm::vec3(0.02f, 0.04f, 0.02f) * clover;
+                color += glm::vec3(0.02f, 0.03f, 0.02f) * (0.5f + 0.5f * std::sin(u * 112.0f + v * 67.0f));
+
+                const size_t index = static_cast<size_t>((y * width + x) * 4);
+                pixels[index + 0] = static_cast<unsigned char>(glm::clamp(color.r, 0.0f, 1.0f) * 255.0f);
+                pixels[index + 1] = static_cast<unsigned char>(glm::clamp(color.g, 0.0f, 1.0f) * 255.0f);
+                pixels[index + 2] = static_cast<unsigned char>(glm::clamp(color.b, 0.0f, 1.0f) * 255.0f);
+                pixels[index + 3] = 255;
+            }
+        }
+
+        glGenTextures(1, &texture);
+        glBindTexture(GL_TEXTURE_2D, texture);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+        glGenerateMipmap(GL_TEXTURE_2D);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    }
+    return texture;
+}
+
 GLuint GetGrassTexture() {
     static GLuint texture = 0;
     if (texture != 0) {
         return texture;
     }
+
+    // Prefer loaded grass texture if available
+    texture = LoadGrassTexture();
+    if (texture != 0) return texture;
 
     texture = CreateTerrainTexture(256, 256, glm::vec3(0.15f, 0.30f, 0.11f), glm::vec3(0.24f, 0.43f, 0.18f), 78.0f, 14.0f);
     return texture;

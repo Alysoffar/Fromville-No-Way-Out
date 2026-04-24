@@ -3,9 +3,13 @@
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
+#include <iostream>
+#include <functional>
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
+#include <assimp/Importer.hpp>
+#include <assimp/postprocess.h>
 
 namespace {
 
@@ -162,45 +166,51 @@ SkeletalAnimator::SkeletalAnimator(Model* model)
 }
 
 void SkeletalAnimator::LoadAnimation(const std::string& name, int animationIndex) {
-	if (!model || !model->scene) {
-		throw std::runtime_error("Cannot load animation without a loaded model scene.");
+	if (model) {
+		const aiScene* scene = model->scene;
+		if (scene && scene->mNumAnimations > 0) {
+			animations[name] = LoadAnimationFromAssimp(scene, animationIndex);
+		}
 	}
+}
 
-	Animation animation = LoadAnimationFromAssimp(model->scene, animationIndex);
+void SkeletalAnimator::LoadAnimationFromFile(const std::string& name, const std::string& path, int animationIndex) {
+	Assimp::Importer animationImporter;
+	const aiScene* scene = animationImporter.ReadFile(path, aiProcess_Triangulate | aiProcess_LimitBoneWeights);
+	if (!scene) {
+		std::cerr << "Failed to load animation file: " << path << " (" << animationImporter.GetErrorString() << ")\n";
+		return;
+	}
+	Animation animation = LoadAnimationFromAssimp(scene, animationIndex);
 	animation.name = name;
 	animations[name] = std::move(animation);
+	std::cout << "[anim] Loaded animation from file: " << path << " as " << name << "\n";
 }
 
 void SkeletalAnimator::PlayAnimation(const std::string& name, bool loop) {
 	auto it = animations.find(name);
-	if (it == animations.end()) {
-		throw std::runtime_error("Animation not loaded: " + name);
+	if (it != animations.end()) {
+		if (currentAnim != &it->second) {
+			std::cout << "[anim] Playing animation: " << name << " (loop: " << loop << ")\n";
+			currentAnim = &it->second;
+		}
+		currentTime = 0.0f;
+		looping = loop;
+		blendTargetAnim = nullptr;
+		blendTime = 0.0f;
+		blendDuration = 0.0f;
+	} else {
+		std::cerr << "[anim] Failed to find animation: " << name << "\n";
 	}
-
-	currentAnim = &it->second;
-	currentTime = 0.0f;
-	looping = loop;
-	blendTargetAnim = nullptr;
-	blendTime = 0.0f;
-	blendDuration = 0.0f;
 }
 
 void SkeletalAnimator::BlendTo(const std::string& name, float duration) {
 	auto it = animations.find(name);
-	if (it == animations.end()) {
-		throw std::runtime_error("Blend target animation not loaded: " + name);
+	if (it != animations.end() && it->second.duration > 0.0f) {
+		blendTargetAnim = &it->second;
+		blendTime = 0.0f;
+		blendDuration = std::max(duration, 0.0001f);
 	}
-
-	if (!currentAnim) {
-		currentAnim = &it->second;
-		currentTime = 0.0f;
-		blendTargetAnim = nullptr;
-		return;
-	}
-
-	blendTargetAnim = &it->second;
-	blendTime = 0.0f;
-	blendDuration = std::max(duration, 0.0001f);
 }
 
 void SkeletalAnimator::Update(float deltaTime) {
@@ -220,7 +230,7 @@ void SkeletalAnimator::Update(float deltaTime) {
 		const float rawB = currentTime * (ticksPerSecondB / ticksPerSecondA);
 		const float timeB = WrapAnimationTime(rawB, blendTargetAnim, true);
 
-		BlendBoneTransform(&currentAnim->rootNode, glm::mat4(1.0f), timeA, timeB, blend);
+		CalculateBoneTransform(&currentAnim->rootNode, glm::mat4(1.0f), timeA, timeB, blend);
 
 		if (blend >= 1.0f) {
 			currentAnim = blendTargetAnim;
@@ -230,8 +240,8 @@ void SkeletalAnimator::Update(float deltaTime) {
 			blendDuration = 0.0f;
 		}
 	} else {
-		const float animTime = WrapAnimationTime(currentTime, currentAnim, looping);
-		CalculateBoneTransform(&currentAnim->rootNode, glm::mat4(1.0f), animTime, currentAnim);
+		const float time = WrapAnimationTime(currentTime, currentAnim, looping);
+		CalculateBoneTransform(&currentAnim->rootNode, glm::mat4(1.0f), time, currentAnim);
 	}
 }
 
@@ -242,7 +252,16 @@ void SkeletalAnimator::UploadToUBO() {
 		0,
 		static_cast<GLsizeiptr>(finalBoneMatrices.size() * sizeof(glm::mat4)),
 		finalBoneMatrices.data());
+	glBindBufferBase(GL_UNIFORM_BUFFER, 0, boneUBO);
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
+}
+
+float SkeletalAnimator::GetAnimationDuration(const std::string& name) const {
+	auto it = animations.find(name);
+	if (it != animations.end()) {
+		return it->second.duration;
+	}
+	return 0.0f;
 }
 
 bool SkeletalAnimator::IsPlaying(const std::string& name) const {
@@ -275,9 +294,9 @@ void SkeletalAnimator::CalculateBoneTransform(const AssimpNodeData* node, glm::m
 	}
 }
 
-glm::mat4 SkeletalAnimator::BlendBoneTransform(const AssimpNodeData* node, glm::mat4 parentTransform, float timeA, float timeB, float blend) {
+void SkeletalAnimator::CalculateBoneTransform(const AssimpNodeData* node, glm::mat4 parentTransform, float timeA, float timeB, float blend) {
 	if (!node || !currentAnim || !blendTargetAnim || !model) {
-		return parentTransform;
+		return;
 	}
 
 	glm::mat4 localA = node->transformation;
@@ -302,10 +321,8 @@ glm::mat4 SkeletalAnimator::BlendBoneTransform(const AssimpNodeData* node, glm::
 	}
 
 	for (const AssimpNodeData& child : node->children) {
-		BlendBoneTransform(&child, globalTransform, timeA, timeB, blend);
+		CalculateBoneTransform(&child, globalTransform, timeA, timeB, blend);
 	}
-
-	return globalTransform;
 }
 
 Animation SkeletalAnimator::LoadAnimationFromAssimp(const aiScene* scene, int index) {
@@ -335,6 +352,13 @@ Animation SkeletalAnimator::LoadAnimationFromAssimp(const aiScene* scene, int in
 
 		BoneAnimation boneAnim;
 		boneAnim.name = channel->mNodeName.C_Str();
+		size_t mixamoPos = boneAnim.name.find("mixamorig");
+		if (mixamoPos != std::string::npos) {
+			size_t sepPos = boneAnim.name.find_first_of(":_", mixamoPos);
+			if (sepPos != std::string::npos) {
+				boneAnim.name = boneAnim.name.substr(sepPos + 1);
+			}
+		}
 
 		const auto it = model->boneInfoMap.find(boneAnim.name);
 		boneAnim.id = (it != model->boneInfoMap.end()) ? it->second.id : -1;
@@ -359,6 +383,21 @@ Animation SkeletalAnimator::LoadAnimationFromAssimp(const aiScene* scene, int in
 	}
 
 	CopyNodeHierarchy(out.rootNode, scene->mRootNode);
+
+	std::cout << "Loaded animation: " << out.name 
+			  << " Duration: " << out.duration 
+			  << " TicksPerSecond: " << out.ticksPerSecond << "\n";
+
+	std::function<void(const AssimpNodeData&, int)> printNode = [&](const AssimpNodeData& node, int depth) {
+		for (int i = 0; i < depth; ++i) std::cout << "  ";
+		std::cout << node.name << "\n";
+		for (const auto& child : node.children) {
+			printNode(child, depth + 1);
+		}
+	};
+	std::cout << "Animation Hierarchy for " << out.name << ":\n";
+	printNode(out.rootNode, 0);
+
 	return out;
 }
 
@@ -368,6 +407,13 @@ void SkeletalAnimator::CopyNodeHierarchy(AssimpNodeData& dest, const aiNode* src
 	}
 
 	dest.name = src->mName.C_Str();
+	size_t mixamoPos = dest.name.find("mixamorig");
+	if (mixamoPos != std::string::npos) {
+		size_t sepPos = dest.name.find_first_of(":_", mixamoPos);
+		if (sepPos != std::string::npos) {
+			dest.name = dest.name.substr(sepPos + 1);
+		}
+	}
 	dest.transformation = AssimpToGlm(src->mTransformation);
 	dest.children.clear();
 	dest.children.reserve(src->mNumChildren);
@@ -381,10 +427,10 @@ void SkeletalAnimator::CopyNodeHierarchy(AssimpNodeData& dest, const aiNode* src
 
 glm::mat4 SkeletalAnimator::AssimpToGlm(const aiMatrix4x4& m) {
 	glm::mat4 out(1.0f);
-	out[0][0] = m.a1; out[0][1] = m.a2; out[0][2] = m.a3; out[0][3] = m.a4;
-	out[1][0] = m.b1; out[1][1] = m.b2; out[1][2] = m.b3; out[1][3] = m.b4;
-	out[2][0] = m.c1; out[2][1] = m.c2; out[2][2] = m.c3; out[2][3] = m.c4;
-	out[3][0] = m.d1; out[3][1] = m.d2; out[3][2] = m.d3; out[3][3] = m.d4;
+	out[0][0] = m.a1; out[1][0] = m.a2; out[2][0] = m.a3; out[3][0] = m.a4;
+	out[0][1] = m.b1; out[1][1] = m.b2; out[2][1] = m.b3; out[3][1] = m.b4;
+	out[0][2] = m.c1; out[1][2] = m.c2; out[2][2] = m.c3; out[3][2] = m.c4;
+	out[0][3] = m.d1; out[1][3] = m.d2; out[2][3] = m.d3; out[3][3] = m.d4;
 	return out;
 }
 
@@ -395,4 +441,3 @@ glm::quat SkeletalAnimator::AssimpToGlm(const aiQuaternion& q) {
 glm::vec3 SkeletalAnimator::AssimpToGlm(const aiVector3D& v) {
 	return glm::vec3(v.x, v.y, v.z);
 }
-

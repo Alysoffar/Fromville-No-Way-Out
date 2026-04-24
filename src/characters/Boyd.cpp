@@ -42,6 +42,7 @@ NPCPlaceholder* FindNearestNpc(const glm::vec3& /*position*/, float /*radius*/) 
 
 Boyd::Boyd() {
 	name = "Boyd";
+	scaleMultiplier = 0.01f;
 }
 
 void Boyd::Update(float dt) {
@@ -82,6 +83,11 @@ void Boyd::Update(float dt) {
 			}
 		}
 	}
+
+	UpdateAnimationState();
+	if (animator) {
+		animator->Update(dt);
+	}
 }
 
 void Boyd::HandleInput(InputManager& input, Camera& camera) {
@@ -108,4 +114,3 @@ PostFXState Boyd::GetPostFXState() const {
 	state.vignetteStrength = 0.3f + (1.0f - stats.health / std::max(stats.maxHealth, 0.0001f)) * 0.4f;
 	return state;
 }
-

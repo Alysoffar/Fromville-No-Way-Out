@@ -108,6 +108,21 @@ void Renderer::SetupQuad() {
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
 }
 
+void Renderer::DrawOverlay(GLuint textureID) {
+    if (!uiShader) return;
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    uiShader->Bind();
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    uiShader->SetInt("overlay", 0);
+    DrawQuad();
+    uiShader->Unbind();
+    glEnable(GL_DEPTH_TEST);
+    glDisable(GL_BLEND);
+}
+
 void Renderer::DrawQuad() {
     glBindVertexArray(quadVAO);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -209,6 +224,8 @@ void Renderer::BeginGeometryPass() {
     }
     gBuffer->Bind();
     glViewport(0, 0, width, height);
+    glEnable(GL_DEPTH_TEST); // Ensure depth testing is on
+    glEnable(GL_CULL_FACE);  // Re-enable culling for geometry
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
@@ -240,6 +257,7 @@ void Renderer::SSAOPass() {
 
     glBindFramebuffer(GL_FRAMEBUFFER, ssaoFBO);
     glViewport(0, 0, width, height);
+    glDisable(GL_CULL_FACE); // Fullscreen passes don't need culling
     glClear(GL_COLOR_BUFFER_BIT);
 
     ssaoShader->Bind();
@@ -285,6 +303,7 @@ void Renderer::LightingPass(DayNightCycle& dayNight, Camera& camera) {
 
     glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
     glViewport(0, 0, width, height);
+    glDisable(GL_CULL_FACE); // Fullscreen passes don't need culling
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     lightingShader->Bind();
 

@@ -81,6 +81,27 @@ void CreatureAI::SpawnCreature(glm::vec3 position, std::vector<glm::vec3> patrol
 	c.patrolPath = std::move(patrolPath);
 	c.state = IsNight(dayNight) ? CreatureState::PATROL : CreatureState::DORMANT;
 	creatures.push_back(std::move(c));
+	Creature& newCreature = creatures.back();
+
+	// Problem 1: Load Models and Animators for the zombie
+	try {
+		newCreature.monsterModel = new Model("assets/models/zombie/Idle.dae");
+		newCreature.monsterAnimator = new SkeletalAnimator(newCreature.monsterModel);
+		
+		// Load animations and log durations
+		newCreature.monsterAnimator->LoadAnimationFromFile(Anim::IDLE, "assets/models/zombie/Idle.dae");
+		newCreature.monsterAnimator->LoadAnimationFromFile(Anim::WALK, "assets/models/zombie/Walking.dae");
+		newCreature.monsterAnimator->LoadAnimationFromFile(Anim::RUN, "assets/models/zombie/Walking.dae"); // Fallback
+		newCreature.monsterAnimator->LoadAnimationFromFile(Anim::ATTACK, "assets/models/zombie/Idle.dae"); // Fallback
+		
+		std::printf("[spawn] Creature %d spawned.\n", newCreature.id);
+		std::printf("  - idle: %.2f ticks\n", newCreature.monsterAnimator->GetAnimationDuration(Anim::IDLE));
+		std::printf("  - walk: %.2f ticks\n", newCreature.monsterAnimator->GetAnimationDuration(Anim::WALK));
+		std::printf("  - run: %.2f ticks\n", newCreature.monsterAnimator->GetAnimationDuration(Anim::RUN));
+		std::printf("  - attack: %.2f ticks\n", newCreature.monsterAnimator->GetAnimationDuration(Anim::ATTACK));
+	} catch (const std::exception& e) {
+		std::printf("[spawn] Failed to load zombie model for creature %d: %s\n", newCreature.id, e.what());
+	}
 }
 
 void CreatureAI::Update(float dt, std::vector<Character*>& players, std::vector<NPC*>& npcs) {
@@ -105,12 +126,33 @@ void CreatureAI::Update(float dt, std::vector<Character*>& players, std::vector<
 			UpdateRetreat(c, dt);
 			break;
 		}
+
+		// Problem 9: Attack animation timer return
+		if (c.attackAnimTimer > 0.0f) {
+			c.attackAnimTimer -= dt;
+			if (c.attackAnimTimer <= 0.0f) {
+				c.monsterAnimator->BlendTo(Anim::RUN, 0.15f);
+			}
+		}
+
+		// Problem 1: Update and Upload Animator
+		if (c.monsterAnimator) {
+			c.monsterAnimator->Update(dt);
+			c.monsterAnimator->UploadToUBO();
+		}
 	}
 }
 
 void CreatureAI::DrawAll(Renderer& renderer) {
-	(void)renderer;
-	// Render integration will submit creatures to renderer command list.
+	for (const Creature& c : creatures) {
+		if (c.monsterModel) {
+			// Submit to renderer... assuming we have a way to set the model matrix and shader
+			// For now, we'll need a shader and the renderer to handle it.
+			// Actually, let's just make sure they are updated. 
+			// In this project, the actual drawing usually happens in the main loop or Game::Render
+			// by accessing the creatures list.
+		}
+	}
 }
 
 void CreatureAI::NotifyPlayerAction(int playerId, std::string action, glm::vec3 atPos) {
@@ -177,6 +219,15 @@ void CreatureAI::UpdatePatrol(Creature& c, float dt, std::vector<Character*>& pl
 		}
 		if (dist < 0.5f) {
 			c.patrolWaypointIndex = (c.patrolWaypointIndex + 1) % static_cast<int>(c.patrolPath.size());
+		}
+
+		// Problem 3: Animation State Switching
+		if (c.monsterAnimator && !c.monsterAnimator->IsPlaying(Anim::WALK)) {
+			c.monsterAnimator->PlayAnimation(Anim::WALK, true);
+		}
+	} else {
+		if (c.monsterAnimator && !c.monsterAnimator->IsPlaying(Anim::IDLE)) {
+			c.monsterAnimator->PlayAnimation(Anim::IDLE, true);
 		}
 	}
 
@@ -256,9 +307,18 @@ void CreatureAI::UpdateHunt(Creature& c, float dt, std::vector<Character*>& play
 	MoveAlongPath(c, 6.0f, dt);
 	HandleTransform(c, dt, true);
 
-	if (glm::distance(c.position, target->position) <= 1.5f) {
+	// Problem 3: Animation State Switching (HUNT -> RUN)
+	if (c.monsterAnimator && !c.monsterAnimator->IsPlaying(Anim::RUN)) {
+		c.monsterAnimator->PlayAnimation(Anim::RUN, true);
+	}
+
+	if (glm::distance(c.position, target->position) <= 2.0f) { // Increased range for visual hit
 		DealDamageToPlayer(target, 25.0f);
 		// Attack animation hook point.
+		if (c.monsterAnimator && !c.monsterAnimator->IsPlaying(Anim::ATTACK)) {
+			c.monsterAnimator->PlayAnimation(Anim::ATTACK, false);
+			c.attackAnimTimer = c.monsterAnimator->GetAnimationDuration(Anim::ATTACK);
+		}
 	}
 }
 
@@ -323,8 +383,13 @@ bool CreatureAI::CanSeePlayer(const Creature& c, const Character* player) const 
 	}
 
 	const float fovHalf = glm::radians(30.0f);
+	const glm::vec3 toPlayerFlat(toPlayer.x, 0.0f, toPlayer.z);
+	const float flatDist = glm::length(toPlayerFlat);
+	if (flatDist < 0.001f) {
+		return true; // Already on top of player
+	}
 	const glm::vec3 forward(std::sin(c.facingAngle), 0.0f, std::cos(c.facingAngle));
-	const float facing = glm::dot(glm::normalize(glm::vec3(toPlayer.x, 0.0f, toPlayer.z)), glm::normalize(forward));
+	const float facing = glm::dot(toPlayerFlat / flatDist, forward);
 	if (facing < std::cos(fovHalf)) {
 		return false;
 	}
@@ -395,6 +460,16 @@ void CreatureAI::TransitionTo(Creature& c, CreatureState newState) {
 	c.pathRefreshTimer = 0.0f;
 	c.pathIndex = 0;
 	c.currentPath.clear();
+
+	// Problem 3: Animation Blending on state transition
+	if (c.monsterAnimator) {
+		const char* animName = Anim::IDLE;
+		if (newState == CreatureState::PATROL) animName = Anim::WALK;
+		else if (newState == CreatureState::HUNT) animName = Anim::RUN;
+		else if (newState == CreatureState::SEARCH) animName = Anim::WALK;
+		
+		c.monsterAnimator->BlendTo(animName, 0.2f);
+	}
 
 	if (newState != CreatureState::WHISPER) {
 		c.whisperTarget = nullptr;

@@ -67,9 +67,12 @@ private:
     std::unique_ptr<HUD>              hud;
 
     bool isPaused = false;
+    bool isDead = false;
+    std::string deadCharacterName;
 
     void Update(float dt);
     void Render();
     void HandleGlobalInput();
+    void TriggerDeathScreen(const std::string& characterName);
     HUDState BuildHUDState() const;
 };

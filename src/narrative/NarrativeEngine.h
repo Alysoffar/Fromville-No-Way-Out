@@ -22,6 +22,7 @@ class Victor;
 class NarrativeEngine {
 public:
     NarrativeEngine(QuestLog* quests, EventBus* bus);
+    ~NarrativeEngine();
 
     // -----------------------------------------------------------------------
     // Lifecycle

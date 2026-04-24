@@ -7,6 +7,7 @@
 #include "renderer/ProceduralClothing.h"
 #include "renderer/FaceDetailGenerator.h"
 #include "renderer/AnimationNames.h"
+#include "core/EventBus.h"
 
 Character::~Character() {
 	delete proceduralHumanoid;
@@ -59,7 +60,13 @@ void Character::TakeDamage(float amount) {
 	}
 
 	stats.health = std::max(0.0f, stats.health - amount);
-	state = (stats.health <= 0.0f) ? CharacterState::DEAD : CharacterState::HURT;
+	if (stats.health <= 0.0f && state != CharacterState::DEAD) {
+		state = CharacterState::DEAD;
+		EventBus::Get().Fire(GameEvent::PLAYER_DIED, {{"character", name}});
+	} else if (stats.health > 0.0f) {
+		state = CharacterState::HURT;
+	}
+
 	if (state == CharacterState::DEAD) {
 		currentNoiseRadius = 0.0f;
 	}

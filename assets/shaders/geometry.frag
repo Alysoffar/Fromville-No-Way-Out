@@ -21,17 +21,18 @@ uniform bool hasNormalMap;
 uniform bool hasEmissiveMap;
 
 void main() {
+	vec2 uv = clamp(TexCoords, 0.001, 0.999);
 	vec3 normal = normalize(Normal);
 	if (hasNormalMap) {
-		vec3 tangentNormal = texture(normalMap, TexCoords).xyz * 2.0 - 1.0;
+		vec3 tangentNormal = texture(normalMap, uv).xyz * 2.0 - 1.0;
 		normal = normalize(TBN * tangentNormal);
 	}
 
-	vec4 albedo = texture(albedoMap, TexCoords);
-	float roughness = texture(roughnessMap, TexCoords).r;
+	vec4 albedo = texture(albedoMap, uv);
+	float roughness = texture(roughnessMap, uv).r;
 	vec3 emissive = vec3(0.0);
 	if (hasEmissiveMap) {
-		emissive = texture(emissiveMap, TexCoords).rgb * 2.0;
+		emissive = texture(emissiveMap, uv).rgb * 2.0;
 	}
 
 	gPosition = FragPos;

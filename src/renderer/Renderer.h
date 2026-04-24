@@ -28,6 +28,7 @@ public:
     void SSAOPass();
     void LightingPass(DayNightCycle& dayNight, Camera& camera);
     void PostProcessPass(struct PostFXState state);
+    void DrawOverlay(GLuint textureID);
     void Resize(int w, int h);
     float GetAspectRatio() const { return height == 0 ? 1.0f : static_cast<float>(width) / static_cast<float>(height); }
 
@@ -59,4 +60,5 @@ private:
     std::unique_ptr<Shader> ssaoShader, ssaoBlurShader;
     std::unique_ptr<Shader> lightingShader;
     std::unique_ptr<Shader> postShader;
+    std::unique_ptr<Shader> uiShader;
 };

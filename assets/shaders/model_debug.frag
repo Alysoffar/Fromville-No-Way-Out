@@ -14,18 +14,21 @@ uniform sampler2D emissiveMap;
 uniform bool hasNormalMap;
 uniform bool hasEmissiveMap;
 uniform vec3 tintColor;
+uniform vec3 lightDir;
+uniform vec3 lightColor;
+uniform vec3 ambientColor;
 
 void main() {
     vec3 base = texture(albedoMap, TexCoords).rgb;
     if (base == vec3(0.0)) {
-        base = tintColor;
+        base = vec3(1.0); // Use white if no texture, multiply by tint later
     }
 
     vec3 n = normalize(Normal);
-    vec3 lightDir = normalize(vec3(-0.35, 0.8, -0.25));
-    float ndl = max(dot(n, lightDir), 0.15);
+    float ndl = max(dot(n, lightDir), 0.0);
 
-    vec3 color = base * tintColor * ndl;
+    vec3 diffuse = base * tintColor * (ambientColor + lightColor * ndl);
+    vec3 color = diffuse;
     if (hasEmissiveMap) {
         color += texture(emissiveMap, TexCoords).rgb * 0.5;
     }

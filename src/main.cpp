@@ -31,6 +31,12 @@
 #include "renderer/Shader.h"
 #include "world/DayNightCycle.h"
 #include "world/WorldBuilder.h"
+#include "renderer/AnimationNames.h"
+#include "renderer/Texture.h"
+
+GLuint LoadTexture(const char* path) {
+    return Texture::Load(path);
+}
 
 int RunNarrativeTests();
 
@@ -268,6 +274,14 @@ int main() {
         return 1;
     }
 
+    Shader modelShader("Model");
+    try {
+        modelShader.Load("assets/shaders/geometry.vert", "assets/shaders/geometry.frag");
+    } catch (const std::exception& e) {
+        std::fprintf(stderr, "Failed to load model shader: %s\n", e.what());
+        return 1;
+    }
+
     DayNightCycle& dayNight = DayNightCycle::Get();
     dayNight.SetLoopPhase(GameLoopPhase::Explore);
     dayNight.SetCycleDurationSeconds(12.0f * 60.0f);
@@ -283,8 +297,35 @@ int main() {
     characters.emplace_back(std::make_unique<Sara>());
 
     for (auto& character : characters) {
-        AttachProceduralAppearance(*character);
+        if (character->GetCharacterName() == "Boyd") {
+            character->name = "Adam";
+            try {
+                character->model = new Model("assets/models/Adam animations/Idle.dae");
+                character->animator = new SkeletalAnimator(character->model);
+                character->animator->LoadAnimationFromFile(Anim::WALK, "assets/models/Adam animations/Walking.dae");
+                character->animator->LoadAnimationFromFile(Anim::IDLE, "assets/models/Adam animations/Idle.dae");
+                character->animator->LoadAnimationFromFile(Anim::RUN, "assets/models/Adam animations/Running.dae");
+            } catch (const std::exception& e) {
+                std::fprintf(stderr, "Failed to load Adam model/animations: %s\n", e.what());
+            }
+        } else {
+            character->name = "Zombie";
+            character->scaleMultiplier = 0.01f;
+            try {
+                character->model = new Model("assets/models/zombie/Idle.dae");
+                character->animator = new SkeletalAnimator(character->model);
+                character->animator->LoadAnimationFromFile(Anim::WALK, "assets/models/zombie/Walking.dae");
+                character->animator->LoadAnimationFromFile(Anim::IDLE, "assets/models/zombie/Idle.dae");
+                character->animator->LoadAnimationFromFile(Anim::RUN, "assets/models/zombie/Walking.dae");
+            } catch (const std::exception& e) {
+                std::fprintf(stderr, "Failed to load zombie model: %s\n", e.what());
+                AttachProceduralAppearance(*character);
+            }
+        }
     }
+
+    GLuint deathTexture = LoadTexture("assets/textures/you_died.png");
+    bool isGameOver = false;
 
     const std::array<glm::vec2, 5> showcaseSpots = {{
         {-18.0f, -12.0f},
@@ -348,6 +389,17 @@ int main() {
             glfwSetWindowShouldClose(window.GetHandle(), GLFW_TRUE);
         }
 
+        if (isGameOver && glfwGetKey(window.GetHandle(), GLFW_KEY_R) == GLFW_PRESS) {
+            isGameOver = false;
+            for (auto& character : characters) {
+                character->stats.health = character->stats.maxHealth;
+                character->state = CharacterState::IDLE;
+                character->position.x = 0.0f; // Reset to a safe spot
+                character->position.z = 0.0f;
+            }
+            camera.Reset(characters[static_cast<std::size_t>(activeCharacterIndex)]->position);
+        }
+
         if (window.GetWidth() != lastWidth || window.GetHeight() != lastHeight) {
             lastWidth = window.GetWidth();
             lastHeight = window.GetHeight();
@@ -402,8 +454,10 @@ int main() {
 
         dayNight.Update(dt);
 
-        UpdateCameraOrbit(camera, window.GetHandle(), dt, firstMouse, lastMouseX, lastMouseY);
-        UpdateActiveCharacter(*characters[static_cast<std::size_t>(activeCharacterIndex)], camera, window.GetHandle(), dt);
+        if (!isGameOver) {
+            UpdateCameraOrbit(camera, window.GetHandle(), dt, firstMouse, lastMouseX, lastMouseY);
+            UpdateActiveCharacter(*characters[static_cast<std::size_t>(activeCharacterIndex)], camera, window.GetHandle(), dt);
+        }
 
         if (ConsumePress(window.GetHandle(), GLFW_KEY_SPACE, spacePrev)) {
             camera.Reset(characters[static_cast<std::size_t>(activeCharacterIndex)]->position);
@@ -412,9 +466,24 @@ int main() {
         for (std::size_t i = 0; i < characters.size(); ++i) {
             Character& character = *characters[i];
             character.Update(dt);
+            character.UpdateAnimationState(); // Ensure animations are updated
             character.position.y = world.GetHeightAt(character.position.x, character.position.z) - RootHeightBias(character);
             if (static_cast<int>(i) != activeCharacterIndex && character.state != CharacterState::DEAD) {
-                character.state = CharacterState::IDLE;
+                // Zombie AI
+                glm::vec3 toPlayer = activeCharacter.position - character.position;
+                float dist = glm::length(toPlayer);
+                if (dist < 15.0f && !isGameOver) {
+                    character.state = CharacterState::WALKING;
+                    glm::vec3 dir = dist > 0.001f ? toPlayer / dist : glm::vec3(0.0f, 0.0f, 1.0f);
+                    character.facingAngle = LerpAngle(character.facingAngle, std::atan2(dir.x, dir.z), 10.0f * dt);
+                    character.position += dir * 1.5f * dt;
+                    if (dist < 2.0f && !isGameOver) {
+                        // isGameOver = true;
+                        // std::printf("[game] PLAYER DIED - Game Over triggered (dist: %.2f)\n", dist);
+                    }
+                } else {
+                    character.state = CharacterState::IDLE;
+                }
             }
         }
 
@@ -445,9 +514,23 @@ int main() {
             glm::mat4 root(1.0f);
             root = glm::translate(root, character.position + glm::vec3(0.0f, bob, 0.0f));
             root = glm::rotate(root, character.facingAngle, glm::vec3(0.0f, 1.0f, 0.0f));
+            root = glm::scale(root, glm::vec3(character.scaleMultiplier));
 
             ProceduralHumanoid* humanoid = character.GetProceduralHumanoid();
             if (!humanoid) {
+                if (character.model) {
+                    characterShader.Unbind();
+                    modelShader.Bind();
+                    modelShader.SetMat4("view", view);
+                    modelShader.SetMat4("projection", projection);
+                    modelShader.SetMat4("model", root);
+                    if (character.animator) {
+                        character.animator->UploadToUBO();
+                    }
+                    character.model->Draw(modelShader);
+                    modelShader.Unbind();
+                    characterShader.Bind();
+                }
                 continue;
             }
 
@@ -473,7 +556,10 @@ int main() {
         renderer.ShadowPass(emptyCommands, dayNight.GetSunDirection());
         renderer.SSAOPass();
         renderer.LightingPass(dayNight, camera);
-        renderer.PostProcessPass(PostFXState{});
+        renderer.PostProcessPass(followedCharacter.GetPostFXState());
+        if (isGameOver) {
+            renderer.DrawOverlay(deathTexture);
+        }
 
         window.SwapBuffers();
     }

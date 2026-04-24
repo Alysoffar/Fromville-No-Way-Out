@@ -13,6 +13,7 @@ public:
 	void PollEvents();
 	void SwapBuffers();
 	bool ShouldClose() const;
+	void Close();
 	void SetVSync(bool enabled);
 	float GetAspectRatio() const;
 	int GetWidth() const;

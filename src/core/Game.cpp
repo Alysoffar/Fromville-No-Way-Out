@@ -108,6 +108,13 @@ bool Game::Init() {
         characterManager->SetActiveCharacter("Boyd");
     }
 
+    eventBus->Subscribe(GameEvent::PLAYER_DIED, [this](const EventData& e) {
+        auto it = e.payload.find("character");
+        if (it != e.payload.end()) {
+            TriggerDeathScreen(std::get<std::string>(it->second));
+        }
+    });
+
     return true;
 }
 
@@ -211,6 +218,10 @@ void Game::Render() {
 
     hud->Draw();
 
+    if (isDead) {
+        hud->DrawDeathScreen(deadCharacterName);
+    }
+
     if (dialogueSystem->IsActive()) {
         dialogueSystem->Draw(*renderer);
     }
@@ -218,6 +229,22 @@ void Game::Render() {
 }
 
 void Game::HandleGlobalInput() {
+    if (isDead) {
+        if (input->IsKeyPressed(GLFW_KEY_R)) {
+            std::vector<NPC*> npcRawPtrs;
+            for (auto& npc : npcs) npcRawPtrs.push_back(npc.get());
+            if (saveSystem->LoadGame("autosave", *characterManager, *narrativeEngine, *world, *dayNight, npcRawPtrs)) {
+                isDead = false;
+                isPaused = false;
+                input->SetCursorLocked(true);
+            }
+        }
+        if (input->IsKeyPressed(GLFW_KEY_ESCAPE)) {
+            window->Close();
+        }
+        return;
+    }
+
     if (input->IsKeyPressed(GLFW_KEY_ESCAPE)) {
         isPaused = !isPaused;
         input->SetCursorLocked(!isPaused);
@@ -235,6 +262,13 @@ void Game::HandleGlobalInput() {
     if (input->IsKeyPressed(GLFW_KEY_F3)) {
         // Toggle debug renderer (NavMesh wireframe, creature detection cones)
     }
+}
+
+void Game::TriggerDeathScreen(const std::string& characterName) {
+    isDead = true;
+    // isPaused = true;
+    deadCharacterName = characterName;
+    input->SetCursorLocked(false);
 }
 
 HUDState Game::BuildHUDState() const {

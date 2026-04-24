@@ -338,6 +338,7 @@ static void Test_NarrativeEngine_NPCDied() {
     NarrativeEngine engine(&log, &bus);
 
     Sara sara;
+    sara.redemptionScore = 50.0f;
     Victor victor;
     victor.talismansCarried = 3;
     std::vector<Character*> chars = { &sara, &victor };

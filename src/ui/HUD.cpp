@@ -12,6 +12,7 @@ HUD::~HUD() {
     if (quadVAO) glDeleteVertexArrays(1, &quadVAO);
     if (quadVBO) glDeleteBuffers(1, &quadVBO);
     if (hudShader) delete hudShader;
+    if (colorShader) delete colorShader;
 }
 
 void HUD::Init(Renderer* renderer) {
@@ -82,6 +83,13 @@ void HUD::Init(Renderer* renderer) {
     } catch(...) {
         std::cerr << "HUD: Failed to load text shader" << std::endl;
     }
+
+    colorShader = new Shader("Color");
+    try {
+        colorShader->Load("assets/shaders/color.vert", "assets/shaders/color.frag");
+    } catch(...) {
+        std::cerr << "HUD: Failed to load color shader" << std::endl;
+    }
 }
 
 void HUD::Update(float deltaTime, HUDState state) {
@@ -134,6 +142,57 @@ void HUD::Draw() {
 
     glEnable(GL_DEPTH_TEST);
     glDisable(GL_BLEND);
+}
+
+void HUD::DrawDeathScreen(const std::string& characterName) {
+    if (!renderer || !hudShader || !colorShader) return;
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDisable(GL_DEPTH_TEST);
+
+    glm::mat4 projection = glm::ortho(0.0f, 1280.0f, 0.0f, 720.0f);
+
+    // 1. Draw full-screen dark overlay
+    colorShader->Bind();
+    colorShader->SetMat4("projection", projection);
+    colorShader->SetVec4("color", glm::vec4(0.0f, 0.0f, 0.0f, 0.7f));
+    
+    float quadVertices[6][4] = {
+        { 0.0f,    720.0f, 0.0f, 0.0f },
+        { 0.0f,    0.0f,   0.0f, 0.0f },
+        { 1280.0f, 0.0f,   0.0f, 0.0f },
+        { 0.0f,    720.0f, 0.0f, 0.0f },
+        { 1280.0f, 0.0f,   0.0f, 0.0f },
+        { 1280.0f, 720.0f, 0.0f, 0.0f }
+    };
+    
+    glBindVertexArray(quadVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(quadVertices), quadVertices);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    colorShader->Unbind();
+
+    // 2. Draw Text
+    hudShader->Bind();
+    hudShader->SetMat4("projection", projection);
+    
+    float centerX = 1280.0f / 2.0f;
+    float centerY = 720.0f / 2.0f;
+
+    std::string title = "YOU DIED";
+    std::string nameLine = characterName;
+    std::string prompt = "Press R to restart  |  Press Esc to quit";
+    
+    // Scale 2.0 dark red
+    DrawText(title, centerX - (title.length() * 20.0f), centerY + 100.0f, 2.0f, glm::vec3(0.7f, 0.05f, 0.05f));
+    // Scale 0.8 white
+    DrawText(nameLine, centerX - (nameLine.length() * 8.0f), centerY, 0.8f, glm::vec3(1.0f));
+    // Scale 0.6 grey
+    DrawText(prompt, centerX - (prompt.length() * 6.0f), centerY - 100.0f, 0.6f, glm::vec3(0.6f, 0.6f, 0.6f));
+    
+    hudShader->Unbind();
+    glEnable(GL_DEPTH_TEST);
 }
 
 void HUD::DrawHealthBreathEffect() {

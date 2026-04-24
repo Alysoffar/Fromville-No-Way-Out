@@ -40,6 +40,14 @@ T PayloadGet(const PayloadMap& payload, const std::string& key, T def = T{}) {
 NarrativeEngine::NarrativeEngine(QuestLog* quests, EventBus* bus)
     : questLog_(quests), bus_(bus) {}
 
+NarrativeEngine::~NarrativeEngine() {
+    if (bus_) {
+        for (int id : subscriptionIds_) {
+            bus_->Unsubscribe(id);
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Init — subscribe to all relevant events
 // ---------------------------------------------------------------------------

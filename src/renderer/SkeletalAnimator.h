@@ -49,12 +49,14 @@ class SkeletalAnimator {
 public:
 	explicit SkeletalAnimator(Model* model);
 	void LoadAnimation(const std::string& name, int animationIndex = 0);
+	void LoadAnimationFromFile(const std::string& name, const std::string& path, int animationIndex = 0);
 	void PlayAnimation(const std::string& name, bool loop = true);
 	void BlendTo(const std::string& name, float blendDuration);
 	void Update(float deltaTime);
 	const std::vector<glm::mat4>& GetBoneMatrices() const { return finalBoneMatrices; }
 	void UploadToUBO();
 	bool IsPlaying(const std::string& name) const;
+	float GetAnimationDuration(const std::string& name) const;
 
 private:
 	Model* model;
@@ -69,7 +71,7 @@ private:
 	GLuint boneUBO = 0;
 
 	void CalculateBoneTransform(const AssimpNodeData* node, glm::mat4 parentTransform, float time, Animation* anim);
-	glm::mat4 BlendBoneTransform(const AssimpNodeData* node, glm::mat4 parentTransform, float timeA, float timeB, float blend);
+	void CalculateBoneTransform(const AssimpNodeData* node, glm::mat4 parentTransform, float timeA, float timeB, float blend);
 	Animation LoadAnimationFromAssimp(const aiScene* scene, int index);
 	void CopyNodeHierarchy(AssimpNodeData& dest, const aiNode* src);
 	glm::mat4 AssimpToGlm(const aiMatrix4x4& m);

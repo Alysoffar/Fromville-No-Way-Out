@@ -15,6 +15,7 @@
 #include "world/DayNightCycle.h"
 #include "world/RoadNetwork.h"
 #include "world/Terrain.h"
+#include "renderer/Texture.h"
 
 namespace {
 
@@ -59,19 +60,26 @@ GLuint GetWallTexture() {
         return texture;
     }
 
-    texture = CreatePatternTexture(256, 256, [](int x, int y) {
-        const float u = static_cast<float>(x) / 255.0f;
-        const float v = static_cast<float>(y) / 255.0f;
-        const float rowShift = (static_cast<int>(v * 22.0f) % 2 == 0) ? 0.0f : 0.045f;
-        const float board = std::abs(Fract((u + rowShift) * 8.0f) - 0.5f);
-        const float seam = SmoothStep(0.42f, 0.49f, board);
-        const float grime = glm::clamp(0.18f + 0.55f * std::sin(u * 12.0f + v * 9.0f), 0.0f, 1.0f);
-        glm::vec3 color(0.82f, 0.80f, 0.72f);
-        color *= 0.86f + seam * 0.10f;
-        color -= grime * 0.05f;
-        color += glm::vec3(0.02f, 0.01f, 0.00f) * static_cast<float>((x + y) % 5) * 0.01f;
-        return glm::vec4(color, 1.0f);
-    });
+    texture = Texture::Load("assets/textures/Old_Medieval_Shack_House_/shack_main_diff.png");
+    if (texture == 0) {
+        texture = Texture::Load("assets/textures/house_1_v2 (1).png");
+    }
+    if (texture == 0) {
+        // Fallback to procedural if file missing
+        texture = CreatePatternTexture(256, 256, [](int x, int y) {
+            const float u = static_cast<float>(x) / 255.0f;
+            const float v = static_cast<float>(y) / 255.0f;
+            const float rowShift = (static_cast<int>(v * 22.0f) % 2 == 0) ? 0.0f : 0.045f;
+            const float board = std::abs(Fract((u + rowShift) * 8.0f) - 0.5f);
+            const float seam = SmoothStep(0.42f, 0.49f, board);
+            const float grime = glm::clamp(0.18f + 0.55f * std::sin(u * 12.0f + v * 9.0f), 0.0f, 1.0f);
+            glm::vec3 color(0.82f, 0.80f, 0.72f);
+            color *= 0.86f + seam * 0.10f;
+            color -= grime * 0.05f;
+            color += glm::vec3(0.02f, 0.01f, 0.00f) * static_cast<float>((x + y) % 5) * 0.01f;
+            return glm::vec4(color, 1.0f);
+        });
+    }
     return texture;
 }
 
@@ -176,9 +184,9 @@ void PushQuad(std::vector<WorldSceneVertex>& verts,
     inds.push_back(base + 0);
     inds.push_back(base + 1);
     inds.push_back(base + 2);
+    inds.push_back(base + 0);
     inds.push_back(base + 2);
     inds.push_back(base + 3);
-    inds.push_back(base + 0);
 }
 
 void PushTriangle(std::vector<WorldSceneVertex>& verts,
@@ -196,6 +204,7 @@ void PushTriangle(std::vector<WorldSceneVertex>& verts,
     inds.push_back(base + 2);
 }
 
+
 void PushBox(std::vector<WorldSceneVertex>& verts,
              std::vector<unsigned int>& inds,
              const glm::vec3& center,
@@ -211,12 +220,12 @@ void PushBox(std::vector<WorldSceneVertex>& verts,
     const glm::vec3 p110 = center + glm::vec3( h.x,  h.y, -h.z);
     const glm::vec3 p111 = center + glm::vec3( h.x,  h.y,  h.z);
 
-    PushQuad(verts, inds, p101, p001, p011, p111, glm::vec3(0.0f, 0.0f, 1.0f));
-    PushQuad(verts, inds, p000, p100, p110, p010, glm::vec3(0.0f, 0.0f, -1.0f));
-    PushQuad(verts, inds, p001, p000, p010, p011, glm::vec3(-1.0f, 0.0f, 0.0f));
-    PushQuad(verts, inds, p100, p101, p111, p110, glm::vec3(1.0f, 0.0f, 0.0f));
-    PushQuad(verts, inds, p010, p110, p111, p011, glm::vec3(0.0f, 1.0f, 0.0f));
-    PushQuad(verts, inds, p001, p101, p100, p000, glm::vec3(0.0f, -1.0f, 0.0f));
+    PushQuad(verts, inds, p001, p101, p111, p011, glm::vec3(0.0f, 0.0f, 1.0f));
+    PushQuad(verts, inds, p100, p000, p010, p110, glm::vec3(0.0f, 0.0f, -1.0f));
+    PushQuad(verts, inds, p000, p001, p011, p010, glm::vec3(-1.0f, 0.0f, 0.0f));
+    PushQuad(verts, inds, p101, p100, p110, p111, glm::vec3(1.0f, 0.0f, 0.0f));
+    PushQuad(verts, inds, p010, p011, p111, p110, glm::vec3(0.0f, 1.0f, 0.0f));
+    PushQuad(verts, inds, p100, p101, p001, p000, glm::vec3(0.0f, -1.0f, 0.0f));
 }
 
 void PushCylinder(std::vector<WorldSceneVertex>& verts,
@@ -353,6 +362,26 @@ WorldBuilder::WorldBuilder(NavMesh* navMesh, TalismanSystem* talismans)
 
 WorldBuilder::~WorldBuilder() {
     ClearSceneBatches();
+}
+
+void PushMedievalHouse(std::vector<WorldSceneVertex>& wallVerts,
+                       std::vector<unsigned int>& wallInds,
+                       std::vector<WorldSceneVertex>& accentVerts,
+                       std::vector<unsigned int>& accentInds,
+                       std::vector<WorldSceneVertex>& roofVerts,
+                       std::vector<unsigned int>& roofInds,
+                       glm::vec3 center,
+                       glm::vec3 size) {
+    // Base part (Stone)
+    float baseHeight = size.y * 0.45f;
+    PushBox(wallVerts, wallInds, center - glm::vec3(0.0f, size.y * 0.5f - baseHeight * 0.5f, 0.0f), glm::vec3(size.x, baseHeight, size.z));
+    
+    // Top part (Wood)
+    float topHeight = size.y - baseHeight;
+    PushBox(accentVerts, accentInds, center + glm::vec3(0.0f, size.y * 0.5f - topHeight * 0.5f, 0.0f), glm::vec3(size.x * 1.02f, topHeight, size.z * 1.02f));
+
+    // Roof
+    PushGabledRoof(roofVerts, roofInds, center + glm::vec3(0.0f, size.y * 0.5f, 0.0f), size.x * 1.1f, size.z * 1.1f, 0.0f, size.y * 0.4f, 0.3f);
 }
 
 void WorldBuilder::BuildAll() {
@@ -575,55 +604,33 @@ void WorldBuilder::BuildLandmarkBuildings() {
     PushBox(accentVerts, accentInds, dinerCenter + glm::vec3(0.0f, 3.8f, 5.8f), glm::vec3(14.0f, 0.45f, 0.25f));
     PushBox(roofVerts, roofInds, dinerCenter + glm::vec3(0.0f, 3.2f, 0.0f), glm::vec3(20.8f, 0.35f, 11.8f));
 
-    const float clinicGround = GetHeightAt(42.0f, -68.0f);
-    const glm::vec3 clinicCenter(42.0f, clinicGround + 3.1f, -68.0f);
-    PushBox(wallVerts, wallInds, clinicCenter, glm::vec3(18.0f, 6.2f, 12.0f));
-    PushGabledRoof(roofVerts, roofInds, clinicCenter + glm::vec3(0.0f, 3.1f, 0.0f), 18.6f, 12.8f, 0.0f, 2.6f, 0.4f);
-    PushBox(accentVerts, accentInds, clinicCenter + glm::vec3(0.0f, 1.8f, 6.2f), glm::vec3(5.0f, 0.8f, 0.1f));
+    const float clinicGround = GetHeightAt(-18.0f, -12.0f);
+    const glm::vec3 clinicCenter(-18.0f, clinicGround + 3.5f, -12.0f);
+    PushMedievalHouse(wallVerts, wallInds, accentVerts, accentInds, roofVerts, roofInds, clinicCenter, glm::vec3(18.0f, 7.0f, 12.0f));
 
     const float motelGround = GetHeightAt(86.0f, -18.0f);
     const glm::vec3 motelCenter(86.0f, motelGround + 3.2f, -18.0f);
-    PushBox(wallVerts, wallInds, motelCenter, glm::vec3(28.0f, 6.4f, 12.0f));
-    PushBox(roofVerts, roofInds, motelCenter + glm::vec3(0.0f, 3.35f, 0.0f), glm::vec3(29.2f, 0.35f, 13.2f));
-    for (int i = -5; i <= 5; ++i) {
-        PushBox(accentVerts, accentInds, motelCenter + glm::vec3(static_cast<float>(i) * 2.2f, -1.2f, 6.2f), glm::vec3(1.2f, 2.2f, 0.15f));
-    }
-    PushBox(accentVerts, accentInds, motelCenter + glm::vec3(0.0f, 1.7f, 6.3f), glm::vec3(20.0f, 0.5f, 0.18f));
+    PushMedievalHouse(wallVerts, wallInds, accentVerts, accentInds, roofVerts, roofInds, motelCenter, glm::vec3(28.0f, 6.4f, 12.0f));
 
     const float gasGround = GetHeightAt(78.0f, 74.0f);
     const glm::vec3 gasCenter(78.0f, gasGround + 2.7f, 74.0f);
-    PushBox(wallVerts, wallInds, gasCenter, glm::vec3(16.0f, 5.4f, 13.0f));
-    PushBox(roofVerts, roofInds, gasCenter + glm::vec3(0.0f, 2.9f, 0.0f), glm::vec3(16.6f, 0.35f, 13.6f));
-    PushBox(accentVerts, accentInds, gasCenter + glm::vec3(8.5f, 1.2f, 0.0f), glm::vec3(12.0f, 0.35f, 10.0f));
-    PushBox(accentVerts, accentInds, gasCenter + glm::vec3(5.8f, 0.2f, -2.0f), glm::vec3(0.9f, 1.8f, 0.9f));
-    PushBox(accentVerts, accentInds, gasCenter + glm::vec3(5.8f, 0.2f, 2.0f), glm::vec3(0.9f, 1.8f, 0.9f));
+    PushMedievalHouse(wallVerts, wallInds, accentVerts, accentInds, roofVerts, roofInds, gasCenter, glm::vec3(16.0f, 5.4f, 13.0f));
 
     const float postGround = GetHeightAt(-34.0f, 72.0f);
     const glm::vec3 postCenter(-34.0f, postGround + 2.8f, 72.0f);
-    PushBox(wallVerts, wallInds, postCenter, glm::vec3(11.0f, 5.6f, 10.0f));
-    PushGabledRoof(roofVerts, roofInds, postCenter + glm::vec3(0.0f, 2.8f, 0.0f), 11.6f, 10.4f, 0.0f, 2.0f, 0.3f);
-    PushBox(accentVerts, accentInds, postCenter + glm::vec3(0.0f, 1.6f, 5.2f), glm::vec3(4.6f, 0.8f, 0.12f));
+    PushMedievalHouse(wallVerts, wallInds, accentVerts, accentInds, roofVerts, roofInds, postCenter, glm::vec3(11.0f, 5.6f, 10.0f));
 
     const float storeGround = GetHeightAt(-12.0f, 98.0f);
     const glm::vec3 storeCenter(-12.0f, storeGround + 2.5f, 98.0f);
-    PushBox(wallVerts, wallInds, storeCenter, glm::vec3(14.0f, 5.0f, 9.0f));
-    PushBox(roofVerts, roofInds, storeCenter + glm::vec3(0.0f, 2.7f, 0.0f), glm::vec3(14.6f, 0.40f, 9.4f));
-    PushBox(accentVerts, accentInds, storeCenter + glm::vec3(0.0f, 1.2f, 4.8f), glm::vec3(10.0f, 1.0f, 0.16f));
-    PushBox(accentVerts, accentInds, storeCenter + glm::vec3(0.0f, 3.7f, 4.9f), glm::vec3(7.2f, 0.22f, 0.12f));
+    PushMedievalHouse(wallVerts, wallInds, accentVerts, accentInds, roofVerts, roofInds, storeCenter, glm::vec3(14.0f, 5.0f, 9.0f));
 
     const float schoolGround = GetHeightAt(-58.0f, 48.0f);
     const glm::vec3 schoolCenter(-58.0f, schoolGround + 2.7f, 48.0f);
-    PushBox(wallVerts, wallInds, schoolCenter, glm::vec3(16.0f, 5.4f, 11.0f));
-    PushGabledRoof(roofVerts, roofInds, schoolCenter + glm::vec3(0.0f, 2.8f, 0.0f), 16.4f, 11.4f, 0.0f, 2.4f, 0.4f);
-    PushBox(accentVerts, accentInds, schoolCenter + glm::vec3(0.0f, 0.9f, 5.8f), glm::vec3(12.0f, 0.9f, 0.14f));
+    PushMedievalHouse(wallVerts, wallInds, accentVerts, accentInds, roofVerts, roofInds, schoolCenter, glm::vec3(16.0f, 5.4f, 11.0f));
 
     const float apartmentGround = GetHeightAt(104.0f, 54.0f);
     const glm::vec3 apartmentCenter(104.0f, apartmentGround + 4.6f, 54.0f);
-    PushBox(wallVerts, wallInds, apartmentCenter, glm::vec3(18.0f, 9.2f, 12.0f));
-    PushBox(roofVerts, roofInds, apartmentCenter + glm::vec3(0.0f, 4.9f, 0.0f), glm::vec3(18.8f, 0.48f, 12.8f));
-    PushBox(accentVerts, accentInds, apartmentCenter + glm::vec3(0.0f, -0.3f, 6.3f), glm::vec3(16.4f, 1.1f, 0.16f));
-    PushBox(accentVerts, accentInds, apartmentCenter + glm::vec3(-4.8f, 2.2f, 6.4f), glm::vec3(1.4f, 3.6f, 0.14f));
-    PushBox(accentVerts, accentInds, apartmentCenter + glm::vec3(4.8f, 2.2f, 6.4f), glm::vec3(1.4f, 3.6f, 0.14f));
+    PushMedievalHouse(wallVerts, wallInds, accentVerts, accentInds, roofVerts, roofInds, apartmentCenter, glm::vec3(18.0f, 9.2f, 12.0f));
 
     UploadBatch(wallVerts, wallInds, glm::vec3(0.66f, 0.62f, 0.56f), 0.84f, GetWallTexture());
     UploadBatch(roofVerts, roofInds, glm::vec3(0.24f, 0.23f, 0.22f), 0.86f, GetRoofTexture());

@@ -46,6 +46,7 @@ public:
 	glm::vec3 position = glm::vec3(0.0f);
 	glm::vec3 velocity = glm::vec3(0.0f);
 	float facingAngle = 0.0f;
+	float scaleMultiplier = 1.0f;
 	CharacterStats stats;
 	CharacterState state = CharacterState::IDLE;
 	Model* model = nullptr;
@@ -64,6 +65,7 @@ public:
 	virtual PostFXState GetPostFXState() const;
 	virtual void OnBecomeActive();
 	virtual void OnBecomeInactive();
+	void UpdateAnimationState();
 
 	void Move(glm::vec3 dir, float speed, float dt);
 	void TakeDamage(float amount);
@@ -84,7 +86,6 @@ public:
 
 protected:
 	float currentNoiseRadius = 0.0f;
-	void UpdateAnimationState();
 	void SimulateOffscreen(float dt);
 };
 

@@ -7,7 +7,6 @@
 #include <stdexcept>
 #include <unordered_map>
 
-#define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
 #include <assimp/postprocess.h>
@@ -52,6 +51,7 @@ void Model::LoadModel(const std::string& path) {
 	directory = path.substr(0, path.find_last_of("/\\"));
 	globalInverseTransform = glm::inverse(ConvertMatrix(scene->mRootNode->mTransformation));
 	ProcessNode(scene->mRootNode, scene);
+	std::cout << "[model] '" << path << "' loaded with " << boneCount << " bones." << std::endl;
 }
 
 void Model::Draw(Shader& shader) {
@@ -120,7 +120,14 @@ Mesh Model::ProcessMesh(aiMesh* mesh, const aiScene* sceneData) {
 
 	for (unsigned int boneIndex = 0; boneIndex < mesh->mNumBones; ++boneIndex) {
 		aiBone* bone = mesh->mBones[boneIndex];
-		const std::string boneName = bone->mName.C_Str();
+		std::string boneName = bone->mName.C_Str();
+		size_t mixamoPos = boneName.find("mixamorig");
+		if (mixamoPos != std::string::npos) {
+			size_t sepPos = boneName.find_first_of(":_", mixamoPos);
+			if (sepPos != std::string::npos) {
+				boneName = boneName.substr(sepPos + 1);
+			}
+		}
 		BoneInfo boneInfo;
 		auto found = boneInfoMap.find(boneName);
 		if (found == boneInfoMap.end()) {
@@ -149,9 +156,12 @@ Mesh Model::ProcessMesh(aiMesh* mesh, const aiScene* sceneData) {
 	}
 
 	for (Vertex& vertex : vertices) {
-		float totalWeight = vertex.BoneWeights.x + vertex.BoneWeights.y + vertex.BoneWeights.z + vertex.BoneWeights.w;
-		if (totalWeight > 0.0f) {
-			vertex.BoneWeights /= totalWeight;
+		float weightSum = vertex.BoneWeights.x + vertex.BoneWeights.y + vertex.BoneWeights.z + vertex.BoneWeights.w;
+		if (weightSum > 0.001f) {
+			vertex.BoneWeights /= weightSum;
+		} else {
+			vertex.BoneIDs = glm::ivec4(0, 0, 0, 0);
+			vertex.BoneWeights = glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
 		}
 	}
 
@@ -163,6 +173,8 @@ std::vector<MeshTexture> Model::LoadMaterialTextures(aiMaterial* material, aiTex
 	const unsigned int count = material->GetTextureCount(type);
 	for (unsigned int index = 0; index < count; ++index) {
 		aiString texturePath;
+		aiString matName;
+		material->Get(AI_MATKEY_NAME, matName);
 		if (material->GetTexture(type, index, &texturePath) != AI_SUCCESS) {
 			continue;
 		}
@@ -183,6 +195,8 @@ std::vector<MeshTexture> Model::LoadMaterialTextures(aiMaterial* material, aiTex
 			std::cerr << "Failed to load texture: " << fullPath << '\n';
 			continue;
 		}
+		
+		std::cout << "Loaded material '" << matName.C_Str() << "' texture: " << fullPath << "\n";
 
 		GLenum format = GL_RGB;
 		if (channels == 1) {
@@ -198,8 +212,9 @@ std::vector<MeshTexture> Model::LoadMaterialTextures(aiMaterial* material, aiTex
 		glBindTexture(GL_TEXTURE_2D, textureID);
 		glTexImage2D(GL_TEXTURE_2D, 0, static_cast<GLint>(format), width, height, 0, format, GL_UNSIGNED_BYTE, data);
 		glGenerateMipmap(GL_TEXTURE_2D);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		glBindTexture(GL_TEXTURE_2D, 0);
@@ -216,23 +231,11 @@ std::vector<MeshTexture> Model::LoadMaterialTextures(aiMaterial* material, aiTex
 	return textures;
 }
 
-glm::mat4 Model::ConvertMatrix(const aiMatrix4x4& matrix) {
-	glm::mat4 result(1.0f);
-	result[0][0] = matrix.a1;
-	result[0][1] = matrix.a2;
-	result[0][2] = matrix.a3;
-	result[0][3] = matrix.a4;
-	result[1][0] = matrix.b1;
-	result[1][1] = matrix.b2;
-	result[1][2] = matrix.b3;
-	result[1][3] = matrix.b4;
-	result[2][0] = matrix.c1;
-	result[2][1] = matrix.c2;
-	result[2][2] = matrix.c3;
-	result[2][3] = matrix.c4;
-	result[3][0] = matrix.d1;
-	result[3][1] = matrix.d2;
-	result[3][2] = matrix.d3;
-	result[3][3] = matrix.d4;
-	return result;
+glm::mat4 Model::ConvertMatrix(const aiMatrix4x4& from) {
+	glm::mat4 to(1.0f);
+	to[0][0] = from.a1; to[1][0] = from.a2; to[2][0] = from.a3; to[3][0] = from.a4;
+	to[0][1] = from.b1; to[1][1] = from.b2; to[2][1] = from.b3; to[3][1] = from.b4;
+	to[0][2] = from.c1; to[1][2] = from.c2; to[2][2] = from.c3; to[3][2] = from.c4;
+	to[0][3] = from.d1; to[1][3] = from.d2; to[2][3] = from.d3; to[3][3] = from.d4;
+	return to;
 }

@@ -31,7 +31,8 @@ void main() {
 			skinMatrix += bones[aBoneIDs[i]] * weight;
 		}
 	}
-	if (!hasWeights) {
+	float totalWeight = aBoneWeights.x + aBoneWeights.y + aBoneWeights.z + aBoneWeights.w;
+	if (totalWeight < 0.01) {
 		skinMatrix = mat4(1.0);
 	}
 

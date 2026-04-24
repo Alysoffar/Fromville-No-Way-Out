@@ -54,6 +54,7 @@ public:
     void Init(Renderer* renderer);
     void Update(float dt, HUDState state);
     void Draw();
+    void DrawDeathScreen(const std::string& characterName);
     void ShowNotification(const std::string& text, float duration = 3.0f);
 
 private:
@@ -69,6 +70,7 @@ private:
     
     Renderer* renderer = nullptr;
     Shader* hudShader = nullptr;
+    Shader* colorShader = nullptr;
     GLuint quadVAO = 0;
     GLuint quadVBO = 0;
     
