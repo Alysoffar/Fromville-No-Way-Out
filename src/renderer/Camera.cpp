@@ -13,8 +13,6 @@ glm::mat4 Camera::GetProjectionMatrix(float aspect) const {
 }
 
 void Camera::Update(glm::vec3 characterPos, float dt) {
-	target = characterPos;
-
 	if (isUnderground) {
 		followDistance = 2.0f;
 		heightOffset = 1.2f;
@@ -25,19 +23,21 @@ void Camera::Update(glm::vec3 characterPos, float dt) {
 		fov = 60.0f;
 	}
 
+	const glm::vec3 focusPoint = characterPos + glm::vec3(0.0f, isUnderground ? 1.0f : 1.45f, 0.0f);
 	glm::vec3 offset(0.0f, heightOffset, -followDistance);
 	glm::mat4 rotation(1.0f);
 	rotation = glm::rotate(rotation, glm::radians(yaw), glm::vec3(0.0f, 1.0f, 0.0f));
 	rotation = glm::rotate(rotation, glm::radians(pitch), glm::vec3(1.0f, 0.0f, 0.0f));
-	glm::vec3 desiredPosition = characterPos + glm::vec3(rotation * glm::vec4(offset, 1.0f));
+	glm::vec3 desiredPosition = focusPoint + glm::vec3(rotation * glm::vec4(offset, 1.0f));
 	const float followFactor = std::clamp(8.0f * dt, 0.0f, 1.0f);
 	position = glm::mix(position, desiredPosition, followFactor);
+	target = glm::mix(target, focusPoint, followFactor);
 }
 
 void Camera::ProcessMouseMovement(float xoffset, float yoffset) {
 	yaw += xoffset;
 	pitch += yoffset;
-	pitch = std::clamp(pitch, -25.0f, 55.0f);
+	pitch = std::clamp(pitch, -30.0f, 60.0f);
 }
 
 void Camera::DoCollisionPush(const glm::vec3& charPos, std::function<bool(glm::vec3, glm::vec3)> raycastFn) {
@@ -56,12 +56,12 @@ void Camera::DoCollisionPush(const glm::vec3& charPos, std::function<bool(glm::v
 }
 
 void Camera::Reset(glm::vec3 characterPos) {
-	target = characterPos;
+	target = characterPos + glm::vec3(0.0f, isUnderground ? 1.0f : 1.45f, 0.0f);
 	glm::vec3 offset(0.0f, heightOffset, -followDistance);
 	glm::mat4 rotation(1.0f);
 	rotation = glm::rotate(rotation, glm::radians(yaw), glm::vec3(0.0f, 1.0f, 0.0f));
 	rotation = glm::rotate(rotation, glm::radians(pitch), glm::vec3(1.0f, 0.0f, 0.0f));
-	position = characterPos + glm::vec3(rotation * glm::vec4(offset, 1.0f));
+	position = target + glm::vec3(rotation * glm::vec4(offset, 1.0f));
 }
 
 glm::vec3 Camera::GetForward() const {

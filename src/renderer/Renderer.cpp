@@ -1,12 +1,13 @@
 #include "Renderer.h"
 
+#include <glm/gtc/constants.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <random>
-
 #include <iostream>
+#include <random>
 #include <string>
 
 #include "renderer/Camera.h"
+#include "world/DayNightCycle.h"
 
 Renderer::Renderer(int width, int height) : width(width), height(height), quadVAO(0), quadVBO(0) {
     gBuffer = std::make_unique<GBuffer>(width, height);
@@ -68,9 +69,6 @@ bool Renderer::Init() {
         lightingShader->SetInt("gEmission", 3);
         lightingShader->SetInt("ssaoBlur", 4);
         lightingShader->SetInt("shadowMap", 5);
-        for (int i = 0; i < 8; ++i) {
-            lightingShader->SetInt("shadowCubemaps[" + std::to_string(i) + "]", 6 + i);
-        }
         lightingShader->Unbind();
 
         // Post shader is optional at this stage and can be loaded later.
@@ -274,11 +272,16 @@ void Renderer::SSAOPass() {
 }
 
 void Renderer::LightingPass(DayNightCycle& dayNight, Camera& camera) {
-    (void)dayNight;
-
     if (!lightingShader || !gBuffer) {
         return;
     }
+
+    const float timeOfDay = dayNight.GetTimeOfDay();
+    const glm::vec3 lightColor = dayNight.GetDirectionalLightColor();
+    const glm::vec3 ambientColor = dayNight.GetAmbientColor();
+    const glm::vec3 fogColor = dayNight.GetFogColor();
+    const float fogDensity = dayNight.GetFogDensity();
+    const glm::vec3 lightDir = dayNight.GetSunDirection();
 
     glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
     glViewport(0, 0, width, height);
@@ -286,15 +289,13 @@ void Renderer::LightingPass(DayNightCycle& dayNight, Camera& camera) {
     lightingShader->Bind();
 
     lightingShader->SetMat4("lightSpaceMatrix", glm::mat4(1.0f));
-    lightingShader->SetVec3("lightDir", glm::normalize(glm::vec3(-0.3f, -1.0f, -0.2f)));
-    lightingShader->SetVec3("lightColor", glm::vec3(0.35f, 0.4f, 0.5f));
+    lightingShader->SetVec3("lightDir", lightDir);
+    lightingShader->SetVec3("lightColor", lightColor);
     lightingShader->SetVec3("viewPos", camera.position);
-    lightingShader->SetFloat("farPlane", camera.farPlane);
-    lightingShader->SetVec2("screenSize", glm::vec2(static_cast<float>(width), static_cast<float>(height)));
-    lightingShader->SetFloat("ambientStrength", 0.08f);
-    lightingShader->SetVec3("fogColor", glm::vec3(0.03f, 0.04f, 0.06f));
-    lightingShader->SetFloat("fogDensity", 0.0025f);
-    lightingShader->SetFloat("time", 0.0f);
+    lightingShader->SetVec3("ambientColor", ambientColor);
+    lightingShader->SetVec3("fogColor", fogColor);
+    lightingShader->SetFloat("fogDensity", fogDensity);
+    lightingShader->SetFloat("time", timeOfDay);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, gBuffer->GetTexture(GBufferTexture::POSITION));
@@ -308,11 +309,6 @@ void Renderer::LightingPass(DayNightCycle& dayNight, Camera& camera) {
     glBindTexture(GL_TEXTURE_2D, ssaoBlurBuffer);
     glActiveTexture(GL_TEXTURE5);
     glBindTexture(GL_TEXTURE_2D, shadowMap->GetDirectionalTexture());
-
-    for (int i = 0; i < 8; ++i) {
-        glActiveTexture(GL_TEXTURE6 + i);
-        glBindTexture(GL_TEXTURE_CUBE_MAP, shadowMap->GetPointTexture(i));
-    }
 
     DrawQuad();
     lightingShader->Unbind();

@@ -9,32 +9,61 @@ layout(binding = 2) uniform sampler2D gAlbedoSpec;
 layout(binding = 3) uniform sampler2D gEmission;
 layout(binding = 4) uniform sampler2D ssaoBlur;
 layout(binding = 5) uniform sampler2D shadowMap;
-layout(binding = 6) uniform samplerCube shadowCubemaps[8];
-
-struct PointLight {
-    vec3 position;
-    float radius;
-    vec3 color;
-    float intensity;
-};
-
-layout(std430, binding=1) buffer LightBuffer {
-    PointLight lights[32];
-    int lightCount;
-};
 
 uniform mat4 lightSpaceMatrix;
 uniform vec3 lightDir;
 uniform vec3 lightColor;
 uniform vec3 viewPos;
-uniform float farPlane;
-uniform vec2 screenSize;
-uniform float ambientStrength;
+uniform vec3 ambientColor;
 uniform vec3 fogColor;
 uniform float fogDensity;
 uniform float time;
 
 const float PI = 3.14159265359;
+
+vec3 SkyColor(vec2 uv, float timeOfDay) {
+    vec3 zenith;
+    vec3 horizon;
+    vec3 glowColor = vec3(0.10, 0.12, 0.18);
+
+    if (timeOfDay >= 0.2 && timeOfDay < 0.3) {
+        float t = clamp((timeOfDay - 0.2) / 0.1, 0.0, 1.0);
+        zenith = mix(vec3(0.04, 0.03, 0.13), vec3(0.16, 0.34, 0.68), t);
+        horizon = mix(vec3(0.83, 0.45, 0.04), vec3(0.53, 0.81, 0.92), t);
+        glowColor = mix(vec3(0.92, 0.48, 0.12), vec3(0.95, 0.78, 0.42), t);
+    } else if (timeOfDay >= 0.3 && timeOfDay < 0.7) {
+        float t = smoothstep(0.3, 0.55, timeOfDay) * (1.0 - smoothstep(0.58, 0.7, timeOfDay));
+        zenith = mix(vec3(0.16, 0.34, 0.72), vec3(0.10, 0.26, 0.58), t);
+        horizon = mix(vec3(0.62, 0.80, 0.96), vec3(0.78, 0.88, 0.98), t);
+        glowColor = vec3(0.95, 0.95, 0.90);
+    } else if (timeOfDay >= 0.7 && timeOfDay < 0.8) {
+        float t = clamp((timeOfDay - 0.7) / 0.1, 0.0, 1.0);
+        zenith = mix(vec3(0.12, 0.10, 0.25), vec3(0.03, 0.03, 0.10), t);
+        horizon = mix(vec3(0.85, 0.45, 0.15), vec3(0.18, 0.12, 0.18), t);
+        glowColor = mix(vec3(0.86, 0.38, 0.14), vec3(0.16, 0.18, 0.24), t);
+    } else {
+        zenith = vec3(0.01, 0.01, 0.06);
+        horizon = vec3(0.03, 0.04, 0.08);
+        glowColor = vec3(0.12, 0.16, 0.28);
+    }
+
+    float horizonMix = smoothstep(0.0, 0.55, uv.y);
+    vec3 sky = mix(horizon, zenith, horizonMix);
+
+    float cloudBand = smoothstep(0.12, 0.82, uv.y);
+    float cloudNoise = 0.5 + 0.5 * sin(uv.x * 14.0 + uv.y * 10.0 + timeOfDay * 4.0);
+    float cloudShape = smoothstep(0.40, 0.68, cloudNoise) * cloudBand;
+    sky += vec3(0.08, 0.09, 0.10) * cloudShape * 0.14;
+    sky += vec3(0.10, 0.12, 0.15) * smoothstep(0.0, 0.22, 1.0 - uv.y) * 0.24;
+    sky += vec3(0.02, 0.03, 0.05) * smoothstep(0.60, 0.0, abs(uv.x - 0.5)) * smoothstep(0.03, 0.25, uv.y) * 0.08;
+
+    float orbit = fract(timeOfDay + 0.75);
+    vec2 sunCenter = vec2(0.65 + sin(orbit * 6.28318) * 0.18, 0.63 + cos(orbit * 6.28318) * 0.18);
+    float glow = exp(-24.0 * distance(uv, sunCenter));
+    sky += glowColor * glow * 1.1;
+
+    return sky;
+}
 
 float DirectionalShadowPCF(vec3 fragPos, vec3 N, vec3 L) {
     vec4 fragPosLightSpace = lightSpaceMatrix * vec4(fragPos, 1.0);
@@ -58,19 +87,6 @@ float DirectionalShadowPCF(vec3 fragPos, vec3 N, vec3 L) {
     }
 
     return shadow / 9.0;
-}
-
-float PointShadow(int index, vec3 fragPos, vec3 lightPos, float lightRadius) {
-    if (index < 0 || index >= 8) {
-        return 0.0;
-    }
-
-    vec3 fragToLight = fragPos - lightPos;
-    float currentDepth = length(fragToLight);
-    float closestDepth = texture(shadowCubemaps[index], fragToLight).r * farPlane;
-    float bias = max(0.01 * (currentDepth / max(lightRadius, 0.001)), 0.01);
-
-    return (currentDepth - bias > closestDepth) ? 1.0 : 0.0;
 }
 
 float DistributionGGX(vec3 N, vec3 H, float roughness) {
@@ -109,6 +125,12 @@ vec3 FresnelSchlick(float cosTheta, vec3 F0) {
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
+vec3 ApplyToneMap(vec3 color) {
+    color = max(color, vec3(0.0));
+    color = color / (color + vec3(1.0));
+    return pow(color, vec3(1.0 / 2.2));
+}
+
 void main()
 {
     vec3 fragPos = texture(gPosition, TexCoords).xyz;
@@ -119,7 +141,7 @@ void main()
     float ao = clamp(texture(ssaoBlur, TexCoords).r, 0.0, 1.0);
 
     if(length(normal) < 0.1) {
-        fragColor = vec4(emission, 1.0);
+        fragColor = vec4(SkyColor(TexCoords, time) + emission, 1.0);
         return;
     }
 
@@ -153,43 +175,11 @@ void main()
     float NdotL = max(dot(N, L), 0.0);
     Lo += (kD * albedo / PI + specular) * lightColor * NdotL * (1.0 - shadow);
 
-    int count = min(lightCount, 32);
-    for(int i = 0; i < count; i++) {
-        vec3 lightVec = lights[i].position - fragPos;
-        float dist = length(lightVec);
+    vec3 skyLight = mix(fogColor, vec3(1.0, 0.98, 0.94), clamp(N.y * 0.5 + 0.5, 0.0, 1.0));
+    float horizonBoost = smoothstep(-0.20, 0.40, N.y);
+    vec3 bouncedLight = skyLight * ambientColor * (0.28 + 0.22 * horizonBoost);
 
-        if (dist > lights[i].radius || lights[i].radius <= 0.0) {
-            continue;
-        }
-
-        vec3 pL = normalize(lightVec);
-        vec3 pH = normalize(V + pL);
-
-        float distDiv = clamp(1.0 - pow(dist / lights[i].radius, 2.0), 0.0, 1.0);
-        float attenuation = distDiv * distDiv * lights[i].intensity;
-
-        float pointShadow = 0.0;
-        if(i < 8) {
-            pointShadow = PointShadow(i, fragPos, lights[i].position, lights[i].radius);
-        }
-
-        float pNDF = DistributionGGX(N, pH, roughness);
-        float pG = GeometrySmith(N, V, pL, roughness);
-        vec3 pF = FresnelSchlick(max(dot(pH, V), 0.0), F0);
-        
-        vec3 pkS = pF;
-        vec3 pkD = vec3(1.0) - pkS;
-        pkD *= 1.0 - metallic;
-        
-        vec3 pNumerator = pNDF * pG * pF;
-        float pDenominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, pL), 0.0) + 0.0001;
-        vec3 pSpecular = pNumerator / pDenominator;
-        
-        float pNdotL = max(dot(N, pL), 0.0);
-        Lo += (pkD * albedo / PI + pSpecular) * lights[i].color * pNdotL * attenuation * (1.0 - pointShadow);
-    }
-
-    vec3 ambient = ambientStrength * albedo * ao;
+    vec3 ambient = ambientColor * albedo * ao + bouncedLight * albedo;
 
     vec3 color = ambient + Lo + emission;
 
@@ -197,6 +187,8 @@ void main()
     float fogFactor = exp(-pow(fogDensity * dist, 2.0));
     fogFactor = clamp(fogFactor, 0.0, 1.0);
     color = mix(fogColor, color, fogFactor);
+
+    color = ApplyToneMap(color * 1.06);
 
     fragColor = vec4(color, 1.0);
 }

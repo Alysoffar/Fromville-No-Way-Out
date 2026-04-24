@@ -18,6 +18,7 @@ class NarrativeEngine;
 class NavMesh;
 class Renderer;
 class World;
+class Shader;
 
 struct EventData;
 
@@ -56,8 +57,12 @@ private:
 
     std::unique_ptr<PlayerController> playerController;
     std::unique_ptr<Camera> camera;
+    std::unique_ptr<Shader> proceduralShader;
+    bool proceduralShaderReady = false;
 
     void OnCharacterSwitchRequested(const EventData& e);
     void SimulateOffscreenCharacter(Character* c, float dt);
     bool IsInsideSafeBuilding(Character* c) const;
+    void EnsureProceduralCharacter(Character* c);
+    void EnsureProceduralShader();
 };

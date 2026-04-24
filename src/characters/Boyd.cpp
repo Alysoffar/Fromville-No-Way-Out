@@ -4,11 +4,12 @@
 
 #include "core/InputManager.h"
 #include "renderer/Camera.h"
+#include "world/DayNightCycle.h"
 
 namespace {
 
 bool IsNightTime() {
-	return true;
+	return !DayNightCycle::Get().IsDaytime();
 }
 
 float QueryNearestCreatureDistance(const glm::vec3& /*position*/) {

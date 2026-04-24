@@ -10,6 +10,10 @@
 
 class Camera;
 class InputManager;
+class ProceduralHumanoid;
+class ProceduralHair;
+class ProceduralClothing;
+class FaceDetailGenerator;
 
 struct CharacterStats {
 	float health = 100.0f;
@@ -46,9 +50,13 @@ public:
 	CharacterState state = CharacterState::IDLE;
 	Model* model = nullptr;
 	SkeletalAnimator* animator = nullptr;
+	ProceduralHumanoid* proceduralHumanoid = nullptr;
+	ProceduralHair* proceduralHair = nullptr;
+	ProceduralClothing* proceduralClothing = nullptr;
+	FaceDetailGenerator* faceDetails = nullptr;
 	bool isActivePlayer = false;
 
-	virtual ~Character() = default;
+	virtual ~Character();
 	virtual void Update(float dt) = 0;
 	virtual void HandleInput(InputManager& input, Camera& camera) = 0;
 	virtual void OnAbilityActivate() = 0;
@@ -63,6 +71,14 @@ public:
 	void UseStamina(float amount);
 	bool IsAlive() const { return stats.health > 0.0f; }
 	bool IsDead() const { return state == CharacterState::DEAD; }
+	ProceduralHumanoid* GetProceduralHumanoid() const { return proceduralHumanoid; }
+	void SetProceduralHumanoid(ProceduralHumanoid* humanoid) { proceduralHumanoid = humanoid; }
+	ProceduralHair* GetProceduralHair() const { return proceduralHair; }
+	void SetProceduralHair(ProceduralHair* hair) { proceduralHair = hair; }
+	ProceduralClothing* GetProceduralClothing() const { return proceduralClothing; }
+	void SetProceduralClothing(ProceduralClothing* clothing) { proceduralClothing = clothing; }
+	FaceDetailGenerator* GetFaceDetails() const { return faceDetails; }
+	void SetFaceDetails(FaceDetailGenerator* details) { faceDetails = details; }
 	float GetNoiseLevelThisFrame() const { return currentNoiseRadius; }
 	void SetNoiseLevelThisFrame(float radius) { currentNoiseRadius = radius; }
 

@@ -2,7 +2,22 @@
 
 #include <algorithm>
 
+#include "renderer/ProceduralHumanoid.h"
+#include "renderer/ProceduralHair.h"
+#include "renderer/ProceduralClothing.h"
+#include "renderer/FaceDetailGenerator.h"
 #include "renderer/AnimationNames.h"
+
+Character::~Character() {
+	delete proceduralHumanoid;
+	proceduralHumanoid = nullptr;
+	delete proceduralHair;
+	proceduralHair = nullptr;
+	delete proceduralClothing;
+	proceduralClothing = nullptr;
+	delete faceDetails;
+	faceDetails = nullptr;
+}
 
 PostFXState Character::GetPostFXState() const {
 	PostFXState fx;

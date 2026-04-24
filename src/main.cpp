@@ -1,424 +1,482 @@
+#include <algorithm>
+#include <array>
+#include <cmath>
 #include <cstdio>
-#include <filesystem>
+#include <cstdlib>
 #include <memory>
 #include <string>
 #include <vector>
 
-// Narrative system test suite (headless — runs before the window opens)
-int RunNarrativeTests();
-
-#include "ai/CreatureAI.h"
-#include "ai/NavMesh.h"
-#include <glad/glad.h>
+#define GLFW_INCLUDE_NONE
+#include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
+#include <glm/gtc/constants.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
 
 #include "characters/Boyd.h"
+#include "characters/Character.h"
 #include "characters/Jade.h"
 #include "characters/Sara.h"
 #include "characters/Tabitha.h"
 #include "characters/Victor.h"
-
-#include "renderer/Model.h"
-#include "renderer/Shader.h"
-
 #include "core/Timer.h"
 #include "core/Window.h"
+#include "renderer/Camera.h"
+#include "renderer/FaceDetailGenerator.h"
+#include "renderer/PostFXState.h"
+#include "renderer/ProceduralClothing.h"
+#include "renderer/ProceduralHair.h"
+#include "renderer/ProceduralHumanoid.h"
+#include "renderer/Renderer.h"
+#include "renderer/Shader.h"
+#include "world/DayNightCycle.h"
+#include "world/WorldBuilder.h"
+
+int RunNarrativeTests();
 
 namespace {
-const char* CreatureStateName(CreatureState s) {
-	switch (s) {
-	case CreatureState::DORMANT: return "DORMANT";
-	case CreatureState::PATROL: return "PATROL";
-	case CreatureState::SEARCH: return "SEARCH";
-	case CreatureState::HUNT: return "HUNT";
-	case CreatureState::WHISPER: return "WHISPER";
-	case CreatureState::RETREAT: return "RETREAT";
-	default: return "UNKNOWN";
-	}
+
+ProceduralHumanoid::BuildParams BuildParamsForCharacter(const std::string& name) {
+    if (name == "Boyd") return {1.90f, 0.60f, 0.43f, 1.10f, 1.02f, 1.42f, false, glm::vec3(0.35f, 0.26f, 0.19f)};
+    if (name == "Jade") return {1.76f, 0.43f, 0.34f, 0.97f, 1.00f, 0.88f, false, glm::vec3(0.52f, 0.37f, 0.25f)};
+    if (name == "Tabitha") return {1.70f, 0.40f, 0.37f, 0.95f, 0.97f, 0.95f, true, glm::vec3(0.72f, 0.58f, 0.48f)};
+    if (name == "Victor") return {1.72f, 0.40f, 0.33f, 0.98f, 0.99f, 0.72f, false, glm::vec3(0.75f, 0.67f, 0.60f)};
+    if (name == "Sara") return {1.65f, 0.37f, 0.35f, 0.93f, 0.96f, 0.78f, true, glm::vec3(0.78f, 0.68f, 0.61f)};
+    return {};
 }
 
-glm::vec3 CreatureStateColor(CreatureState s) {
-	switch (s) {
-	case CreatureState::DORMANT: return glm::vec3(0.35f, 0.35f, 0.35f);
-	case CreatureState::PATROL: return glm::vec3(0.25f, 0.75f, 0.35f);
-	case CreatureState::SEARCH: return glm::vec3(0.95f, 0.80f, 0.20f);
-	case CreatureState::HUNT: return glm::vec3(0.95f, 0.20f, 0.20f);
-	case CreatureState::WHISPER: return glm::vec3(0.55f, 0.25f, 0.85f);
-	case CreatureState::RETREAT: return glm::vec3(0.20f, 0.85f, 0.95f);
-	default: return glm::vec3(1.0f);
-	}
+HairStyle HairStyleForCharacter(const std::string& name) {
+    if (name == "Boyd") return HairStyle::CREATURE_MATTED;
+    if (name == "Jade") return HairStyle::WAVY_MEDIUM;
+    if (name == "Tabitha") return HairStyle::PONYTAIL_LOOSE;
+    if (name == "Victor") return HairStyle::LONGISH_SWEPT;
+    if (name == "Sara") return HairStyle::LONG_STRAIGHT;
+    return HairStyle::CLOSE_CROP;
 }
 
-std::unique_ptr<Model> TryLoadFirstModel(const std::vector<std::string>& candidates, std::string& pickedPath) {
-	for (const std::string& path : candidates) {
-		if (!std::filesystem::exists(path)) {
-			continue;
-		}
-		try {
-			pickedPath = path;
-			return std::make_unique<Model>(path, true);
-		} catch (...) {
-			pickedPath.clear();
-		}
-	}
-	return nullptr;
+ClothingLayer ShirtForCharacter(const std::string& name) {
+    if (name == "Boyd") return ClothingLayer::CREATURE_JACKET;
+    if (name == "Jade") return ClothingLayer::HOODIE;
+    if (name == "Tabitha") return ClothingLayer::SHIRT_FLANNEL;
+    if (name == "Victor") return ClothingLayer::KNIT_SWEATER;
+    return ClothingLayer::SHIRT_SIMPLE;
 }
 
-GLuint CompileShader(GLenum type, const char* source) {
-	const GLuint shader = glCreateShader(type);
-	glShaderSource(shader, 1, &source, nullptr);
-	glCompileShader(shader);
-
-	GLint success = 0;
-	glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-	if (!success) {
-		char infoLog[1024] = {};
-		glGetShaderInfoLog(shader, sizeof(infoLog), nullptr, infoLog);
-		std::fprintf(stderr, "Shader compile error: %s\n", infoLog);
-		glDeleteShader(shader);
-		return 0;
-	}
-
-	return shader;
+TrouserStyle TrouserForCharacter(const std::string& name) {
+    if (name == "Boyd") return TrouserStyle::CARGO_PANTS;
+    if (name == "Jade") return TrouserStyle::SLIM_JEANS;
+    if (name == "Tabitha") return TrouserStyle::HIKING_PANTS;
+    if (name == "Victor") return TrouserStyle::GREY_TROUSERS;
+    return TrouserStyle::PLAIN_BLACK;
 }
 
-GLuint CreateProgram(const char* vertexSource, const char* fragmentSource) {
-	const GLuint vertexShader = CompileShader(GL_VERTEX_SHADER, vertexSource);
-	const GLuint fragmentShader = CompileShader(GL_FRAGMENT_SHADER, fragmentSource);
-	if (!vertexShader || !fragmentShader) {
-		if (vertexShader) glDeleteShader(vertexShader);
-		if (fragmentShader) glDeleteShader(fragmentShader);
-		return 0;
-	}
-
-	const GLuint program = glCreateProgram();
-	glAttachShader(program, vertexShader);
-	glAttachShader(program, fragmentShader);
-	glLinkProgram(program);
-
-	GLint success = 0;
-	glGetProgramiv(program, GL_LINK_STATUS, &success);
-	if (!success) {
-		char infoLog[1024] = {};
-		glGetProgramInfoLog(program, sizeof(infoLog), nullptr, infoLog);
-		std::fprintf(stderr, "Program link error: %s\n", infoLog);
-		glDeleteProgram(program);
-		glDeleteShader(vertexShader);
-		glDeleteShader(fragmentShader);
-		return 0;
-	}
-
-	glDetachShader(program, vertexShader);
-	glDetachShader(program, fragmentShader);
-	glDeleteShader(vertexShader);
-	glDeleteShader(fragmentShader);
-	return program;
+EyebrowStyle BrowForCharacter(const std::string& name) {
+    if (name == "Boyd") return EyebrowStyle::HEAVY_FLAT;
+    if (name == "Victor") return EyebrowStyle::THIN_LIGHT;
+    if (name == "Jade") return EyebrowStyle::MEDIUM_ARCHED;
+    return EyebrowStyle::MEDIUM;
 }
+
+LipStyle LipForCharacter(const std::string& name) {
+    if (name == "Boyd") return LipStyle::FULL;
+    if (name == "Victor") return LipStyle::THIN;
+    if (name == "Sara") return LipStyle::NARROW;
+    return LipStyle::MEDIUM;
 }
+
+NoseStyle NoseForCharacter(const std::string& name) {
+    if (name == "Boyd") return NoseStyle::BROAD_FLAT;
+    if (name == "Victor") return NoseStyle::NARROW_LONG;
+    if (name == "Tabitha" || name == "Sara") return NoseStyle::SMALL_UPTURNED;
+    return NoseStyle::MEDIUM_STRAIGHT;
+}
+
+void AttachProceduralAppearance(Character& character) {
+    const std::string name = character.GetCharacterName();
+    character.SetProceduralHumanoid(new ProceduralHumanoid(BuildParamsForCharacter(name)));
+
+    glm::vec3 hairBase(0.12f, 0.09f, 0.08f);
+    glm::vec3 hairHighlight(0.30f, 0.20f, 0.16f);
+    if (name == "Tabitha") {
+        hairBase = glm::vec3(0.42f, 0.18f, 0.08f);
+        hairHighlight = glm::vec3(0.65f, 0.33f, 0.16f);
+    } else if (name == "Boyd") {
+        hairBase = glm::vec3(0.05f, 0.04f, 0.04f);
+        hairHighlight = glm::vec3(0.16f, 0.12f, 0.10f);
+    } else if (name == "Sara") {
+        hairBase = glm::vec3(0.08f, 0.05f, 0.05f);
+        hairHighlight = glm::vec3(0.18f, 0.12f, 0.10f);
+    } else if (name == "Victor") {
+        hairBase = glm::vec3(0.45f, 0.42f, 0.37f);
+        hairHighlight = glm::vec3(0.72f, 0.70f, 0.66f);
+    }
+
+    auto* hair = new ProceduralHair(HairStyleForCharacter(name), hairBase, hairHighlight, name == "Sara" ? 0.42f : 0.18f);
+    hair->GenerateStrands(character.GetProceduralHumanoid());
+    character.SetProceduralHair(hair);
+
+    auto* clothing = new ProceduralClothing(ShirtForCharacter(name), TrouserForCharacter(name));
+    clothing->Build(character.GetProceduralHumanoid());
+    character.SetProceduralClothing(clothing);
+
+    auto* face = new FaceDetailGenerator();
+    face->Build(character.GetProceduralHumanoid(), BrowForCharacter(name), LipForCharacter(name), NoseForCharacter(name));
+    character.SetFaceDetails(face);
+}
+
+float RootHeightBias(const Character& character) {
+    if (const ProceduralHumanoid* human = character.GetProceduralHumanoid()) {
+        return human->GetBuildParams().heightMeters * 0.028f;
+    }
+    return 0.05f;
+}
+
+float LerpAngle(float current, float target, float factor) {
+    float delta = std::fmod(target - current + glm::pi<float>(), glm::two_pi<float>()) - glm::pi<float>();
+    if (delta < -glm::pi<float>()) {
+        delta += glm::two_pi<float>();
+    }
+    return current + delta * factor;
+}
+
+bool ConsumePress(GLFWwindow* handle, int key, bool& previousDown) {
+    const bool down = glfwGetKey(handle, key) == GLFW_PRESS;
+    const bool pressed = down && !previousDown;
+    previousDown = down;
+    return pressed;
+}
+
+void UpdateCameraOrbit(Camera& camera,
+                       GLFWwindow* handle,
+                       float dt,
+                       bool& firstMouse,
+                       double& lastMouseX,
+                       double& lastMouseY) {
+    if (glfwGetMouseButton(handle, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS) {
+        double mouseX = 0.0;
+        double mouseY = 0.0;
+        glfwGetCursorPos(handle, &mouseX, &mouseY);
+
+        if (firstMouse) {
+            lastMouseX = mouseX;
+            lastMouseY = mouseY;
+            firstMouse = false;
+        }
+
+        const float mouseSensitivity = 0.085f;
+        camera.ProcessMouseMovement(static_cast<float>(mouseX - lastMouseX) * mouseSensitivity,
+                                    static_cast<float>(lastMouseY - mouseY) * mouseSensitivity);
+        lastMouseX = mouseX;
+        lastMouseY = mouseY;
+    } else {
+        firstMouse = true;
+    }
+
+    const float keyTurn = 92.0f * dt;
+    if (glfwGetKey(handle, GLFW_KEY_LEFT) == GLFW_PRESS) camera.ProcessMouseMovement(-keyTurn, 0.0f);
+    if (glfwGetKey(handle, GLFW_KEY_RIGHT) == GLFW_PRESS) camera.ProcessMouseMovement(keyTurn, 0.0f);
+    if (glfwGetKey(handle, GLFW_KEY_UP) == GLFW_PRESS) camera.ProcessMouseMovement(0.0f, keyTurn);
+    if (glfwGetKey(handle, GLFW_KEY_DOWN) == GLFW_PRESS) camera.ProcessMouseMovement(0.0f, -keyTurn);
+}
+
+void UpdateActiveCharacter(Character& activeCharacter, const Camera& camera, GLFWwindow* handle, float dt) {
+    glm::vec3 cameraForward = camera.GetForward();
+    cameraForward.y = 0.0f;
+    if (glm::length(cameraForward) < 1e-4f) {
+        cameraForward = glm::vec3(0.0f, 0.0f, -1.0f);
+    } else {
+        cameraForward = glm::normalize(cameraForward);
+    }
+    const glm::vec3 cameraRight = glm::normalize(glm::cross(cameraForward, glm::vec3(0.0f, 1.0f, 0.0f)));
+
+    glm::vec3 moveDirection(0.0f);
+    if (glfwGetKey(handle, GLFW_KEY_W) == GLFW_PRESS) moveDirection += cameraForward;
+    if (glfwGetKey(handle, GLFW_KEY_S) == GLFW_PRESS) moveDirection -= cameraForward;
+    if (glfwGetKey(handle, GLFW_KEY_A) == GLFW_PRESS) moveDirection -= cameraRight;
+    if (glfwGetKey(handle, GLFW_KEY_D) == GLFW_PRESS) moveDirection += cameraRight;
+
+    const bool crouching = glfwGetKey(handle, GLFW_KEY_C) == GLFW_PRESS;
+    bool sprinting = glfwGetKey(handle, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS && !crouching;
+    if (activeCharacter.stats.stamina <= 1.0f) {
+        sprinting = false;
+    }
+
+    const float regenScale = crouching ? 0.65f : 1.0f;
+    if (glm::length(moveDirection) > 1e-4f) {
+        moveDirection = glm::normalize(moveDirection);
+
+        float speed = activeCharacter.stats.moveSpeed;
+        if (crouching) {
+            speed = activeCharacter.stats.crouchSpeed;
+            activeCharacter.state = CharacterState::CROUCHING;
+            activeCharacter.SetNoiseLevelThisFrame(1.0f);
+        } else if (sprinting) {
+            speed = activeCharacter.stats.runSpeed;
+            activeCharacter.state = CharacterState::RUNNING;
+            activeCharacter.SetNoiseLevelThisFrame(8.0f);
+            activeCharacter.UseStamina(22.0f * dt);
+        } else {
+            activeCharacter.state = CharacterState::WALKING;
+            activeCharacter.SetNoiseLevelThisFrame(3.0f);
+            activeCharacter.stats.stamina = std::min(activeCharacter.stats.maxStamina,
+                                                     activeCharacter.stats.stamina + activeCharacter.stats.staminaRegenRate * dt * 0.45f);
+        }
+
+        activeCharacter.Move(moveDirection, speed, dt);
+        const float targetAngle = std::atan2(moveDirection.x, moveDirection.z);
+        activeCharacter.facingAngle = LerpAngle(activeCharacter.facingAngle, targetAngle, std::clamp(8.0f * dt, 0.0f, 1.0f));
+    } else {
+        activeCharacter.state = crouching ? CharacterState::CROUCHING : CharacterState::IDLE;
+        activeCharacter.SetNoiseLevelThisFrame(crouching ? 0.5f : 0.0f);
+        activeCharacter.stats.stamina = std::min(activeCharacter.stats.maxStamina,
+                                                 activeCharacter.stats.stamina + activeCharacter.stats.staminaRegenRate * dt * regenScale);
+    }
+}
+
+} // namespace
 
 int main() {
-	// ── Headless tests (audio + narrative) ── run before GL context
-	const int testResult = RunNarrativeTests();
-	if (testResult != 0) {
-		std::fprintf(stderr, "[main] Narrative tests FAILED — aborting launch\n");
-		return testResult;
-	}
-	std::printf("[main] All narrative tests passed.\n");
+    const char* runTestsEnv = std::getenv("FROMVILLE_RUN_TESTS");
+    if (runTestsEnv && runTestsEnv[0] != '\0' && runTestsEnv[0] != '0') {
+        const int testResult = RunNarrativeTests();
+        if (testResult != 0) {
+            std::fprintf(stderr, "[main] Narrative tests FAILED - aborting launch\n");
+            return testResult;
+        }
+        std::printf("[main] All narrative tests passed.\n");
+    } else {
+        std::printf("[main] Skipping headless narrative tests for normal launch.\n");
+    }
 
-	Window window(1280, 720, "Fromville: No Way Out");
-	if (!window.Init()) {
-		std::fprintf(stderr, "Failed to initialize Fromville window\n");
-		return 1;
-	}
+    Window window(1280, 720, "Fromville: No Way Out - Third Person Showcase");
+    if (!window.Init()) {
+        std::fprintf(stderr, "Failed to initialize Fromville window\n");
+        return 1;
+    }
 
-	const char* vertexSource = R"(
-		#version 450 core
-		layout (location = 0) in vec3 aPos;
-		uniform mat4 uModel;
-		uniform mat4 uView;
-		uniform mat4 uProjection;
-		void main() {
-			gl_Position = uProjection * uView * uModel * vec4(aPos, 1.0);
-		}
-	)";
+    Renderer renderer(window.GetWidth(), window.GetHeight());
+    if (!renderer.Init()) {
+        std::fprintf(stderr, "Failed to initialize deferred renderer\n");
+        return 1;
+    }
 
-	const char* fragmentSource = R"(
-		#version 450 core
-		out vec4 FragColor;
-		uniform vec3 uColor;
-		void main() {
-			FragColor = vec4(uColor, 1.0);
-		}
-	)";
+    Shader characterShader("ProceduralHumanoid");
+    try {
+        characterShader.Load("assets/shaders/procedural_humanoid.vert", "assets/shaders/procedural_humanoid.frag");
+    } catch (const std::exception& e) {
+        std::fprintf(stderr, "Failed to load character shader: %s\n", e.what());
+        return 1;
+    }
 
-	const GLuint characterProgram = CreateProgram(vertexSource, fragmentSource);
-	if (!characterProgram) {
-		std::fprintf(stderr, "Failed to create character debug shader program\n");
-		return 1;
-	}
+    DayNightCycle& dayNight = DayNightCycle::Get();
+    dayNight.SetLoopPhase(GameLoopPhase::Explore);
+    dayNight.SetCycleDurationSeconds(12.0f * 60.0f);
 
-	// 3D cube proxy for each character.
-	const float cubeVertices[] = {
-		-0.5f, -0.5f, -0.5f,
-		 0.5f, -0.5f, -0.5f,
-		 0.5f,  0.5f, -0.5f,
-		-0.5f,  0.5f, -0.5f,
-		-0.5f, -0.5f,  0.5f,
-		 0.5f, -0.5f,  0.5f,
-		 0.5f,  0.5f,  0.5f,
-		-0.5f,  0.5f,  0.5f,
-	};
+    WorldBuilder world(nullptr, nullptr);
+    world.BuildAll();
 
-	const unsigned int cubeIndices[] = {
-		0, 1, 2, 2, 3, 0,
-		4, 5, 6, 6, 7, 4,
-		0, 4, 7, 7, 3, 0,
-		1, 5, 6, 6, 2, 1,
-		3, 2, 6, 6, 7, 3,
-		0, 1, 5, 5, 4, 0,
-	};
+    std::vector<std::unique_ptr<Character>> characters;
+    characters.emplace_back(std::make_unique<Boyd>());
+    characters.emplace_back(std::make_unique<Jade>());
+    characters.emplace_back(std::make_unique<Tabitha>());
+    characters.emplace_back(std::make_unique<Victor>());
+    characters.emplace_back(std::make_unique<Sara>());
 
-	GLuint cubeVAO = 0;
-	GLuint cubeVBO = 0;
-	GLuint cubeEBO = 0;
-	glGenVertexArrays(1, &cubeVAO);
-	glGenBuffers(1, &cubeVBO);
-	glGenBuffers(1, &cubeEBO);
-	glBindVertexArray(cubeVAO);
-	glBindBuffer(GL_ARRAY_BUFFER, cubeVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(cubeVertices), cubeVertices, GL_STATIC_DRAW);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEBO);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(cubeIndices), cubeIndices, GL_STATIC_DRAW);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
-	glBindVertexArray(0);
+    for (auto& character : characters) {
+        AttachProceduralAppearance(*character);
+    }
 
-	std::vector<std::unique_ptr<Character>> characters;
-	characters.emplace_back(std::make_unique<Boyd>());
-	characters.emplace_back(std::make_unique<Jade>());
-	characters.emplace_back(std::make_unique<Tabitha>());
-	characters.emplace_back(std::make_unique<Victor>());
-	characters.emplace_back(std::make_unique<Sara>());
-	std::vector<std::unique_ptr<Model>> characterModels;
-	characterModels.resize(characters.size());
+    const std::array<glm::vec2, 5> showcaseSpots = {{
+        {-18.0f, -12.0f},
+        { -2.0f,  10.0f},
+        { 18.0f, -14.0f},
+        {-34.0f,  18.0f},
+        { 20.0f,  22.0f},
+    }};
 
-	const std::vector<glm::vec3> characterColors = {
-		glm::vec3(0.85f, 0.70f, 0.25f), // Boyd
-		glm::vec3(0.90f, 0.45f, 0.20f), // Jade
-		glm::vec3(0.35f, 0.70f, 0.95f), // Tabitha
-		glm::vec3(0.95f, 0.90f, 0.70f), // Victor
-		glm::vec3(0.70f, 0.35f, 0.90f), // Sara
-	};
+    const std::array<float, 5> facingAngles = {{
+        glm::radians(22.0f),
+        glm::radians(-18.0f),
+        glm::radians(42.0f),
+        glm::radians(-32.0f),
+        glm::radians(138.0f),
+    }};
 
-	for (std::size_t i = 0; i < characters.size(); ++i) {
-		characters[i]->position = glm::vec3(-6.0f + static_cast<float>(i) * 3.0f, 0.75f, 0.0f);
-		characters[i]->SetNoiseLevelThisFrame(3.0f);
-	}
+    for (std::size_t i = 0; i < characters.size(); ++i) {
+        characters[i]->position.x = showcaseSpots[i].x;
+        characters[i]->position.z = showcaseSpots[i].y;
+        characters[i]->position.y = world.GetHeightAt(showcaseSpots[i].x, showcaseSpots[i].y) - RootHeightBias(*characters[i]);
+        characters[i]->facingAngle = facingAngles[i];
+    }
 
-	std::vector<std::vector<std::string>> characterModelCandidates = {
-		{"assets/models/boyd.glb", "assets/models/boyd.gltf", "assets/models/boyd.fbx", "assets/models/boyd.obj"},
-		{"assets/models/jade.glb", "assets/models/jade.gltf", "assets/models/jade.fbx", "assets/models/jade.obj"},
-		{"assets/models/tabitha.glb", "assets/models/tabitha.gltf", "assets/models/tabitha.fbx", "assets/models/tabitha.obj"},
-		{"assets/models/victor.glb", "assets/models/victor.gltf", "assets/models/victor.fbx", "assets/models/victor.obj"},
-		{"assets/models/sara.glb", "assets/models/sara.gltf", "assets/models/sara.fbx", "assets/models/sara.obj"},
-	};
+    int activeCharacterIndex = 0;
+    characters[static_cast<std::size_t>(activeCharacterIndex)]->isActivePlayer = true;
 
-	for (std::size_t i = 0; i < characters.size(); ++i) {
-		std::string picked;
-		characterModels[i] = TryLoadFirstModel(characterModelCandidates[i], picked);
-		characters[i]->model = characterModels[i].get();
-		if (!characterModels[i]) {
-			std::printf("Model fallback: using cube for %s (no asset found)\n", characters[i]->GetCharacterName().c_str());
-		} else {
-			std::printf("Loaded model for %s: %s\n", characters[i]->GetCharacterName().c_str(), picked.c_str());
-		}
-	}
+    Camera camera;
+    camera.yaw = 215.0f;
+    camera.pitch = 18.0f;
+    camera.farPlane = 900.0f;
+    camera.Reset(characters[static_cast<std::size_t>(activeCharacterIndex)]->position);
 
-	auto creatureHumanModel = std::unique_ptr<Model>();
-	auto creatureMonsterModel = std::unique_ptr<Model>();
-	{
-		std::string picked;
-		creatureHumanModel = TryLoadFirstModel(
-			{"assets/models/creature_human.glb", "assets/models/creature_human.gltf", "assets/models/creature_human.fbx", "assets/models/creature_human.obj"},
-			picked);
-		if (creatureHumanModel) {
-			std::printf("Loaded creature human model: %s\n", picked.c_str());
-		}
-	}
-	{
-		std::string picked;
-		creatureMonsterModel = TryLoadFirstModel(
-			{"assets/models/creature_monster.glb", "assets/models/creature_monster.gltf", "assets/models/creature_monster.fbx", "assets/models/creature_monster.obj"},
-			picked);
-		if (creatureMonsterModel) {
-			std::printf("Loaded creature monster model: %s\n", picked.c_str());
-		}
-	}
-	if (!characters.empty()) {
-		characters[0]->isActivePlayer = true;
-	}
+    std::printf("Showcase controls:\n");
+    std::printf("  Move: WASD | Sprint: Left Shift | Crouch: C\n");
+    std::printf("  Camera: Hold Right Mouse or use Arrow Keys | Recenter: Space\n");
+    std::printf("  Character switch: Tab or 1-5\n");
+    std::printf("  Game phases: F1 Explore, F2 Prepare, F3 Survive, F4 Switch Character, F5 Toggle Auto Cycle\n");
 
-	std::vector<Character*> playerRefs;
-	playerRefs.reserve(characters.size());
-	for (auto& c : characters) {
-		playerRefs.push_back(c.get());
-	}
+    Timer timer;
+    int lastWidth = window.GetWidth();
+    int lastHeight = window.GetHeight();
+    bool firstMouse = true;
+    double lastMouseX = 0.0;
+    double lastMouseY = 0.0;
 
-	std::vector<NPC*> npcRefs;
+    bool tabPrev = false;
+    bool spacePrev = false;
+    bool f1Prev = false;
+    bool f2Prev = false;
+    bool f3Prev = false;
+    bool f4Prev = false;
+    bool f5Prev = false;
+    std::array<bool, 5> numberPrev = {{false, false, false, false, false}};
+    const std::array<int, 5> numberKeys = {{GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_4, GLFW_KEY_5}};
 
-	NavMesh navMesh;
-	CreatureAI creatureAI(&navMesh, nullptr);
-	creatureAI.SpawnCreature(glm::vec3(-4.0f, 0.75f, 6.0f), {
-		glm::vec3(-8.0f, 0.75f, 6.0f),
-		glm::vec3(-2.0f, 0.75f, 6.0f),
-		glm::vec3(-2.0f, 0.75f, 2.0f),
-		glm::vec3(-8.0f, 0.75f, 2.0f)
-	});
-	creatureAI.SpawnCreature(glm::vec3(4.0f, 0.75f, 6.0f), {
-		glm::vec3(2.0f, 0.75f, 6.0f),
-		glm::vec3(8.0f, 0.75f, 6.0f),
-		glm::vec3(8.0f, 0.75f, 2.0f),
-		glm::vec3(2.0f, 0.75f, 2.0f)
-	});
-	creatureAI.SpawnCreature(glm::vec3(0.0f, 0.75f, -5.0f), {
-		glm::vec3(-3.0f, 0.75f, -4.0f),
-		glm::vec3(3.0f, 0.75f, -4.0f),
-		glm::vec3(3.0f, 0.75f, -8.0f),
-		glm::vec3(-3.0f, 0.75f, -8.0f)
-	});
-	for (Creature& c : creatureAI.GetCreaturesMutable()) {
-		c.humanModel = creatureHumanModel.get();
-		c.monsterModel = creatureMonsterModel.get();
-	}
+    while (!window.ShouldClose()) {
+        window.PollEvents();
 
-	auto modelShader = std::make_unique<Shader>("ModelDebug");
-	bool modelShaderReady = false;
-	try {
-		modelShader->Load("assets/shaders/model_debug.vert", "assets/shaders/model_debug.frag");
-		modelShader->Bind();
-		modelShader->SetInt("albedoMap", 0);
-		modelShader->SetInt("normalMap", 1);
-		modelShader->SetInt("roughnessMap", 2);
-		modelShader->SetInt("metallicMap", 3);
-		modelShader->SetInt("aoMap", 4);
-		modelShader->SetInt("emissiveMap", 5);
-		modelShader->Unbind();
-		modelShaderReady = true;
-	} catch (const std::exception& e) {
-		std::fprintf(stderr, "Model shader load failed: %s\n", e.what());
-	}
+        if (glfwGetKey(window.GetHandle(), GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+            glfwSetWindowShouldClose(window.GetHandle(), GLFW_TRUE);
+        }
 
-	const GLint modelLoc = glGetUniformLocation(characterProgram, "uModel");
-	const GLint viewLoc = glGetUniformLocation(characterProgram, "uView");
-	const GLint projLoc = glGetUniformLocation(characterProgram, "uProjection");
-	const GLint colorLoc = glGetUniformLocation(characterProgram, "uColor");
+        if (window.GetWidth() != lastWidth || window.GetHeight() != lastHeight) {
+            lastWidth = window.GetWidth();
+            lastHeight = window.GetHeight();
+            renderer.Resize(lastWidth, lastHeight);
+        }
 
-	Timer timer;
-	float aiPrintTimer = 0.0f;
-	while (!window.ShouldClose()) {
-		timer.Tick();
-		const float dt = timer.GetDeltaTime();
-		glClearColor(0.05f, 0.03f, 0.08f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        timer.Tick();
+        const float dt = std::min(timer.GetDeltaTime(), 0.033f);
+        const float time = timer.GetTotalTime();
 
-		const float t = timer.GetTotalTime();
+        Character& activeCharacter = *characters[static_cast<std::size_t>(activeCharacterIndex)];
+        activeCharacter.isActivePlayer = true;
 
-		for (std::size_t i = 0; i < characters.size(); ++i) {
-			characters[i]->SetNoiseLevelThisFrame(3.0f + (i == 0 ? 2.0f : 0.0f));
-			characters[i]->Update(dt);
-		}
-		creatureAI.Update(dt, playerRefs, npcRefs);
+        if (ConsumePress(window.GetHandle(), GLFW_KEY_TAB, tabPrev)) {
+            activeCharacter.isActivePlayer = false;
+            activeCharacterIndex = (activeCharacterIndex + 1) % static_cast<int>(characters.size());
+            const std::string switchedName = characters[static_cast<std::size_t>(activeCharacterIndex)]->GetCharacterName();
+            std::printf("[showcase] Switched to %s\n", switchedName.c_str());
+            camera.Reset(characters[static_cast<std::size_t>(activeCharacterIndex)]->position);
+        }
 
-		const glm::mat4 view = glm::lookAt(
-			glm::vec3(0.0f, 7.0f, 14.0f),
-			glm::vec3(0.0f, 0.0f, 0.0f),
-			glm::vec3(0.0f, 1.0f, 0.0f));
-		const glm::mat4 projection = glm::perspective(glm::radians(60.0f), window.GetAspectRatio(), 0.1f, 100.0f);
+        for (std::size_t i = 0; i < numberKeys.size(); ++i) {
+            if (ConsumePress(window.GetHandle(), numberKeys[i], numberPrev[i])) {
+                characters[static_cast<std::size_t>(activeCharacterIndex)]->isActivePlayer = false;
+                activeCharacterIndex = static_cast<int>(i);
+                const std::string switchedName = characters[i]->GetCharacterName();
+                std::printf("[showcase] Switched to %s\n", switchedName.c_str());
+                camera.Reset(characters[i]->position);
+            }
+        }
 
-		glUseProgram(characterProgram);
-		glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-		glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
-		glBindVertexArray(cubeVAO);
+        if (ConsumePress(window.GetHandle(), GLFW_KEY_F1, f1Prev)) {
+            dayNight.SetLoopPhase(GameLoopPhase::Explore);
+            std::printf("[showcase] Game phase: %s\n", dayNight.GetPhaseName());
+        }
+        if (ConsumePress(window.GetHandle(), GLFW_KEY_F2, f2Prev)) {
+            dayNight.SetLoopPhase(GameLoopPhase::Prepare);
+            std::printf("[showcase] Game phase: %s\n", dayNight.GetPhaseName());
+        }
+        if (ConsumePress(window.GetHandle(), GLFW_KEY_F3, f3Prev)) {
+            dayNight.SetLoopPhase(GameLoopPhase::Survive);
+            std::printf("[showcase] Game phase: %s\n", dayNight.GetPhaseName());
+        }
+        if (ConsumePress(window.GetHandle(), GLFW_KEY_F4, f4Prev)) {
+            dayNight.SetLoopPhase(GameLoopPhase::SwitchCharacter);
+            std::printf("[showcase] Game phase: %s\n", dayNight.GetPhaseName());
+        }
+        if (ConsumePress(window.GetHandle(), GLFW_KEY_F5, f5Prev)) {
+            dayNight.ToggleAutoAdvance();
+            std::printf("[showcase] Auto phase loop %s\n", dayNight.IsAutoAdvanceEnabled() ? "enabled" : "disabled");
+        }
 
-		for (std::size_t i = 0; i < characters.size(); ++i) {
-			const float bob = std::sin(t * 2.0f + static_cast<float>(i)) * 0.12f;
-			glm::mat4 model(1.0f);
-			model = glm::translate(model, characters[i]->position + glm::vec3(0.0f, bob, 0.0f));
-			model = glm::rotate(model, characters[i]->facingAngle + static_cast<float>(i) * 0.15f, glm::vec3(0.0f, 1.0f, 0.0f));
+        dayNight.Update(dt);
 
-			if (modelShaderReady && characters[i]->model != nullptr) {
-				glm::mat4 modelM = model * glm::scale(glm::mat4(1.0f), glm::vec3(1.0f));
-				modelShader->Bind();
-				modelShader->SetMat4("model", modelM);
-				modelShader->SetMat4("view", view);
-				modelShader->SetMat4("projection", projection);
-				modelShader->SetVec3("tintColor", characterColors[i]);
-				characters[i]->model->Draw(*modelShader);
-				modelShader->Unbind();
-			} else {
-				model = model * glm::scale(glm::mat4(1.0f), glm::vec3(1.0f, 1.5f, 0.8f));
-				glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-				glUniform3fv(colorLoc, 1, glm::value_ptr(characterColors[i]));
-				glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, nullptr);
-			}
-		}
+        UpdateCameraOrbit(camera, window.GetHandle(), dt, firstMouse, lastMouseX, lastMouseY);
+        UpdateActiveCharacter(*characters[static_cast<std::size_t>(activeCharacterIndex)], camera, window.GetHandle(), dt);
 
-		auto& creatures = creatureAI.GetCreaturesMutable();
-		for (Creature& creature : creatures) {
-			glm::mat4 model(1.0f);
-			model = glm::translate(model, creature.position + glm::vec3(0.0f, 0.2f, 0.0f));
-			model = glm::rotate(model, creature.facingAngle, glm::vec3(0.0f, 1.0f, 0.0f));
+        if (ConsumePress(window.GetHandle(), GLFW_KEY_SPACE, spacePrev)) {
+            camera.Reset(characters[static_cast<std::size_t>(activeCharacterIndex)]->position);
+        }
 
-			Model* chosenModel = nullptr;
-			if (creature.transformProgress >= 0.5f) {
-				chosenModel = creature.monsterModel ? creature.monsterModel : creature.humanModel;
-			} else {
-				chosenModel = creature.humanModel ? creature.humanModel : creature.monsterModel;
-			}
+        for (std::size_t i = 0; i < characters.size(); ++i) {
+            Character& character = *characters[i];
+            character.Update(dt);
+            character.position.y = world.GetHeightAt(character.position.x, character.position.z) - RootHeightBias(character);
+            if (static_cast<int>(i) != activeCharacterIndex && character.state != CharacterState::DEAD) {
+                character.state = CharacterState::IDLE;
+            }
+        }
 
-			if (modelShaderReady && chosenModel != nullptr) {
-				glm::mat4 modelM = model * glm::scale(glm::mat4(1.0f), glm::vec3(1.1f));
-				modelShader->Bind();
-				modelShader->SetMat4("model", modelM);
-				modelShader->SetMat4("view", view);
-				modelShader->SetMat4("projection", projection);
-				modelShader->SetVec3("tintColor", CreatureStateColor(creature.state));
-				chosenModel->Draw(*modelShader);
-				modelShader->Unbind();
-			} else {
-				model = model * glm::scale(glm::mat4(1.0f), glm::vec3(0.8f, 1.8f, 0.8f));
-				glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-				const glm::vec3 creatureColor = CreatureStateColor(creature.state);
-				glUniform3fv(colorLoc, 1, glm::value_ptr(creatureColor));
-				glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, nullptr);
-			}
-		}
+        Character& followedCharacter = *characters[static_cast<std::size_t>(activeCharacterIndex)];
+        camera.isUnderground = followedCharacter.position.y < -1.5f;
+        camera.Update(followedCharacter.position, dt);
+        const float cameraGround = world.GetHeightAt(camera.position.x, camera.position.z) + 0.8f;
+        if (camera.position.y < cameraGround) {
+            camera.position.y = glm::mix(camera.position.y, cameraGround, 0.45f);
+        }
 
-		glBindVertexArray(0);
-		glUseProgram(0);
+        renderer.BeginGeometryPass();
+        world.DrawAll(renderer, camera, dayNight);
 
-		aiPrintTimer += dt;
-		if (aiPrintTimer >= 1.0f && !creatureAI.GetCreatures().empty()) {
-			aiPrintTimer = 0.0f;
-			const Creature& c0 = creatureAI.GetCreatures().front();
-			const float nearest = creatureAI.GetNearestCreatureDistance(characters.front()->position);
-			std::printf("AI Debug | C0 state=%s path=%zu idx=%d nearestToPlayer=%.2f\n",
-				CreatureStateName(c0.state),
-				c0.currentPath.size(),
-				c0.pathIndex,
-				nearest);
-		}
+        const glm::mat4 view = camera.GetViewMatrix();
+        const glm::mat4 projection = camera.GetProjectionMatrix(window.GetAspectRatio());
 
-		window.PollEvents();
-		window.SwapBuffers();
-	}
+        characterShader.Bind();
+        characterShader.SetMat4("view", view);
+        characterShader.SetMat4("projection", projection);
+        characterShader.SetFloat("roughness", 0.68f);
+        characterShader.SetFloat("metalness", 0.02f);
+        characterShader.SetVec3("emission", glm::vec3(0.0f));
 
-	if (cubeEBO) glDeleteBuffers(1, &cubeEBO);
-	if (cubeVBO) glDeleteBuffers(1, &cubeVBO);
-	if (cubeVAO) glDeleteVertexArrays(1, &cubeVAO);
-	if (characterProgram) glDeleteProgram(characterProgram);
+        for (std::size_t i = 0; i < characters.size(); ++i) {
+            Character& character = *characters[i];
+            const float bob = (character.state == CharacterState::IDLE ? std::sin(time * 1.25f + static_cast<float>(i)) * 0.010f : 0.0f);
+            glm::mat4 root(1.0f);
+            root = glm::translate(root, character.position + glm::vec3(0.0f, bob, 0.0f));
+            root = glm::rotate(root, character.facingAngle, glm::vec3(0.0f, 1.0f, 0.0f));
 
-	return 0;
+            ProceduralHumanoid* humanoid = character.GetProceduralHumanoid();
+            if (!humanoid) {
+                continue;
+            }
+
+            humanoid->UpdateJointTransform(JointId::ROOT, root);
+            characterShader.SetVec3("albedoColor", humanoid->GetSkinColor());
+            humanoid->Draw(characterShader, {});
+
+            if (character.GetProceduralClothing()) {
+                character.GetProceduralClothing()->Draw(characterShader, root);
+            }
+            if (character.GetProceduralHair()) {
+                character.GetProceduralHair()->Draw(characterShader, root);
+            }
+            if (character.GetFaceDetails()) {
+                character.GetFaceDetails()->Draw(characterShader, root);
+            }
+        }
+
+        characterShader.Unbind();
+        renderer.EndGeometryPass();
+
+        std::vector<RenderCommand> emptyCommands;
+        renderer.ShadowPass(emptyCommands, dayNight.GetSunDirection());
+        renderer.SSAOPass();
+        renderer.LightingPass(dayNight, camera);
+        renderer.PostProcessPass(PostFXState{});
+
+        window.SwapBuffers();
+    }
+
+    return 0;
 }

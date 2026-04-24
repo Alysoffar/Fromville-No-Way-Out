@@ -1,6 +1,7 @@
 #include "Window.h"
 
 #include <iostream>
+#include <cstdio>
 
 #define GLFW_INCLUDE_NONE
 #include <glad/glad.h>
@@ -31,18 +32,14 @@ bool Window::Init() {
 
 	handle = glfwCreateWindow(width, height, title.c_str(), nullptr, nullptr);
 	if (!handle) {
+		std::fprintf(stderr, "GLFW Error: failed to create window %s (%dx%d)\n", title.c_str(), width, height);
 		return false;
 	}
 
-	GLFWmonitor* primaryMonitor = glfwGetPrimaryMonitor();
-	if (primaryMonitor) {
-		const GLFWvidmode* mode = glfwGetVideoMode(primaryMonitor);
-		if (mode) {
-			const int x = (mode->width - width) / 2;
-			const int y = (mode->height - height) / 2;
-			glfwSetWindowPos(handle, x, y);
-		}
-	}
+	std::printf("Window created: %s (%dx%d)\n", title.c_str(), width, height);
+
+	glfwSetWindowPos(handle, 80, 80);
+	glfwRestoreWindow(handle);
 	glfwShowWindow(handle);
 	glfwFocusWindow(handle);
 

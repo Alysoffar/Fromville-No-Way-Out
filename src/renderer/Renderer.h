@@ -29,6 +29,7 @@ public:
     void LightingPass(DayNightCycle& dayNight, Camera& camera);
     void PostProcessPass(struct PostFXState state);
     void Resize(int w, int h);
+    float GetAspectRatio() const { return height == 0 ? 1.0f : static_cast<float>(width) / static_cast<float>(height); }
 
     GBuffer* GetGBuffer() { return gBuffer.get(); }
     ShadowMap* GetShadowMap() { return shadowMap.get(); }
