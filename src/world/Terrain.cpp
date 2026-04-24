@@ -22,34 +22,19 @@ float DistanceToSegment2D(const glm::vec2& point, const glm::vec2& a, const glm:
     return glm::length(point - (a + ab * t));
 }
 
-GLuint LoadGrassTexture() {
-    static GLuint texture = 0;
-    if (texture != 0) {
-        return texture;
-    }
-
-    const int width = 256;
-    const int height = 256;
+GLuint CreateTerrainTexture(int width, int height, const glm::vec3& baseColor, const glm::vec3& accentColor, float streakScale, float spotScale) {
     std::vector<unsigned char> pixels(static_cast<size_t>(width * height * 4), 0);
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
             const float u = static_cast<float>(x) / static_cast<float>(width - 1);
             const float v = static_cast<float>(y) / static_cast<float>(height - 1);
-            const float blade = 0.5f + 0.5f * std::sin(u * 78.0f + v * 41.0f + static_cast<float>((x * 13 + y * 17) % 29));
-            const float clump = 0.5f + 0.5f * std::sin(u * 14.0f + v * 9.0f + static_cast<float>((x * 7 + y * 5) % 11));
-            const float dirt = glm::clamp(0.15f + 0.55f * std::sin(u * 5.0f + v * 6.0f), 0.0f, 1.0f);
-            const float moisture = glm::clamp(0.5f + 0.5f * std::cos(u * 3.2f + v * 2.7f), 0.0f, 1.0f);
-            const float patch = 0.5f + 0.5f * std::sin(u * 10.0f + v * 7.0f + static_cast<float>((x * 19 + y * 31) % 23));
-            const float clover = 0.5f + 0.5f * std::sin(u * 24.0f + v * 19.0f + static_cast<float>((x * 11 + y * 13) % 17));
+            const float streak = 0.5f + 0.5f * std::sin(u * streakScale + v * (streakScale * 0.67f) + static_cast<float>((x * 13 + y * 17) % 29));
+            const float spot = 0.5f + 0.5f * std::sin(u * spotScale + v * (spotScale * 0.83f) + static_cast<float>((x * 7 + y * 5) % 11));
+            const float noise = 0.5f + 0.5f * std::sin(u * 47.0f + v * 31.0f + static_cast<float>((x * 19 + y * 23) % 17));
 
-            glm::vec3 color(0.15f, 0.30f, 0.11f);
-            color = glm::mix(color, glm::vec3(0.21f, 0.40f, 0.17f), blade * 0.72f);
-            color = glm::mix(color, glm::vec3(0.12f, 0.24f, 0.09f), clump * 0.52f);
-            color = glm::mix(color, glm::vec3(0.24f, 0.43f, 0.18f), patch * 0.34f);
-            color += glm::vec3(0.03f, 0.05f, 0.02f) * moisture;
-            color -= glm::vec3(0.05f, 0.03f, 0.02f) * dirt;
-            color += glm::vec3(0.02f, 0.04f, 0.02f) * clover;
-            color += glm::vec3(0.02f, 0.03f, 0.02f) * (0.5f + 0.5f * std::sin(u * 112.0f + v * 67.0f));
+            glm::vec3 color = glm::mix(baseColor, accentColor, streak * 0.6f);
+            color = glm::mix(color, baseColor * 0.78f, spot * 0.45f);
+            color += glm::vec3(0.02f, 0.02f, 0.02f) * noise;
 
             const size_t index = static_cast<size_t>((y * width + x) * 4);
             pixels[index + 0] = static_cast<unsigned char>(glm::clamp(color.r, 0.0f, 1.0f) * 255.0f);
@@ -59,15 +44,45 @@ GLuint LoadGrassTexture() {
         }
     }
 
+    GLuint texture = 0;
     glGenTextures(1, &texture);
     glBindTexture(GL_TEXTURE_2D, texture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
     glGenerateMipmap(GL_TEXTURE_2D);
-
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    return texture;
+}
+
+GLuint GetGrassTexture() {
+    static GLuint texture = 0;
+    if (texture != 0) {
+        return texture;
+    }
+
+    texture = CreateTerrainTexture(256, 256, glm::vec3(0.15f, 0.30f, 0.11f), glm::vec3(0.24f, 0.43f, 0.18f), 78.0f, 14.0f);
+    return texture;
+}
+
+GLuint GetDirtTexture() {
+    static GLuint texture = 0;
+    if (texture != 0) {
+        return texture;
+    }
+
+    texture = CreateTerrainTexture(256, 256, glm::vec3(0.28f, 0.23f, 0.15f), glm::vec3(0.36f, 0.30f, 0.18f), 42.0f, 9.0f);
+    return texture;
+}
+
+GLuint GetRockTexture() {
+    static GLuint texture = 0;
+    if (texture != 0) {
+        return texture;
+    }
+
+    texture = CreateTerrainTexture(256, 256, glm::vec3(0.34f, 0.35f, 0.36f), glm::vec3(0.48f, 0.47f, 0.45f), 18.0f, 6.0f);
     return texture;
 }
 
@@ -81,6 +96,8 @@ Terrain::~Terrain() {
     if (vbo) glDeleteBuffers(1, &vbo);
     if (vao) glDeleteVertexArrays(1, &vao);
     if (grassTexture) glDeleteTextures(1, &grassTexture);
+    if (dirtTexture) glDeleteTextures(1, &dirtTexture);
+    if (rockTexture) glDeleteTextures(1, &rockTexture);
 }
 
 void Terrain::Generate() {
@@ -94,15 +111,19 @@ void Terrain::Draw(Shader& shader) const {
     }
 
     shader.SetMat4("model", glm::mat4(1.0f));
-    shader.SetInt("baseTexture", 0);
-    shader.SetBool("useTexture", true);
+    shader.SetBool("terrainMaterial", true);
+    shader.SetFloat("terrainTextureScale", 0.065f);
     shader.SetVec3("albedoColor", glm::vec3(0.30f, 0.38f, 0.24f));
-    shader.SetFloat("roughness", 0.95f);
+    shader.SetFloat("roughness", 0.98f);
     shader.SetFloat("metalness", 0.0f);
     shader.SetVec3("emission", glm::vec3(0.0f));
 
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, LoadGrassTexture());
+    glBindTexture(GL_TEXTURE_2D, GetGrassTexture());
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, GetDirtTexture());
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, GetRockTexture());
 
     glBindVertexArray(vao);
     glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, nullptr);
@@ -192,6 +213,9 @@ void Terrain::GenerateHeightMap() {
             const float detailNoise = glm::perlin(glm::vec2(wx * 0.010f, wz * 0.010f)) * 0.12f;
             float h = n * 0.95f + broadNoise * 0.55f + detailNoise;
 
+            const float basin = glm::smoothstep(0.0f, 115.0f, std::max(std::abs(wx), std::abs(wz)));
+            h += basin * basin * 2.2f;
+
             h += ridgeAt(wx, wz, glm::vec2(-146.0f, 112.0f), glm::vec2(84.0f, 62.0f), 4.4f, 2.0f);
             h += ridgeAt(wx, wz, glm::vec2(160.0f, 104.0f), glm::vec2(92.0f, 70.0f), 5.1f, 2.0f);
             h += ridgeAt(wx, wz, glm::vec2(-136.0f, -128.0f), glm::vec2(88.0f, 64.0f), 4.0f, 2.1f);
@@ -207,8 +231,8 @@ void Terrain::GenerateHeightMap() {
 
             const glm::vec2 pos(wx, wz);
             const float townExtent = std::max(std::abs(wx), std::abs(wz));
-            const float townBlend = 1.0f - glm::smoothstep(70.0f, 220.0f, townExtent);
-            h *= glm::mix(1.0f, 0.36f, townBlend);
+            const float townBlend = 1.0f - glm::smoothstep(55.0f, 200.0f, townExtent);
+            h *= glm::mix(1.0f, 0.58f, townBlend);
 
             float roadBlend = 0.0f;
             for (const RoadProfile& road : roadProfiles) {
@@ -257,7 +281,7 @@ void Terrain::GenerateHeightMap() {
             const float edge = std::max(edgeX, edgeZ);
             if (edge > 0.70f) {
                 const float edgeRise = glm::smoothstep(0.70f, 1.0f, edge);
-                h += edgeRise * 0.9f + edgeRise * edgeRise * 0.7f;
+                h += edgeRise * 2.0f + edgeRise * edgeRise * 1.6f;
             }
 
             heightMap[static_cast<size_t>(z * gridW + x)] = h;
@@ -277,7 +301,7 @@ void Terrain::BuildMesh() {
             v.pos.z = (static_cast<float>(z) - static_cast<float>(gridD) * 0.5f) * cell;
             v.pos.y = heightMap[static_cast<size_t>(z * gridW + x)];
             v.nrm = glm::vec3(0.0f, 1.0f, 0.0f);
-            v.uv = glm::vec2(static_cast<float>(x) * 0.32f, static_cast<float>(z) * 0.32f);
+            v.uv = glm::vec2(static_cast<float>(x) * 0.16f, static_cast<float>(z) * 0.16f);
             verts.push_back(v);
         }
     }

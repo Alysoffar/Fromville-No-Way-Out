@@ -365,7 +365,12 @@ void WorldBuilder::BuildAll() {
         shaderReady = true;
         worldShader->Bind();
         worldShader->SetInt("baseTexture", 0);
+        worldShader->SetInt("terrainGrassTexture", 0);
+        worldShader->SetInt("terrainDirtTexture", 1);
+        worldShader->SetInt("terrainRockTexture", 2);
         worldShader->SetBool("useTexture", false);
+        worldShader->SetBool("terrainMaterial", false);
+        worldShader->SetFloat("terrainTextureScale", 0.065f);
         worldShader->Unbind();
     } catch (const std::exception& e) {
         shaderReady = false;
@@ -408,6 +413,7 @@ void WorldBuilder::DrawAll(Renderer& renderer, Camera& camera, DayNightCycle& da
 
     if (terrain) {
         terrain->Draw(*worldShader);
+        worldShader->SetBool("terrainMaterial", false);
     }
     if (roads) {
         roads->Draw(*worldShader);

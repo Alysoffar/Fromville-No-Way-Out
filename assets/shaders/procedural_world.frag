@@ -15,6 +15,11 @@ uniform float metalness;
 uniform vec3 emission;
 uniform bool useTexture;
 uniform sampler2D baseTexture;
+uniform bool terrainMaterial;
+uniform sampler2D terrainGrassTexture;
+uniform sampler2D terrainDirtTexture;
+uniform sampler2D terrainRockTexture;
+uniform float terrainTextureScale;
 
 float Hash21(vec2 p) {
     p = fract(p * vec2(123.34, 456.21));
@@ -161,6 +166,34 @@ void main() {
 
     float tint = 0.92 + TexCoords.y * 0.08;
     vec3 materialColor = albedoColor;
+    if (terrainMaterial) {
+        vec3 N = normalize(Normal);
+        vec2 terrainUV = FragPos.xz * terrainTextureScale;
+        float slope = clamp(1.0 - N.y, 0.0, 1.0);
+        float altitude = clamp((FragPos.y + 2.0) * 0.06, 0.0, 1.0);
+        float grassMask = clamp(1.0 - slope * 1.6 - altitude * 0.35, 0.0, 1.0);
+        float dirtMask = clamp(slope * 1.2 + altitude * 0.25, 0.0, 1.0);
+        float rockMask = clamp(slope * 1.8 + altitude * 0.50, 0.0, 1.0);
+        float total = max(grassMask + dirtMask + rockMask, 0.0001);
+        grassMask /= total;
+        dirtMask /= total;
+        rockMask /= total;
+
+        vec3 grass = texture(terrainGrassTexture, terrainUV).rgb;
+        vec3 dirt = texture(terrainDirtTexture, terrainUV * 0.78 + vec2(0.11, 0.07)).rgb;
+        vec3 rock = texture(terrainRockTexture, terrainUV * 0.54 + vec2(0.31, 0.24)).rgb;
+        float micro = ValueNoise(terrainUV * 8.0 + FragPos.xz * 0.05);
+        materialColor = grass * grassMask + dirt * dirtMask + rock * rockMask;
+        materialColor = mix(materialColor, materialColor * 0.84, micro * 0.25);
+        materialColor += vec3(0.03, 0.04, 0.02) * smoothstep(0.0, 0.7, 1.0 - N.y);
+        vec2 gradUV = terrainUV * 1.8;
+        float hx = ValueNoise(gradUV + vec2(0.02, 0.0)) - ValueNoise(gradUV - vec2(0.02, 0.0));
+        float hz = ValueNoise(gradUV + vec2(0.0, 0.02)) - ValueNoise(gradUV - vec2(0.0, 0.02));
+        gNormal = normalize(N + vec3(hx * 0.42, 0.0, hz * 0.42));
+        gAlbedoSpec = vec4(materialColor, clamp(0.96 + slope * 0.03, 0.02, 1.0));
+        gEmission = emission;
+        return;
+    }
     if (useTexture) {
         materialColor *= texture(baseTexture, TexCoords).rgb;
     }

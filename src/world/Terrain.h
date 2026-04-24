@@ -23,6 +23,8 @@ private:
 
     std::vector<float> heightMap;
     GLuint grassTexture = 0;
+    GLuint dirtTexture = 0;
+    GLuint rockTexture = 0;
 
     GLuint vao = 0;
     GLuint vbo = 0;
