@@ -101,6 +101,7 @@ target_include_directories(fromville
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/external
 )
 
 target_link_libraries(fromville
