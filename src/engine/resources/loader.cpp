@@ -67,8 +67,11 @@ bool Loader::LoadOBJ(const std::filesystem::path& path, std::vector<MeshVertex>&
     indices.reserve(12288);
 
     // tinyobj gives us arbitrary indexed faces; we'll emit one vertex per index
+    const auto& materials = reader.GetMaterials();
+
     for (const tinyobj::shape_t& shape : shapes) {
         const auto& idx = shape.mesh.indices;
+        const auto& mat_ids = shape.mesh.material_ids;
         // process triangles (tinyobj triangulate config true)
         for (size_t i = 0; i + 2 < idx.size(); i += 3) {
             // get positions
@@ -85,6 +88,13 @@ bool Loader::LoadOBJ(const std::filesystem::path& path, std::vector<MeshVertex>&
 
             // compute face normal
             glm::vec3 fn = glm::normalize(glm::cross(p[1] - p[0], p[2] - p[0]));
+
+            // determine material for this face (material_ids is per-face)
+            int mat_id = -1;
+            const size_t face_index = i / 3;
+            if (face_index < mat_ids.size()) {
+                mat_id = mat_ids[face_index];
+            }
 
             for (int k = 0; k < 3; ++k) {
                 const tinyobj::index_t& ii = idx[i + k];
@@ -107,8 +117,14 @@ bool Loader::LoadOBJ(const std::filesystem::path& path, std::vector<MeshVertex>&
                     vertex.normal = fn;
                 }
 
-                // default color; can be replaced by material parsing later
-                vertex.color = glm::vec3(0.8f);
+                // default color; use material diffuse (Kd) when available
+                if (mat_id >= 0 && static_cast<size_t>(mat_id) < materials.size()) {
+                    const auto& m = materials[static_cast<size_t>(mat_id)];
+                    // tinyobjloader exposes diffuse as a fixed-size array of 3 reals
+                    vertex.color = glm::vec3(static_cast<float>(m.diffuse[0]), static_cast<float>(m.diffuse[1]), static_cast<float>(m.diffuse[2]));
+                } else {
+                    vertex.color = glm::vec3(0.8f);
+                }
 
                 vertices.push_back(vertex);
                 indices.push_back(static_cast<unsigned int>(vertices.size() - 1u));

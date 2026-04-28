@@ -31,7 +31,7 @@ void InitializeHouseModel() {
     }
 
     gHouseMesh.Create(vertices, indices);
-    gHouseShader.Load("assets/shaders/basic_cube.vert", "assets/shaders/basic_cube.frag");
+    gHouseShader.Load("assets/shaders/model_lit.vert", "assets/shaders/model_lit.frag");
     gHouseReady = gHouseMesh.IsValid();
 }
 }
@@ -81,8 +81,6 @@ void World::Render(const Camera& camera, float aspectRatio) {
     gHouseShader.SetMat4("projection", projection);
     gHouseShader.SetMat4("view", view);
     gHouseShader.SetMat4("model", model);
-    // Choose a warm, slightly desaturated color so the house contrasts with the white floor
-    gHouseShader.SetVec3("color", glm::vec3(0.55f, 0.42f, 0.31f));
     gHouseMesh.Draw();
     gHouseShader.Unbind();
 }
