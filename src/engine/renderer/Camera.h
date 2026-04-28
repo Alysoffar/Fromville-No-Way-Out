@@ -31,7 +31,7 @@ private:
     float yaw = -90.0f;
     float pitch = 0.0f;
     
-    float mouseSensitivity = 0.08f;
+    float mouseSensitivity = 0.14f;
     float fov = 60.0f;
     float nearPlane = 0.1f;
     float farPlane = 500.0f;

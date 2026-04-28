@@ -25,4 +25,5 @@ private:
 
     glm::vec3 spawnPosition = glm::vec3(0.0f, 1.8f, 3.5f);
     bool cursorLocked = true;
+    bool sprintToggled = false;
 };

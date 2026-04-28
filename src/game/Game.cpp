@@ -34,6 +34,10 @@ void Game::Update(float dt, Engine& engine) {
         camera->Reset(spawnPosition);
     }
 
+    if (engine.GetInput().IsKeyPressed(GLFW_KEY_LEFT_ALT)) {
+        sprintToggled = !sprintToggled;
+    }
+
     // Get camera's forward and right vectors, flattened to the XZ plane
     glm::vec3 camForward = camera->GetForward();
     camForward.y = 0.0f;
@@ -59,8 +63,12 @@ void Game::Update(float dt, Engine& engine) {
     if (engine.GetInput().IsKeyPressed(GLFW_KEY_SPACE)) {
         world->GetPlayer().Jump();
     }
+    if (engine.GetInput().IsKeyReleased(GLFW_KEY_SPACE)) {
+        world->GetPlayer().ReleaseJump();
+    }
     world->GetPlayer().Crouch(engine.GetInput().IsKeyDown(GLFW_KEY_C));
-    world->GetPlayer().Sprint(engine.GetInput().IsKeyDown(GLFW_KEY_LEFT_SHIFT));
+    const bool sprintHeld = engine.GetInput().IsKeyDown(GLFW_KEY_LEFT_SHIFT);
+    world->GetPlayer().Sprint(sprintHeld || sprintToggled);
 
     camera->Update(engine.GetInput(), dt, world->GetPlayer().transform.position);
     world->Update(*camera, dt);
