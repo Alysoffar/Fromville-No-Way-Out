@@ -5,5 +5,5 @@ Player::Player()
 }
 
 void Player::Update(float dt) {
-    (void)dt;
+    ApplyPhysics(dt);
 }

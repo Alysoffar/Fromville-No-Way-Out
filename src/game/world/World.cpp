@@ -14,25 +14,40 @@
 #include "game/world/map_manager.h"
 
 namespace {
-Mesh gHouseMesh;
-Shader gHouseShader("HouseModel");
-bool gHouseReady = false;
+Mesh gPlayerMesh;
+Shader gPlayerShader("PlayerModel");
+bool gPlayerReady = false;
 
-void InitializeHouseModel() {
-    if (gHouseReady) {
-        return;
-    }
+Mesh gCottageMesh;
+Shader gCottageShader("CottageModel");
+bool gCottageReady = false;
 
+void InitializeModels() {
     std::vector<MeshVertex> vertices;
     std::vector<unsigned int> indices;
-    if (!Loader::LoadOBJ("assets/models/cottage_obj.obj", vertices, indices)) {
-        std::cerr << "Failed to load house OBJ: assets/models/cottage_obj.obj\n";
-        return;
+
+    if (!gPlayerReady) {
+        if (Loader::LoadOBJ("assets/models/boyd.obj", vertices, indices)) {
+            gPlayerMesh.Create(vertices, indices);
+            gPlayerShader.Load("assets/shaders/model_lit.vert", "assets/shaders/model_lit.frag");
+            gPlayerReady = gPlayerMesh.IsValid();
+        } else {
+            std::cerr << "Failed to load player OBJ: assets/models/boyd.obj\n";
+        }
     }
 
-    gHouseMesh.Create(vertices, indices);
-    gHouseShader.Load("assets/shaders/model_lit.vert", "assets/shaders/model_lit.frag");
-    gHouseReady = gHouseMesh.IsValid();
+    vertices.clear();
+    indices.clear();
+
+    if (!gCottageReady) {
+        if (Loader::LoadOBJ("assets/models/cottage_obj.obj", vertices, indices)) {
+            gCottageMesh.Create(vertices, indices);
+            gCottageShader.Load("assets/shaders/model_lit.vert", "assets/shaders/model_lit.frag");
+            gCottageReady = gCottageMesh.IsValid();
+        } else {
+            std::cerr << "Failed to load cottage OBJ: assets/models/cottage_obj.obj\n";
+        }
+    }
 }
 }
 
@@ -46,16 +61,15 @@ void World::Initialize() {
     terrain = &terrainRenderer;
 
     terrain->Initialize();
-    InitializeHouseModel();
+    InitializeModels();
 }
 
 void World::Update(const Camera& camera, float dt) {
-    (void)dt;
-
     if (!mapManager || !terrain) {
         return;
     }
 
+    player.Update(dt);
     mapManager->Update(camera.GetPosition());
     terrain->Update(*mapManager);
 }
@@ -67,20 +81,26 @@ void World::Render(const Camera& camera, float aspectRatio) {
 
     terrain->Render(camera, aspectRatio);
 
-    if (!gHouseReady) {
-        return;
-    }
-
     const glm::mat4 projection = camera.GetProjectionMatrix(aspectRatio);
     const glm::mat4 view = camera.GetViewMatrix();
-    const glm::mat4 model =
-        glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.3f, -8.0f)) *
-        glm::scale(glm::mat4(1.0f), glm::vec3(1.0f));
 
-    gHouseShader.Bind();
-    gHouseShader.SetMat4("projection", projection);
-    gHouseShader.SetMat4("view", view);
-    gHouseShader.SetMat4("model", model);
-    gHouseMesh.Draw();
-    gHouseShader.Unbind();
+    if (gPlayerReady) {
+        const glm::mat4 model = player.transform.GetMatrix();
+        gPlayerShader.Bind();
+        gPlayerShader.SetMat4("projection", projection);
+        gPlayerShader.SetMat4("view", view);
+        gPlayerShader.SetMat4("model", model);
+        gPlayerMesh.Draw();
+        gPlayerShader.Unbind();
+    }
+
+    if (gCottageReady) {
+        const glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(5.0f, 0.0f, -5.0f));
+        gCottageShader.Bind();
+        gCottageShader.SetMat4("projection", projection);
+        gCottageShader.SetMat4("view", view);
+        gCottageShader.SetMat4("model", model);
+        gCottageMesh.Draw();
+        gCottageShader.Unbind();
+    }
 }

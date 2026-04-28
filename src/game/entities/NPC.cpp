@@ -7,5 +7,5 @@ NPC::NPC(std::string displayName)
 }
 
 void NPC::Update(float dt) {
-    (void)dt;
+    ApplyPhysics(dt);
 }
