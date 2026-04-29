@@ -5,6 +5,5 @@ Enemy::Enemy()
 }
 
 void Enemy::Update(float dt) {
-    (void)dt;
-    (void)health;
+    ApplyPhysics(dt);
 }
