@@ -1,22 +1,11 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-#if defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-function"
-#pragma GCC diagnostic ignored "-Winvalid-constexpr"
-#endif
-
-#define TINYOBJLOADER_IMPLEMENTATION
-#include <tinyobjloader/tiny_obj_loader.h>
-
-#if defined(__GNUC__)
-#pragma GCC diagnostic pop
-#endif
-
 #include "engine/resources/loader.h"
 
+#include <algorithm>
 #include <fstream>
+#include <iostream>
 #include <sstream>
 
 std::string Loader::ReadTextFile(const std::filesystem::path& path) {
@@ -47,90 +36,155 @@ bool Loader::LoadOBJ(const std::filesystem::path& path, std::vector<MeshVertex>&
     vertices.clear();
     indices.clear();
 
-    tinyobj::ObjReaderConfig config;
-    config.mtl_search_path = path.parent_path().string();
-    config.triangulate = true;
-
-    tinyobj::ObjReader reader;
-    if (!reader.ParseFromFile(path.string(), config)) {
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        std::cerr << "[Loader] Failed to open OBJ: " << path << "\n";
         return false;
     }
 
-    const tinyobj::attrib_t& attrib = reader.GetAttrib();
-    const std::vector<tinyobj::shape_t>& shapes = reader.GetShapes();
+    // -------------------------------------------------------------------------
+    // Raw data storage while scanning the file
+    // -------------------------------------------------------------------------
+    std::vector<glm::vec3> positions;   // from "v" lines
+    std::vector<glm::vec3> normals;     // from "vn" lines
+    std::string line;
+    int lineNumber = 0;
 
-    if (attrib.vertices.empty() || shapes.empty()) {
-        return false;
+    struct FaceVert {
+        int v  = -1;   // position index  (0-based after Fix 1)
+        int vn = -1;   // normal index    (0-based after Fix 1)
+    };
+    std::vector<std::vector<FaceVert>> faces;  // each face = list of corner indices
+
+    // -------------------------------------------------------------------------
+    // Pass 1: read every line, store positions/normals/faces
+    // -------------------------------------------------------------------------
+    while (std::getline(file, line)) {
+        ++lineNumber;
+        std::istringstream iss(line);
+        std::string prefix;
+        iss >> prefix;
+
+        if (prefix == "v") {
+            float x, y, z;
+            if (iss >> x >> y >> z) {
+                positions.emplace_back(x, y, z);
+            }
+        } else if (prefix == "vn") {
+            float x, y, z;
+            if (iss >> x >> y >> z) {
+                normals.emplace_back(x, y, z);
+            }
+        } else if (prefix == "f") {
+            std::vector<FaceVert> face;
+            std::string vertToken;
+            while (iss >> vertToken) {
+                FaceVert fv;
+                // Face vertex formats: v  |  v/vt  |  v/vt/vn  |  v//vn
+                // Replace '/' with ' ' so stringstream can parse the fields
+                std::replace(vertToken.begin(), vertToken.end(), '/', ' ');
+                std::istringstream viss(vertToken);
+
+                // Read position index
+                if (viss >> fv.v) {
+                    // Fix 1: OBJ indices are 1-based; subtract 1 for C++ arrays
+                    fv.v -= 1;
+                }
+                // Skip optional texcoord
+                int vtDummy;
+                if (viss >> vtDummy) {
+                    // texcoord present but unused
+                }
+                // Read optional normal index
+                if (viss >> fv.vn) {
+                    // Fix 1: normal indices are also 1-based
+                    fv.vn -= 1;
+                }
+                face.push_back(fv);
+            }
+            faces.push_back(std::move(face));
+        }
     }
 
-    vertices.reserve(4096);
-    indices.reserve(12288);
+    // -------------------------------------------------------------------------
+    // Pass 2: triangulate, bounds-check, and build interleaved vertex buffer
+    // -------------------------------------------------------------------------
+    glm::vec3 minPos(1e10f);
+    glm::vec3 maxPos(-1e10f);
 
-    // tinyobj gives us arbitrary indexed faces; we'll emit one vertex per index
-    const auto& materials = reader.GetMaterials();
+    for (size_t faceIdx = 0; faceIdx < faces.size(); ++faceIdx) {
+        const auto& face = faces[faceIdx];
 
-    for (const tinyobj::shape_t& shape : shapes) {
-        const auto& idx = shape.mesh.indices;
-        const auto& mat_ids = shape.mesh.material_ids;
-        // process triangles (tinyobj triangulate config true)
-        for (size_t i = 0; i + 2 < idx.size(); i += 3) {
-            // get positions
+        // Fix 2: Detect quads / n-gons
+        if (face.size() < 3) {
+            std::cerr << "[Loader] Warning: face " << faceIdx
+                      << " has fewer than 3 vertices, skipping.\n";
+            continue;
+        }
+        if (face.size() > 3) {
+            std::cerr << "[Loader] Warning: face " << faceIdx
+                      << " has " << face.size()
+                      << " vertices (quad/ngon). Fan-triangulating.\n";
+        }
+
+        // Fix 2: Fan triangulation
+        //   quad  f a b c d  ->  triangles (a,b,c) and (a,c,d)
+        //   n-gon f a b c d e -> (a,b,c), (a,c,d), (a,d,e), ...
+        for (size_t i = 1; i + 1 < face.size(); ++i) {
+            const FaceVert tri[3] = {face[0], face[i], face[i + 1]};
+
+            // Compute fallback face-normal now (before any index may be rejected)
             glm::vec3 p[3];
             for (int k = 0; k < 3; ++k) {
-                const tinyobj::index_t& ii = idx[i + k];
-                const std::size_t vbase = static_cast<std::size_t>(ii.vertex_index) * 3u;
-                p[k] = glm::vec3(
-                    attrib.vertices[vbase],
-                    attrib.vertices[vbase + 1u],
-                    attrib.vertices[vbase + 2u]
-                );
+                if (tri[k].v >= 0 && tri[k].v < static_cast<int>(positions.size())) {
+                    p[k] = positions[tri[k].v];
+                } else {
+                    p[k] = glm::vec3(0.0f);
+                }
             }
-
-            // compute face normal
-            glm::vec3 fn = glm::normalize(glm::cross(p[1] - p[0], p[2] - p[0]));
-
-            // determine material for this face (material_ids is per-face)
-            int mat_id = -1;
-            const size_t face_index = i / 3;
-            if (face_index < mat_ids.size()) {
-                mat_id = mat_ids[face_index];
-            }
+            glm::vec3 faceNormal = glm::normalize(glm::cross(p[1] - p[0], p[2] - p[0]));
 
             for (int k = 0; k < 3; ++k) {
-                const tinyobj::index_t& ii = idx[i + k];
+                // Fix 3: Bounds check — every index must be < vertex count
+                if (tri[k].v < 0 || tri[k].v >= static_cast<int>(positions.size())) {
+                    std::cerr << "[Loader] ERROR: face " << faceIdx
+                              << " vertex " << k
+                              << " has out-of-bounds index " << tri[k].v
+                              << " (valid: 0.." << static_cast<int>(positions.size()) - 1
+                              << ", line ~" << lineNumber << ")\n";
+                    vertices.clear();
+                    indices.clear();
+                    return false;
+                }
+
                 MeshVertex vertex;
-                const std::size_t vbase = static_cast<std::size_t>(ii.vertex_index) * 3u;
-                vertex.position = glm::vec3(
-                    attrib.vertices[vbase],
-                    attrib.vertices[vbase + 1u],
-                    attrib.vertices[vbase + 2u]
-                );
+                vertex.position = positions[tri[k].v];
 
-                if (!attrib.normals.empty() && ii.normal_index >= 0) {
-                    const std::size_t nbase = static_cast<std::size_t>(ii.normal_index) * 3u;
-                    vertex.normal = glm::vec3(
-                        attrib.normals[nbase],
-                        attrib.normals[nbase + 1u],
-                        attrib.normals[nbase + 2u]
-                    );
+                if (tri[k].vn >= 0 && tri[k].vn < static_cast<int>(normals.size())) {
+                    vertex.normal = normals[tri[k].vn];
                 } else {
-                    vertex.normal = fn;
+                    vertex.normal = faceNormal;
                 }
 
-                // default color; use material diffuse (Kd) when available
-                if (mat_id >= 0 && static_cast<size_t>(mat_id) < materials.size()) {
-                    const auto& m = materials[static_cast<size_t>(mat_id)];
-                    // tinyobjloader exposes diffuse as a fixed-size array of 3 reals
-                    vertex.color = glm::vec3(static_cast<float>(m.diffuse[0]), static_cast<float>(m.diffuse[1]), static_cast<float>(m.diffuse[2]));
-                } else {
-                    vertex.color = glm::vec3(0.8f);
-                }
+                vertex.color = glm::vec3(0.8f);
+
+                minPos = glm::min(minPos, vertex.position);
+                maxPos = glm::max(maxPos, vertex.position);
 
                 vertices.push_back(vertex);
-                indices.push_back(static_cast<unsigned int>(vertices.size() - 1u));
+                indices.push_back(static_cast<unsigned int>(indices.size()));
             }
         }
     }
 
-    return !vertices.empty() && !indices.empty();
+    bool success = !vertices.empty() && !indices.empty();
+    if (success) {
+        std::cout << "[Loader] Loaded OBJ: " << path.string() << "\n";
+        std::cout << "  Vertices: " << vertices.size()
+                  << ", Indices: " << indices.size() << "\n";
+        std::cout << "  Faces parsed: " << faces.size() << "\n";
+        std::cout << "  Bounding box: min(" << minPos.x << ", " << minPos.y << ", " << minPos.z << ")"
+                  << " max(" << maxPos.x << ", " << maxPos.y << ", " << maxPos.z << ")\n";
+    }
+    return success;
 }

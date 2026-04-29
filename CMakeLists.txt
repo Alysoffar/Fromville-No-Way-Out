@@ -144,3 +144,5 @@ add_custom_command(TARGET fromville POST_BUILD
             $<TARGET_FILE_DIR:fromville>/assets
     COMMENT "Copying assets directory to runtime output"
 )
+
+# Force rebuild
