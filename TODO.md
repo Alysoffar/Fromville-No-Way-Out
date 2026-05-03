@@ -1,11 +1,13 @@
-# Village Map Integration - TODO
+# Resident Evil Village Integration TODO
 
-- [x] Identify model files (`Resident evil.obj`, `Resident evil.mtl`)
-- [x] Analyze existing model loading pipeline
-- [x] Create integration plan
-- [x] Get user confirmation
-- [x] Add village mesh/shader globals in World.cpp
-- [x] Add village OBJ loading in InitializeModels()
-- [x] Add village rendering in World::Render()
-- [x] Set player position to village center in World::Initialize()
-- [x] Build and verify
+## Plan Steps:
+- [x] Step 1: Delete assets/models/cottage_obj.mtl (already absent)
+- [x] Step 2a: Rename globals in World.cpp (gCottage* → gVillage*)
+- [x] Step 2b: Replace model loading in InitializeModels()
+- [x] Step 2c: Update rendering in World::Render()
+- [x] Step 2d: Set player spawn position in World::Initialize()
+- [ ] Step 3: Verify assets exist (already confirmed)
+- [ ] Step 4: Build project and fix errors
+- [ ] Step 4: Run game and test village render/player spawn
+
+## Next Action: Deleting cottage_obj.mtl
