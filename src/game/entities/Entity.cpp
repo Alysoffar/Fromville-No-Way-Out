@@ -1,4 +1,5 @@
 #include "game/entities/Entity.h"
+#include "engine/physics/CollisionWorld.h"
 #include <utility>
 
 Entity::Entity(std::string entityName)
@@ -18,9 +19,18 @@ void Entity::Move(float dirX, float dirZ, float dt) {
         currentSpeed = sprintSpeed;
     }
     
-    // Update X and Z positions based on input direction and delta time
-    transform.position.x += dirX * currentSpeed * dt;
-    transform.position.z += dirZ * currentSpeed * dt;
+    // Build 3D horizontal delta
+    glm::vec3 delta(dirX * currentSpeed * dt, 0.0f, dirZ * currentSpeed * dt);
+
+    if (collisionWorld) {
+        // ResolveMovement multiplies velocity*deltaTime internally,
+        // so pass delta as-is with dt=1.0 to avoid double-scaling
+        transform.position = collisionWorld->ResolveMovement(
+            transform.position, delta, localBounds, 1.0f);
+    } else {
+        // Fallback: raw position update
+        transform.position += delta;
+    }
 }
 
 void Entity::Jump() {
@@ -48,17 +58,30 @@ void Entity::Sprint(bool sprint) {
 
 void Entity::ApplyPhysics(float dt) {
     // 1. Apply gravity to our vertical velocity over time
-    if (!isGrounded) {
-        velocityY += gravity * dt;
-    }
+    velocityY += gravity * dt;
 
-    // 2. Move the entity's Y position based on velocity
-    transform.position.y += velocityY * dt;
+    // 2. Build vertical movement delta
+    glm::vec3 verticalDelta(0.0f, velocityY * dt, 0.0f);
 
-    // 3. Simple ground collision detection (assuming y = 0 is your floor)
-    if (transform.position.y <= 0.0f) {
-        transform.position.y = 0.0f;   // Snap to the floor
-        velocityY = 0.0f;              // Stop falling
-        isGrounded = true;             // We hit the ground
+    if (collisionWorld) {
+        // Resolve vertical movement through the collision system.
+        // Pass dt=1.0 because delta is already pre-scaled.
+        transform.position = collisionWorld->ResolveMovement(
+            transform.position, verticalDelta, localBounds, 1.0f);
+
+        // Check grounded state via the collision world
+        isGrounded = collisionWorld->IsGrounded(GetWorldAABB(), 0.05f);
+        if (isGrounded && velocityY < 0.0f) {
+            velocityY = 0.0f;
+        }
+    } else {
+        // Fallback: raw vertical movement with hardcoded floor at y=0
+        transform.position.y += velocityY * dt;
+
+        if (transform.position.y <= 0.0f) {
+            transform.position.y = 0.0f;
+            velocityY = 0.0f;
+            isGrounded = true;
+        }
     }
 }

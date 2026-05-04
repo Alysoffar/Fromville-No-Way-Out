@@ -1,6 +1,7 @@
 #pragma once
 
 #include "game/entities/Player.h"
+#include "engine/physics/CollisionWorld.h"
 
 class Camera;
 class MapManager;
@@ -20,4 +21,5 @@ private:
     MapManager* mapManager = nullptr;
     TerrainRenderer* terrain = nullptr;
     Player player;
-};
+    CollisionWorld collisionWorld;
+};

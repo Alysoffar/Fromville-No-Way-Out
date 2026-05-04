@@ -68,7 +68,19 @@ void World::Initialize() {
     terrain->Initialize();
     player.transform.position = glm::vec3(0.0f, 2.0f, 5.0f);
     InitializeModels();
+
+    // Load collision geometry from the same map OBJ
+    if (collisionWorld.LoadMap("assets/models/Resident evil.obj")) {
+        std::cout << "[World] Collision map loaded successfully!\n";
+    } else {
+        std::cerr << "[World] Warning: Failed to load collision map, "
+                  << "entities will use fallback physics.\n";
+    }
+
+    // Wire collision system to entities
+    player.SetCollisionWorld(&collisionWorld);
 }
+
 
 void World::Update(const Camera& camera, float dt) {
     if (!mapManager || !terrain) {

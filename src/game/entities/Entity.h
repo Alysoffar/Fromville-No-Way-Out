@@ -2,6 +2,9 @@
 
 #include <string>
 #include "engine/Transform.h"
+#include "engine/physics/Collision.h"
+
+class CollisionWorld;
 
 class Entity {
 public:
@@ -35,6 +38,21 @@ protected:
     bool isCrouching = false;
     bool isSprinting = false;
 
+    // Collision system
+    CollisionWorld* collisionWorld = nullptr;
+    AABB localBounds = { glm::vec3(-0.4f, 0.0f, -0.4f), glm::vec3(0.4f, 1.8f, 0.4f) };
+
+    AABB GetWorldAABB() const {
+        return AABB {
+            localBounds.min + transform.position,
+            localBounds.max + transform.position
+        };
+    }
+
+public:
+    void SetCollisionWorld(CollisionWorld* cw) { collisionWorld = cw; }
+
+protected:
     // Helper function to handle gravity and falling
     void ApplyPhysics(float dt);
 };
