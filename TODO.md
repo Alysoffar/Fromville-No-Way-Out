@@ -1,13 +1,10 @@
-# Resident Evil Village Integration TODO
+# OBJ Loader Optimization TODO
 
-## Plan Steps:
-- [x] Step 1: Delete assets/models/cottage_obj.mtl (already absent)
-- [x] Step 2a: Rename globals in World.cpp (gCottage* → gVillage*)
-- [x] Step 2b: Replace model loading in InitializeModels()
-- [x] Step 2c: Update rendering in World::Render()
-- [x] Step 2d: Set player spawn position in World::Initialize()
-- [ ] Step 3: Verify assets exist (already confirmed)
-- [ ] Step 4: Build project and fix errors
-- [ ] Step 4: Run game and test village render/player spawn
+## Current Status:
+- [x] Previous sync Resident evil load fix
 
-## Next Action: Deleting cottage_obj.mtl
+## New Optimization Plan:
+- [ ] 1. Rewrite loader.cpp with 5 fixes: single pass, FNV hash, reserves, binary cache, no UV hash
+- [ ] 2. Rebuild
+- [ ] 3. Test load speed/cache on Resident evil.obj
+- [ ] 4. Verify game rendering

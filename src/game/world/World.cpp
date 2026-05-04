@@ -24,16 +24,6 @@ Mesh gVillageMesh;
 Shader gVillageShader("VillageModel");
 bool gVillageReady = false;
 
-// ---------- Async loading state for the village model ----------
-struct PendingMeshData {
-    std::vector<MeshVertex> vertices;
-    std::vector<unsigned int> indices;
-    bool success = false;
-};
-
-std::future<PendingMeshData> gVillageFuture;
-std::atomic<bool> gVillageLoading{false};  // true while bg thread is working
-bool gVillageLoadStarted = false;          // true once we kicked off the load
 
 void InitializeModels() {
     // ---- Player (small mesh, load synchronously) ----
@@ -49,53 +39,20 @@ void InitializeModels() {
         }
     }
 
-    // ---- Village (huge mesh, load asynchronously) ----
-    if (!gVillageReady && !gVillageLoadStarted) {
-        gVillageLoadStarted = true;
-        gVillageLoading.store(true);
-
-        std::cout << "[World] Starting async load of village model...\n";
-
-        gVillageFuture = std::async(std::launch::async, []() -> PendingMeshData {
-            PendingMeshData data;
-            data.success = Loader::LoadOBJ("assets/models/Resident evil.obj",
-                                           data.vertices, data.indices);
-            gVillageLoading.store(false);
-            return data;
-        });
-    }
-}
-
-// Call every frame to check if the async load finished and finalize on main thread
-void FinalizeAsyncLoads() {
-    if (gVillageReady || !gVillageLoadStarted) {
-        return; // nothing to do
-    }
-
-    // Check if the future is ready (non-blocking)
-    if (gVillageFuture.valid() &&
-        gVillageFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-
-        PendingMeshData data = gVillageFuture.get();
-
-        if (data.success) {
-            std::cout << "[World] Village OBJ parsed. Uploading to GPU ("
-                      << data.vertices.size() << " verts, "
-                      << data.indices.size() << " indices)...\n";
-
-            gVillageMesh.Create(data.vertices, data.indices);
+    // ---- Map (Resident evil model, load synchronously for immediate display) ----
+    if (!gVillageReady) {
+        std::vector<MeshVertex> vertices;
+        std::vector<unsigned int> indices;
+        if (Loader::LoadOBJ("assets/models/Resident evil.obj", vertices, indices)) {
+            gVillageMesh.Create(vertices, indices);
             gVillageShader.Load("assets/shaders/model_lit.vert", "assets/shaders/model_lit.frag");
             gVillageReady = gVillageMesh.IsValid();
-
-            if (gVillageReady) {
-                std::cout << "[World] Village model ready!\n";
-            } else {
-                std::cerr << "[World] Village mesh upload failed.\n";
-            }
+            std::cout << "[World] Map (Resident evil) loaded synchronously!\n";
         } else {
-            std::cerr << "[World] Failed to load village OBJ: assets/models/Resident evil.obj\n";
+            std::cerr << "Failed to load map OBJ: assets/models/Resident evil.obj\n";
         }
     }
+
 }
 }
 
@@ -117,9 +74,6 @@ void World::Update(const Camera& camera, float dt) {
     if (!mapManager || !terrain) {
         return;
     }
-
-    // Check if async model loading finished — must run on main thread for GL calls
-    FinalizeAsyncLoads();
 
     player.Update(dt);
     mapManager->Update(camera.GetPosition());
