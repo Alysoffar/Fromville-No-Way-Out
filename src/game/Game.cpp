@@ -3,8 +3,11 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
+#include <iostream>
+
 #include "engine/core/Engine.h"
 #include "game/world/World.h"
+#include "game/entities/Character.h"
 #include "engine/renderer/Camera.h"
 
 Game::Game() = default;
@@ -34,6 +37,14 @@ void Game::Update(float dt, Engine& engine) {
         camera->Reset(spawnPosition);
     }
 
+    if (engine.GetInput().IsKeyPressed(GLFW_KEY_F5)) {
+        world->SaveToFile("savegame.txt");
+    }
+
+    if (engine.GetInput().IsKeyPressed(GLFW_KEY_F9)) {
+        world->LoadFromFile("savegame.txt");
+    }
+
     if (engine.GetInput().IsKeyPressed(GLFW_KEY_LEFT_ALT)) {
         sprintToggled = !sprintToggled;
     }
@@ -58,19 +69,38 @@ void Game::Update(float dt, Engine& engine) {
         moveDir = glm::normalize(moveDir);
     }
 
-    world->GetPlayer().Move(moveDir.x, moveDir.z, dt);
+    Character* activeChar = world->GetActiveCharacter();
+    if (activeChar) {
+        activeChar->Move(moveDir.x, moveDir.z, dt);
 
-    if (engine.GetInput().IsKeyPressed(GLFW_KEY_SPACE)) {
-        world->GetPlayer().Jump();
-    }
-    if (engine.GetInput().IsKeyReleased(GLFW_KEY_SPACE)) {
-        world->GetPlayer().ReleaseJump();
-    }
-    world->GetPlayer().Crouch(engine.GetInput().IsKeyDown(GLFW_KEY_C));
-    const bool sprintHeld = engine.GetInput().IsKeyDown(GLFW_KEY_LEFT_SHIFT);
-    world->GetPlayer().Sprint(sprintHeld || sprintToggled);
+        if (engine.GetInput().IsKeyPressed(GLFW_KEY_SPACE)) {
+            activeChar->Jump();
+        }
+        if (engine.GetInput().IsKeyReleased(GLFW_KEY_SPACE)) {
+            activeChar->ReleaseJump();
+        }
+        activeChar->Crouch(engine.GetInput().IsKeyDown(GLFW_KEY_C));
+        const bool sprintHeld = engine.GetInput().IsKeyDown(GLFW_KEY_LEFT_SHIFT);
+        activeChar->Sprint(sprintHeld || sprintToggled);
 
-    camera->Update(engine.GetInput(), dt, world->GetPlayer().transform.position);
+        if (engine.GetInput().IsKeyPressed(GLFW_KEY_E)) {
+            world->TryActiveCharacterInteraction();
+        }
+
+        if (engine.GetInput().IsKeyPressed(GLFW_KEY_Q)) {
+            activeChar->ActivateAbility();
+        }
+
+        const std::string interactionPrompt = world->GetInteractionPrompt();
+        if (interactionPrompt != lastInteractionPrompt) {
+            lastInteractionPrompt = interactionPrompt;
+            if (!interactionPrompt.empty()) {
+                std::cout << "[Interact] " << interactionPrompt << " (E)\n";
+            }
+        }
+
+        camera->Update(engine.GetInput(), dt, activeChar->transform.position);
+    }
     world->Update(*camera, dt);
 }
 

@@ -1,0 +1,13 @@
+# id|type|name|x|y|z|radius|prompt|successMessage|questFlag|requiredFlag|questObjectiveIndex
+mara_conversation|Conversation|Mara|-4.0|0.0|2.5|2.5|Talk|Mara remembers the town meetings and points Boyd toward the cult.|mara_talked||0
+library_key|ItemPickup|Library Key|1.5|0.0|7.0|2.0|Pick up|Jade picks up a key with a glyph etched into it.|library_key_taken||1
+cabin_door|Door|Cabin Door|7.0|0.0|3.0|2.2|Open/Close|The cabin door unlocks and reveals a safe space.|cabin_door_opened|library_key_taken|-1
+tunnel_trigger|Trigger|Collapsed Tunnel|-8.0|0.0|-6.0|3.0|Inspect|Tabitha notices a hidden passage and marks it on the map.|tunnel_found||2
+victor_memory_trigger|Trigger|Memory Site|-2.0|0.0|-10.0|3.0|Remember|Victor gets hit by a memory fragment from the town's past.|victor_memory_fragment|tunnel_found|3
+sara_whisper_trigger|Trigger|Whispering Point|10.0|0.0|-3.0|3.0|Listen|Sara hears a warning and learns who is being watched.|sara_whisper_heard||4
+sheriff_talisman|Trigger|Sheriff Station Talisman|0.0|0.0|8.0|3.0|Check|The talisman holds. The monsters circle outside but cannot enter.|sheriff_talisman_checked||-1
+diner_shelter|Trigger|Diner Shelter|-6.0|0.0|1.0|3.0|Secure|The doors are sealed and the townspeople settle in for the night.|diner_secured||-1
+colony_house_warning|Trigger|Colony House Window|9.0|0.0|8.0|3.0|Inspect|A window latch is loose. At night this would break the protection.|colony_window_checked||-1
+church_symbol|Trigger|Church Symbol|8.0|0.0|-2.0|2.5|Decode|Jade recognizes the pattern and links it to the tunnels.|church_symbol_decoded||1
+tunnel_entrance|Door|Tunnel Entrance|-8.0|0.0|-6.0|3.0|Open/Close|The tunnel entrance opens into a placeholder underground route.|tunnel_entrance_opened|tunnel_found|-1
+victor_lunchbox|ItemPickup|Victor's Lunchbox|-9.0|0.0|5.0|2.0|Pick up|Victor recovers a drawing that marks a safe path through town.|victor_lunchbox_found||3

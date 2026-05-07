@@ -23,6 +23,8 @@ public:
     virtual void Crouch(bool crouch);
     virtual void Sprint(bool sprint);
     virtual glm::vec3 GetDebugColor() const;
+    bool IsCrouching() const { return isCrouching; }
+    bool IsSprinting() const { return isSprinting; }
 
     Transform transform;
     const std::string& GetName() const;
