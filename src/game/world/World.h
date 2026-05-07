@@ -4,6 +4,7 @@
 
 #include <glm/glm.hpp>
 
+#include "engine/physics/CollisionWorld.h"
 #include "game/entities/Enemy.h"
 #include "game/entities/NPC.h"
 #include "game/entities/Player.h"
@@ -35,11 +36,8 @@ private:
     bool nightTime = false;
     bool playerKilled = false;
 
-    Mesh* npcMesh = nullptr;
-    Mesh* enemyMesh = nullptr;
-    Shader* characterShader = nullptr;
+    CollisionWorld collisionWorld;
 
     void InitializeCharacters();
     void UpdateTimeOfDay(float dt);
-    void RenderCharacterMesh(const Camera& camera, float aspectRatio, const Mesh& mesh, const glm::vec3& position, const glm::vec3& scale, const glm::vec3& tint) const;
 };

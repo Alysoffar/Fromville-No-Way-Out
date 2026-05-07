@@ -60,7 +60,7 @@ if(NOT TARGET assimp::assimp)
     find_package(assimp REQUIRED)
 endif()
 
-find_package(OpenAL REQUIRED)
+find_package(OpenAL CONFIG REQUIRED)
 
 find_package(SndFile QUIET)
 if(NOT SndFile_FOUND)
@@ -144,3 +144,5 @@ add_custom_command(TARGET fromville POST_BUILD
             $<TARGET_FILE_DIR:fromville>/assets
     COMMENT "Copying assets directory to runtime output"
 )
+
+# Force rebuild
