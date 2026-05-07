@@ -4,6 +4,7 @@
 
 #include "engine/renderer/Mesh.h"
 #include "engine/renderer/Shader.h"
+#include "engine/physics/Triangle.h"
 
 class MapManager;
 class Camera;
@@ -16,11 +17,19 @@ public:
     void Update(const MapManager& mapManager);
     void Render(const Camera& camera, float aspectRatio);
 
+    std::vector<Triangle> GetTriangles() const;
+    Shader& GetShader() { return shader; }
+
 private:
-    void RebuildMesh(const MapManager& mapManager);
+    void RebuildMesh();
+    void RebuildMountainMesh();
 
     Shader shader{"Terrain"};
+    Shader skyShader{"Sky"};
+    unsigned int skyVAO = 0;
+    
     Mesh mesh;
-    glm::vec2 lastOrigin = glm::vec2(1.0e9f);
+    Mesh mountainMesh;
     bool initialized = false;
+    std::vector<Triangle> collisionTriangles;
 };

@@ -12,6 +12,7 @@ public:
     CollisionWorld() = default;
     
     bool LoadMap(const std::string& path);
+    void AddTriangles(const std::vector<Triangle>& tris);
     
     bool RaycastMap(glm::vec3 origin, glm::vec3 dir, float maxDist, HitResult& out) const;
     bool SweepAABB(const AABB& box, glm::vec3 delta, HitResult& out) const;
@@ -24,5 +25,6 @@ public:
     bool IsGrounded(const AABB& box, float skinWidth) const;
 
 private:
+    std::vector<Triangle> m_AllTriangles;
     BVH m_MapBVH;
 };

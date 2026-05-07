@@ -3,24 +3,39 @@ out vec4 FragColor;
 
 in vec3 vertexColor;
 in vec3 normal;
+in vec3 FragPos;
 
-// Optional global tint for the model; defined to avoid uniform-not-found warnings
-uniform vec3 color = vec3(1.0);
+uniform vec3 lightDir;
+uniform vec3 viewPos;
 
 void main()
 {
-    // Fake sunlight coming from the top-right
-    vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0)); 
+    vec3 baseColor = vertexColor;
+    
     vec3 norm = normalize(normal);
+    vec3 lDir = normalize(lightDir);
 
-    // Calculate how directly the light hits the surface (0.0 to 1.0)
-    float diff = max(dot(norm, lightDir), 0.0);
+    float ao = clamp(norm.y * 0.5 + 0.5, 0.0, 1.0);
+    vec3 ambient = 0.35 * baseColor * ao;
 
-    // Add a little ambient light so the shadows aren't pitch black
-    float ambient = 0.3;
+    float diff = max(dot(norm, lDir), 0.0);
+    vec3 diffuse = diff * baseColor;
 
-    // Multiply the vertex color by our light calculations and global tint
-    vec3 finalColor = vertexColor * (diff + ambient) * color;
+    vec3 viewDir = normalize(viewPos - FragPos);
+    vec3 halfwayDir = normalize(lDir + viewDir);
+    float spec = pow(max(dot(norm, halfwayDir), 0.0), 16.0);
+    vec3 specular = vec3(0.05) * spec;
 
-    FragColor = vec4(finalColor, 1.0);
+    vec3 result = ambient + diffuse + specular;
+
+    // Fog
+    float distance = length(viewPos - FragPos);
+    float fogStart = 80.0;
+    float fogEnd = 200.0;
+    float fogFactor = clamp((distance - fogStart) / (fogEnd - fogStart), 0.0, 1.0);
+    vec3 fogColor = vec3(0.529, 0.808, 0.922); 
+    
+    result = mix(result, fogColor, fogFactor);
+
+    FragColor = vec4(result, 1.0);
 }

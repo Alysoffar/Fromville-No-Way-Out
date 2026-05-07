@@ -30,8 +30,13 @@ bool CollisionWorld::LoadMap(const std::string& path) {
         }
     }
 
-    m_MapBVH.Build(std::move(triangles));
+    AddTriangles(triangles);
     return true;
+}
+
+void CollisionWorld::AddTriangles(const std::vector<Triangle>& tris) {
+    m_AllTriangles.insert(m_AllTriangles.end(), tris.begin(), tris.end());
+    m_MapBVH.Build(m_AllTriangles);
 }
 
 bool CollisionWorld::RaycastMap(glm::vec3 origin, glm::vec3 dir, float maxDist, HitResult& out) const {

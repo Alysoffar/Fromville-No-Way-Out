@@ -18,7 +18,7 @@ void Entity::Move(float dirX, float dirZ, float dt) {
     } else if (isSprinting) {
         currentSpeed = sprintSpeed;
     }
-    
+
     // Build 3D horizontal delta
     glm::vec3 delta(dirX * currentSpeed * dt, 0.0f, dirZ * currentSpeed * dt);
 
@@ -30,6 +30,11 @@ void Entity::Move(float dirX, float dirZ, float dt) {
     } else {
         // Fallback: raw position update
         transform.position += delta;
+    }
+
+    // Rotate player to face movement direction
+    if (glm::length(glm::vec2(dirX, dirZ)) > 0.001f) {
+        transform.rotation.y = glm::degrees(atan2(dirX, dirZ));
     }
 }
 
@@ -57,31 +62,33 @@ void Entity::Sprint(bool sprint) {
 }
 
 void Entity::ApplyPhysics(float dt) {
-    // 1. Apply gravity to our vertical velocity over time
-    velocityY += gravity * dt;
+    // 1. Apply gravity to vertical velocity if in the air
+    if (!isGrounded) {
+        velocityY += gravity * dt;
+    } else if (velocityY < 0.0f) {
+        // Reset downward velocity when grounded
+        velocityY = 0.0f;
+    }
 
     // 2. Build vertical movement delta
     glm::vec3 verticalDelta(0.0f, velocityY * dt, 0.0f);
 
     if (collisionWorld) {
-        // Resolve vertical movement through the collision system.
-        // Pass dt=1.0 because delta is already pre-scaled.
+        // 3. Resolve vertical movement
         transform.position = collisionWorld->ResolveMovement(
             transform.position, verticalDelta, localBounds, 1.0f);
 
-        // Check grounded state via the collision world
+        // 4. Update grounded state
         isGrounded = collisionWorld->IsGrounded(GetWorldAABB(), 0.05f);
-        if (isGrounded && velocityY < 0.0f) {
-            velocityY = 0.0f;
-        }
-    } else {
-        // Fallback: raw vertical movement with hardcoded floor at y=0
-        transform.position.y += velocityY * dt;
+    }
 
-        if (transform.position.y <= 0.0f) {
-            transform.position.y = 0.0f;
-            velocityY = 0.0f;
-            isGrounded = true;
-        }
+    // Always enforce floor at Y=0 as a safety measure for the flat world
+    if (transform.position.y <= 0.001f) {
+        transform.position.y = 0.001f;
+        if (velocityY < 0.0f) velocityY = 0.0f;
+        isGrounded = true;
+    } else if (!collisionWorld) {
+        isGrounded = false;
     }
 }
+

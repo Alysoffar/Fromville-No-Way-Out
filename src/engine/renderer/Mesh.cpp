@@ -53,6 +53,9 @@ void Mesh::Create(const std::vector<MeshVertex>& vertices, const std::vector<uns
 	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(MeshVertex), reinterpret_cast<void*>(offsetof(MeshVertex, color)));
 	glEnableVertexAttribArray(2);
 
+	glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(MeshVertex), reinterpret_cast<void*>(offsetof(MeshVertex, uv)));
+	glEnableVertexAttribArray(3);
+
 	glBindVertexArray(0);
 
 	indexCount = indices.size();

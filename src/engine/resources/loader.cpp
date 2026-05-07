@@ -276,6 +276,58 @@ bool Loader::LoadOBJ(const std::filesystem::path& path,
     // of each shape iteration to avoid repeated reallocations.
     // -----------------------------------------------------------------
 
+    // -----------------------------------------------------------------
+    // Build a material color lookup from tinyobjloader materials.
+    // If the MTL Kd is the Blender default grey (0.8, 0.8, 0.8),
+    // assign a semantic color based on material name keywords instead.
+    // -----------------------------------------------------------------
+    auto getSemanticColor = [](const std::string& name) -> glm::vec3 {
+        // Convert to lowercase for matching
+        std::string lower = name;
+        for (auto& c : lower) c = static_cast<char>(std::tolower(c));
+
+        // Trees
+        if (lower.find("bark") != std::string::npos)      return glm::vec3(0.40f, 0.26f, 0.13f);
+        if (lower.find("trunk") != std::string::npos)     return glm::vec3(0.40f, 0.26f, 0.13f);
+        if (lower.find("leaf") != std::string::npos)      return glm::vec3(0.15f, 0.45f, 0.10f);
+        // Buildings
+        if (lower.find("roof") != std::string::npos)      return glm::vec3(0.55f, 0.22f, 0.12f);
+        if (lower.find("wood") != std::string::npos)      return glm::vec3(0.55f, 0.40f, 0.25f);
+        if (lower.find("door") != std::string::npos)      return glm::vec3(0.45f, 0.30f, 0.18f);
+        if (lower.find("window") != std::string::npos)    return glm::vec3(0.60f, 0.75f, 0.85f);
+        if (lower.find("concrete") != std::string::npos)  return glm::vec3(0.65f, 0.63f, 0.60f);
+        if (lower.find("slab") != std::string::npos)      return glm::vec3(0.60f, 0.58f, 0.55f);
+        // Road
+        if (lower.find("material.002") != std::string::npos) return glm::vec3(0.30f, 0.30f, 0.28f);
+        if (lower.find("material.001") != std::string::npos) return glm::vec3(0.50f, 0.45f, 0.38f);
+        if (lower.find("road") != std::string::npos)      return glm::vec3(0.30f, 0.30f, 0.28f);
+        if (lower.find("asphalt") != std::string::npos)   return glm::vec3(0.25f, 0.25f, 0.25f);
+        // Grass
+        if (lower.find("grass") != std::string::npos)     return glm::vec3(0.20f, 0.50f, 0.12f);
+        // Light stand / metal
+        if (lower.find("metal") != std::string::npos)     return glm::vec3(0.35f, 0.35f, 0.38f);
+        if (lower.find("light") != std::string::npos)     return glm::vec3(0.35f, 0.35f, 0.38f);
+        if (lower.find("lamp") != std::string::npos)      return glm::vec3(0.90f, 0.85f, 0.60f);
+        // Default
+        return glm::vec3(0.7f, 0.7f, 0.7f);
+    };
+
+    // Build per-material color array
+    std::vector<glm::vec3> matColors;
+    matColors.reserve(materials.size());
+    for (const auto& mat : materials) {
+        glm::vec3 kd(mat.diffuse[0], mat.diffuse[1], mat.diffuse[2]);
+        // Check if Kd is default Blender grey (0.8, 0.8, 0.8)
+        bool isDefaultGrey = (std::abs(kd.r - 0.8f) < 0.01f &&
+                              std::abs(kd.g - 0.8f) < 0.01f &&
+                              std::abs(kd.b - 0.8f) < 0.01f);
+        if (isDefaultGrey) {
+            matColors.push_back(getSemanticColor(mat.name));
+        } else {
+            matColors.push_back(kd);
+        }
+    }
+
     glm::vec3 minPos(1e10f);
     glm::vec3 maxPos(-1e10f);
 
@@ -293,15 +345,22 @@ bool Loader::LoadOBJ(const std::filesystem::path& path,
         for (size_t i = 0; i < numIndices; ++i) {
             const tinyobj::index_t& idx = mesh.indices[i];
 
+            // Determine per-face material color
+            size_t faceIndex = i / 3;
+            glm::vec3 faceColor(0.7f);
+            if (faceIndex < mesh.material_ids.size()) {
+                int matId = mesh.material_ids[faceIndex];
+                if (matId >= 0 && static_cast<size_t>(matId) < matColors.size()) {
+                    faceColor = matColors[matId];
+                }
+            }
+
             // Build the deduplication key (position + normal only; no UV — Fix #5)
             VertexKey key;
             key.v = idx.vertex_index;
             key.n = idx.normal_index;
 
             // Fix #1 — single lookup via try_emplace.
-            // If the key is new, we insert the current vertex count as its
-            // index and build the MeshVertex.  If it already exists, we just
-            // reuse the stored index.
             auto [it, inserted] = uniqueVertices.try_emplace(
                 key, static_cast<unsigned int>(shapeVertices.size()));
 
@@ -328,17 +387,8 @@ bool Loader::LoadOBJ(const std::filesystem::path& path,
                     vertex.normal = glm::vec3(0.0f, 1.0f, 0.0f);
                 }
 
-                // Vertex colors if present (tinyobjloader stores 3 floats per color)
-                if (!attrib.colors.empty() && key.v >= 0 &&
-                    static_cast<size_t>(key.v * 3 + 2) < attrib.colors.size()) {
-                    vertex.color = glm::vec3(
-                        attrib.colors[3 * key.v + 0],
-                        attrib.colors[3 * key.v + 1],
-                        attrib.colors[3 * key.v + 2]
-                    );
-                } else {
-                    vertex.color = glm::vec3(0.8f);
-                }
+                // Bake material color into vertex color
+                vertex.color = faceColor;
 
                 minPos = glm::min(minPos, vertex.position);
                 maxPos = glm::max(maxPos, vertex.position);

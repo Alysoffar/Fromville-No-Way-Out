@@ -12,6 +12,7 @@ PFNGLCULLFACEPROC glad_glCullFace = nullptr;
 PFNGLDISABLEPROC glad_glDisable = nullptr;
 PFNGLFRONTFACEPROC glad_glFrontFace = nullptr;
 PFNGLDEPTHFUNCPROC glad_glDepthFunc = nullptr;
+PFNGLDEPTHMASKPROC glad_glDepthMask = nullptr;
 PFNGLVIEWPORTPROC glad_glViewport = nullptr;
 PFNGLGENVERTEXARRAYSPROC glad_glGenVertexArrays = nullptr;
 PFNGLBINDVERTEXARRAYPROC glad_glBindVertexArray = nullptr;
@@ -57,6 +58,7 @@ static void LoadCoreFunctions(GLADloadproc loader) {
 	glad_glDisable = reinterpret_cast<PFNGLDISABLEPROC>(loader("glDisable"));
 	glad_glFrontFace = reinterpret_cast<PFNGLFRONTFACEPROC>(loader("glFrontFace"));
 	glad_glDepthFunc = reinterpret_cast<PFNGLDEPTHFUNCPROC>(loader("glDepthFunc"));
+	glad_glDepthMask = reinterpret_cast<PFNGLDEPTHMASKPROC>(loader("glDepthMask"));
 	glad_glViewport = reinterpret_cast<PFNGLVIEWPORTPROC>(loader("glViewport"));
 	glad_glGenVertexArrays = reinterpret_cast<PFNGLGENVERTEXARRAYSPROC>(loader("glGenVertexArrays"));
 	glad_glBindVertexArray = reinterpret_cast<PFNGLBINDVERTEXARRAYPROC>(loader("glBindVertexArray"));
