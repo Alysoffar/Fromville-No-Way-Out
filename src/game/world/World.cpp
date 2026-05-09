@@ -837,6 +837,59 @@ void World::Render(const Camera& camera, float aspectRatio) {
         for (const Enemy& enemy : enemies) {
             RenderCharacterCube(gCharacterShader, gEnemyMesh, camera, aspectRatio, enemy.transform.position, glm::vec3(0.30f, 0.55f, 0.30f), enemy.GetDebugColor());
         }
+
+        const auto renderProp = [&](const glm::vec3& position, const glm::vec3& scale, const glm::vec3& color) {
+            RenderCharacterCube(gCharacterShader, gNpcMesh, camera, aspectRatio, position, scale, color);
+        };
+
+        // Quest test props for the flat arena. Colors match the intended character:
+        // Boyd red, Jade cyan, Tabitha green, Victor yellow, Sara magenta.
+        renderProp(glm::vec3(0.0f, 0.25f, 4.0f), glm::vec3(0.95f, 0.50f, 0.18f), glm::vec3(1.0f, 0.15f, 0.12f));
+        renderProp(glm::vec3(0.0f, 0.90f, 4.0f), glm::vec3(0.65f, 0.70f, 0.16f), glm::vec3(0.72f, 0.10f, 0.08f));
+        renderProp(glm::vec3(0.0f, 1.30f, 4.0f), glm::vec3(0.85f, 0.12f, 0.45f), glm::vec3(0.45f, 0.06f, 0.05f));
+
+        renderProp(glm::vec3(2.0f, 0.20f, 4.0f), glm::vec3(0.55f, 0.40f, 0.55f), glm::vec3(0.0f, 0.95f, 1.0f));
+        renderProp(glm::vec3(2.0f, 0.75f, 4.0f), glm::vec3(0.18f, 0.70f, 0.18f), glm::vec3(0.8f, 1.0f, 1.0f));
+        renderProp(glm::vec3(-4.0f, 0.20f, 6.0f), glm::vec3(0.85f, 0.22f, 0.85f), glm::vec3(0.0f, 0.82f, 0.95f));
+        renderProp(glm::vec3(-4.0f, 0.85f, 6.0f), glm::vec3(0.16f, 0.90f, 0.16f), glm::vec3(0.65f, 1.0f, 1.0f));
+
+        renderProp(glm::vec3(-4.0f, 0.18f, 4.0f), glm::vec3(1.10f, 0.35f, 0.45f), glm::vec3(0.0f, 0.9f, 0.25f));
+        renderProp(glm::vec3(-4.55f, 0.85f, 4.0f), glm::vec3(0.18f, 0.90f, 0.18f), glm::vec3(0.0f, 0.55f, 0.15f));
+        renderProp(glm::vec3(-3.45f, 0.85f, 4.0f), glm::vec3(0.18f, 0.90f, 0.18f), glm::vec3(0.0f, 0.55f, 0.15f));
+
+        renderProp(glm::vec3(-2.0f, 0.20f, -4.0f), glm::vec3(0.65f, 0.40f, 0.65f), glm::vec3(1.0f, 0.92f, 0.1f));
+        renderProp(glm::vec3(-2.0f, 0.95f, -4.0f), glm::vec3(0.24f, 1.10f, 0.24f), glm::vec3(0.95f, 0.85f, 0.2f));
+        renderProp(glm::vec3(0.0f, 0.18f, -6.0f), glm::vec3(0.75f, 0.35f, 0.55f), glm::vec3(1.0f, 0.95f, 0.25f));
+
+        renderProp(glm::vec3(4.0f, 0.20f, -4.0f), glm::vec3(0.70f, 0.35f, 0.70f), glm::vec3(1.0f, 0.0f, 1.0f));
+        renderProp(glm::vec3(4.0f, 1.00f, -4.0f), glm::vec3(0.18f, 1.25f, 0.18f), glm::vec3(0.95f, 0.25f, 0.95f));
+
+        renderProp(glm::vec3(4.0f, 0.30f, 4.0f), glm::vec3(1.20f, 0.60f, 0.35f), glm::vec3(0.50f, 0.35f, 0.22f));
+        renderProp(glm::vec3(4.0f, 0.95f, 4.0f), glm::vec3(1.35f, 0.18f, 0.45f), glm::vec3(0.35f, 0.22f, 0.14f));
+
+        const auto renderMarker = [&](const glm::vec3& position, const glm::vec3& color) {
+            renderProp(position + glm::vec3(0.0f, 0.08f, 0.0f), glm::vec3(0.42f, 0.10f, 0.42f), color);
+        };
+
+        renderMarker(glm::vec3(0.0f, 0.0f, 6.0f), glm::vec3(1.0f, 0.18f, 0.12f));
+        renderMarker(glm::vec3(4.5f, 0.0f, 0.0f), glm::vec3(1.0f, 0.18f, 0.12f));
+        renderMarker(glm::vec3(6.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.18f, 0.12f));
+        renderMarker(glm::vec3(6.0f, 0.0f, 6.0f), glm::vec3(1.0f, 0.18f, 0.12f));
+
+        renderMarker(glm::vec3(0.0f, 0.0f, 6.0f), glm::vec3(0.0f, 0.95f, 1.0f));
+        renderMarker(glm::vec3(-6.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.95f, 1.0f));
+        renderMarker(glm::vec3(2.0f, 0.0f, 6.0f), glm::vec3(0.0f, 0.95f, 1.0f));
+
+        renderMarker(glm::vec3(-6.0f, 0.0f, -6.0f), glm::vec3(0.0f, 0.9f, 0.25f));
+        renderMarker(glm::vec3(-2.0f, 0.0f, -6.0f), glm::vec3(0.0f, 0.9f, 0.25f));
+
+        renderMarker(glm::vec3(-4.0f, 0.0f, -2.0f), glm::vec3(1.0f, 0.92f, 0.1f));
+        renderMarker(glm::vec3(0.0f, 0.0f, -4.0f), glm::vec3(1.0f, 0.92f, 0.1f));
+        renderMarker(glm::vec3(2.0f, 0.0f, -6.0f), glm::vec3(1.0f, 0.92f, 0.1f));
+
+        renderMarker(glm::vec3(1.7f, 0.0f, 3.0f), glm::vec3(1.0f, 0.0f, 1.0f));
+        renderMarker(glm::vec3(6.0f, 0.0f, -2.0f), glm::vec3(1.0f, 0.0f, 1.0f));
+        renderMarker(glm::vec3(4.0f, 0.0f, -6.0f), glm::vec3(1.0f, 0.0f, 1.0f));
     }
     
     // Debug: Render interior zone boundaries
@@ -945,11 +998,20 @@ bool World::TryActiveCharacterInteraction() {
         return false;
     }
 
+    const bool didInteract = interactionSystem.TryInteract(*activeChar, *questSystem);
+    if (!interactionSystem.GetLastInteractionMessage().empty()) {
+        lastNpcDialogue = interactionSystem.GetLastInteractionMessage();
+        npcDialogueDisplayTime = kNpcDialogueDisplayDuration;
+    }
+
+    if (didInteract) {
+        return true;
+    }
+
     if (TryNpcDialogue(*activeChar, true)) {
         return true;
     }
 
-    const bool didInteract = interactionSystem.TryInteract(*activeChar, *questSystem);
     if (!didInteract) {
         std::cout << "[Interaction] Nothing nearby to interact with.\n";
     }
@@ -964,6 +1026,11 @@ std::string World::GetInteractionPrompt() const {
 
     if (!activeChar || !questSystem) {
         return "";
+    }
+
+    const std::string nodePrompt = interactionSystem.GetPromptFor(*activeChar, *questSystem);
+    if (!nodePrompt.empty()) {
+        return nodePrompt;
     }
 
     const NPC* bestNpc = nullptr;

@@ -29,6 +29,7 @@ struct InteractionNode {
     std::string questFlag;
     std::string requiredFlag;
     int questObjectiveIndex = -1;
+    std::string requiredCharacter;
 };
 
 class InteractionSystem {
@@ -37,11 +38,13 @@ public:
 
     std::string GetPromptFor(const Character& character, const QuestSystem& questSystem) const;
     bool TryInteract(Character& character, QuestSystem& questSystem);
+    const std::string& GetLastInteractionMessage() const { return lastInteractionMessage; }
 
     void Update(float dt, QuestSystem& questSystem);
 
 private:
     std::vector<InteractionNode> nodes;
+    std::string lastInteractionMessage;
 
     bool LoadFromConfig(const std::string& path);
     void LoadFallbackNodes();

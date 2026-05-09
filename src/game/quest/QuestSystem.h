@@ -28,6 +28,7 @@ public:
     
     // Get character's active quest
     Quest* GetCharacterQuest(CharacterType type);
+    const Quest* GetCharacterQuest(CharacterType type) const;
     
     // Advance a specific objective
     void AdvanceObjective(CharacterType type, int objectiveIndex);

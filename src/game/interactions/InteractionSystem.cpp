@@ -40,6 +40,18 @@ InteractionType ParseType(const std::string& value) {
     return InteractionType::Trigger;
 }
 
+std::string CharacterTypeName(CharacterType type) {
+    switch (type) {
+        case CharacterType::Boyd: return "Boyd";
+        case CharacterType::Jade: return "Jade";
+        case CharacterType::Tabitha: return "Tabitha";
+        case CharacterType::Victor: return "Victor";
+        case CharacterType::Sara: return "Sara";
+    }
+
+    return "";
+}
+
 InteractionNode MakeNodeFromFields(const std::vector<std::string>& fields) {
     InteractionNode node;
     node.id = fields[0];
@@ -52,6 +64,9 @@ InteractionNode MakeNodeFromFields(const std::vector<std::string>& fields) {
     node.questFlag = fields[9];
     node.requiredFlag = fields[10];
     node.questObjectiveIndex = std::stoi(fields[11]);
+    if (fields.size() >= 13) {
+        node.requiredCharacter = fields[12];
+    }
     return node;
 }
 }
@@ -74,18 +89,23 @@ std::string InteractionSystem::GetPromptFor(const Character& character, const Qu
 }
 
 bool InteractionSystem::TryInteract(Character& character, QuestSystem& questSystem) {
+    lastInteractionMessage.clear();
+
     InteractionNode* node = FindBestNode(character, questSystem);
     if (!node || !node->active) {
+        lastInteractionMessage = "Nothing nearby to interact with.";
         return false;
     }
 
     if (!node->requiredFlag.empty() && !questSystem.HasStoryFlag(node->requiredFlag)) {
-        std::cout << "[Interaction] Something is still locked off.\n";
+        lastInteractionMessage = node->name + " is still locked off.";
+        std::cout << "[Interaction] " << lastInteractionMessage << "\n";
         return false;
     }
 
     switch (node->type) {
         case InteractionType::Conversation:
+            lastInteractionMessage = node->successMessage;
             std::cout << "[Conversation] " << node->successMessage << "\n";
             if (node->questObjectiveIndex >= 0) {
                 questSystem.AdvanceObjective(character.GetType(), node->questObjectiveIndex);
@@ -96,6 +116,7 @@ bool InteractionSystem::TryInteract(Character& character, QuestSystem& questSyst
             if (!node->collected) {
                 node->collected = true;
                 node->active = false;
+                lastInteractionMessage = node->successMessage;
                 std::cout << "[Pickup] " << node->successMessage << "\n";
                 questSystem.SetStoryFlag(node->questFlag);
                 if (node->questObjectiveIndex >= 0) {
@@ -105,10 +126,12 @@ bool InteractionSystem::TryInteract(Character& character, QuestSystem& questSyst
             break;
         case InteractionType::Door:
             node->open = !node->open;
-            std::cout << "[Door] " << node->name << (node->open ? " opens. " : " closes. ") << node->successMessage << "\n";
+            lastInteractionMessage = node->name + (node->open ? " opens. " : " closes. ") + node->successMessage;
+            std::cout << "[Door] " << lastInteractionMessage << "\n";
             questSystem.SetStoryFlag(node->questFlag);
             break;
         case InteractionType::Trigger:
+            lastInteractionMessage = node->successMessage;
             std::cout << "[Trigger] " << node->successMessage << "\n";
             questSystem.SetStoryFlag(node->questFlag);
             if (node->questObjectiveIndex >= 0) {
@@ -140,7 +163,7 @@ bool InteractionSystem::LoadFromConfig(const std::string& path) {
         }
 
         const std::vector<std::string> fields = Split(line, '|');
-        if (fields.size() != 12) {
+        if (fields.size() != 12 && fields.size() != 13) {
             std::cerr << "[InteractionSystem] Skipping malformed node line: " << line << "\n";
             continue;
         }
@@ -154,18 +177,18 @@ bool InteractionSystem::LoadFromConfig(const std::string& path) {
 
 void InteractionSystem::LoadFallbackNodes() {
     nodes = {
-        {"mara_conversation", InteractionType::Conversation, "Mara", glm::vec3(-4.0f, 0.0f, 2.5f), 2.5f, true, false, false, "Talk", "Mara remembers the town meetings and points Boyd toward the cult.", "mara_talked", "", 0},
-        {"library_key", InteractionType::ItemPickup, "Library Key", glm::vec3(1.5f, 0.0f, 7.0f), 2.0f, true, false, false, "Pick up", "Jade picks up a key with a glyph etched into it.", "library_key_taken", "", 1},
+        {"mara_conversation", InteractionType::Conversation, "Mara", glm::vec3(-4.0f, 0.0f, 2.5f), 2.5f, true, false, false, "Talk", "Mara remembers the town meetings and points Boyd toward the cult.", "mara_talked", "", 0, "Boyd"},
+        {"library_key", InteractionType::ItemPickup, "Library Key", glm::vec3(1.5f, 0.0f, 7.0f), 2.0f, true, false, false, "Pick up", "Jade picks up a key with a glyph etched into it.", "library_key_taken", "", 1, "Jade"},
         {"cabin_door", InteractionType::Door, "Cabin Door", glm::vec3(7.0f, 0.0f, 3.0f), 2.2f, true, false, false, "Open/Close", "The cabin door unlocks and reveals a safe space.", "cabin_door_opened", "library_key_taken", -1},
-        {"tunnel_trigger", InteractionType::Trigger, "Collapsed Tunnel", glm::vec3(-8.0f, 0.0f, -6.0f), 3.0f, true, false, false, "Inspect", "Tabitha notices a hidden passage and marks it on the map.", "tunnel_found", "", 2},
-        {"victor_memory_trigger", InteractionType::Trigger, "Memory Site", glm::vec3(-2.0f, 0.0f, -10.0f), 3.0f, true, false, false, "Remember", "Victor gets hit by a memory fragment from the town's past.", "victor_memory_fragment", "tunnel_found", 3},
-        {"sara_whisper_trigger", InteractionType::Trigger, "Whispering Point", glm::vec3(10.0f, 0.0f, -3.0f), 3.0f, true, false, false, "Listen", "Sara hears a warning and learns who is being watched.", "sara_whisper_heard", "", 4},
+        {"tunnel_trigger", InteractionType::Trigger, "Collapsed Tunnel", glm::vec3(-8.0f, 0.0f, -6.0f), 3.0f, true, false, false, "Inspect", "Tabitha notices a hidden passage and marks it on the map.", "tunnel_found", "", 2, "Tabitha"},
+        {"victor_memory_trigger", InteractionType::Trigger, "Memory Site", glm::vec3(-2.0f, 0.0f, -10.0f), 3.0f, true, false, false, "Remember", "Victor gets hit by a memory fragment from the town's past.", "victor_memory_fragment", "tunnel_found", 3, "Victor"},
+        {"sara_whisper_trigger", InteractionType::Trigger, "Whispering Point", glm::vec3(10.0f, 0.0f, -3.0f), 3.0f, true, false, false, "Listen", "Sara hears a warning and learns who is being watched.", "sara_whisper_heard", "", 4, "Sara"},
         {"sheriff_talisman", InteractionType::Trigger, "Sheriff Station Talisman", glm::vec3(0.0f, 0.0f, 8.0f), 3.0f, true, false, false, "Check", "The talisman holds. The monsters circle outside but cannot enter.", "sheriff_talisman_checked", "", -1},
         {"diner_shelter", InteractionType::Trigger, "Diner Shelter", glm::vec3(-6.0f, 0.0f, 1.0f), 3.0f, true, false, false, "Secure", "The doors are sealed and the townspeople settle in for the night.", "diner_secured", "", -1},
         {"colony_house_warning", InteractionType::Trigger, "Colony House Window", glm::vec3(9.0f, 0.0f, 8.0f), 3.0f, true, false, false, "Inspect", "A window latch is loose. At night this would break the protection.", "colony_window_checked", "", -1},
-        {"church_symbol", InteractionType::Trigger, "Church Symbol", glm::vec3(8.0f, 0.0f, -2.0f), 2.5f, true, false, false, "Decode", "Jade recognizes the pattern and links it to the tunnels.", "church_symbol_decoded", "", 1},
+        {"church_symbol", InteractionType::Trigger, "Church Symbol", glm::vec3(8.0f, 0.0f, -2.0f), 2.5f, true, false, false, "Decode", "Jade recognizes the pattern and links it to the tunnels.", "church_symbol_decoded", "", 1, "Jade"},
         {"tunnel_entrance", InteractionType::Door, "Tunnel Entrance", glm::vec3(-8.0f, 0.0f, -6.0f), 3.0f, true, false, false, "Open/Close", "The tunnel entrance opens into a placeholder underground route.", "tunnel_entrance_opened", "tunnel_found", -1},
-        {"victor_lunchbox", InteractionType::ItemPickup, "Victor's Lunchbox", glm::vec3(-9.0f, 0.0f, 5.0f), 2.0f, true, false, false, "Pick up", "Victor recovers a drawing that marks a safe path through town.", "victor_lunchbox_found", "", 3}
+        {"victor_lunchbox", InteractionType::ItemPickup, "Victor's Lunchbox", glm::vec3(-9.0f, 0.0f, 5.0f), 2.0f, true, false, false, "Pick up", "Victor recovers a drawing that marks a safe path through town.", "victor_lunchbox_found", "", 3, "Victor"}
     };
 }
 
@@ -179,6 +202,10 @@ const InteractionNode* InteractionSystem::FindBestNode(const Character& characte
         }
 
         if (!node.requiredFlag.empty() && !questSystem.HasStoryFlag(node.requiredFlag)) {
+            continue;
+        }
+
+        if (!node.requiredCharacter.empty() && node.requiredCharacter != CharacterTypeName(character.GetType())) {
             continue;
         }
 

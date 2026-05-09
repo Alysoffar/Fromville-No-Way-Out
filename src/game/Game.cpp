@@ -10,6 +10,7 @@
 #include "game/world/World.h"
 #include "game/entities/Character.h"
 #include "engine/renderer/Camera.h"
+#include "game/quest/Quest.h"
 #include "game/quest/QuestSystem.h"
 
 Game::Game() = default;
@@ -122,6 +123,25 @@ void Game::RenderHud(const Engine& engine) const {
     hudRenderer->RenderText(line1.str(), 24.0f, static_cast<float>(height) - 62.0f, 0.55f, glm::vec3(0.92f, 0.96f, 1.0f), width, height);
     hudRenderer->RenderText(line2.str(), 24.0f, static_cast<float>(height) - 92.0f, 0.50f, glm::vec3(0.74f, 0.88f, 0.78f), width, height);
     hudRenderer->RenderText(line3.str(), 24.0f, static_cast<float>(height) - 122.0f, 0.52f, glm::vec3(1.0f, 0.92f, 0.58f), width, height);
+
+    if (activeChar && questSystem) {
+        const Quest* quest = questSystem->GetCharacterQuest(activeChar->GetType());
+        if (quest) {
+            std::ostringstream questLine;
+            questLine << "QUEST: " << quest->GetTitle() << "  " << static_cast<int>(quest->GetProgress()) << "%";
+            hudRenderer->RenderText(questLine.str(), 24.0f, static_cast<float>(height) - 152.0f, 0.46f, glm::vec3(0.72f, 0.90f, 1.0f), width, height);
+
+            const auto& objectives = quest->GetObjectives();
+            for (std::size_t objectiveIndex = 0; objectiveIndex < objectives.size(); ++objectiveIndex) {
+                if (!objectives[objectiveIndex].completed) {
+                    std::ostringstream objectiveLine;
+                    objectiveLine << "NEXT: " << objectives[objectiveIndex].description;
+                    hudRenderer->RenderText(objectiveLine.str(), 24.0f, static_cast<float>(height) - 178.0f, 0.42f, glm::vec3(0.94f, 0.94f, 0.82f), width, height);
+                    break;
+                }
+            }
+        }
+    }
     
     // Display NPC dialogue (center-screen, large yellow-green text)
     if (world->GetNpcDialogueDisplayTime() > 0.0f) {

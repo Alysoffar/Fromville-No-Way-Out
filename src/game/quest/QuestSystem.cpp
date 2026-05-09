@@ -97,6 +97,14 @@ Quest* QuestSystem::GetCharacterQuest(CharacterType type) {
     return nullptr;
 }
 
+const Quest* QuestSystem::GetCharacterQuest(CharacterType type) const {
+    int index = static_cast<int>(type);
+    if (index >= 0 && index < 5) {
+        return characterQuests[index].get();
+    }
+    return nullptr;
+}
+
 void QuestSystem::AdvanceObjective(CharacterType type, int objectiveIndex) {
     Quest* quest = GetCharacterQuest(type);
     if (quest) {
