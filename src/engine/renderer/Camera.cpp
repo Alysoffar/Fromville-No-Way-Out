@@ -1,5 +1,6 @@
 #include "engine/renderer/Camera.h"
 
+#include <cmath>
 #include <algorithm>
 
 #include <GLFW/glfw3.h>
@@ -18,25 +19,20 @@ glm::mat4 Camera::GetProjectionMatrix(float aspect) const {
     return glm::perspective(glm::radians(fov), aspect, nearPlane, farPlane);
 }
 
-// Notice the signature now matches your .h file exactly
 void Camera::Update(InputManager& input, float dt, const glm::vec3& playerPosition) {
-    (void)dt; // Silences the "unused parameter" warning
-
-    // 1. Process Mouse Movement (Look around)
+    (void)dt;
     const glm::vec2 mouseDelta = input.GetMouseDelta();
     ProcessMouseMovement(mouseDelta.x * mouseSensitivity, -mouseDelta.y * mouseSensitivity);
 
-    // 2. Determine exactly where we want the camera to focus (the player's upper body)
-    glm::vec3 lookAtTarget = playerPosition + glm::vec3(0.0f, targetHeightOffset, 0.0f);
+    const glm::vec3 forward = GetForward();
+    const glm::vec3 lookAtTarget = playerPosition + glm::vec3(0.0f, targetHeightOffset, 0.0f);
+    const glm::vec3 desiredPosition = lookAtTarget - (forward * targetDistance);
 
-    // 3. Move the camera backwards from the player based on the forward vector
-    position = lookAtTarget - (GetForward() * targetDistance);
+    position = desiredPosition;
 }
 
 void Camera::ProcessMouseMovement(float xoffset, float yoffset) {
     yaw += xoffset;
-    
-    // Clamp the pitch so the camera doesn't flip upside down or go too far underground
     pitch = std::clamp(pitch + yoffset, -15.0f, 85.0f);
 }
 
@@ -47,8 +43,13 @@ void Camera::SetRotation(float newYaw, float newPitch) {
 
 void Camera::Reset(const glm::vec3& spawnPosition) {
     position = spawnPosition;
-    yaw = -90.0f;
-    pitch = 0.0f;
+    yaw = followYaw;
+    pitch = followPitch;
+}
+
+void Camera::SnapToTarget(const glm::vec3& playerPosition) {
+    const glm::vec3 lookAtTarget = playerPosition + glm::vec3(0.0f, targetHeightOffset, 0.0f);
+    position = lookAtTarget - (GetForward() * targetDistance);
 }
 
 glm::vec3 Camera::GetPosition() const {

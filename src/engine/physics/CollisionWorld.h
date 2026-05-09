@@ -12,6 +12,7 @@ public:
     CollisionWorld() = default;
     
     bool LoadMap(const std::string& path);
+    bool LoadFlatGround(float halfSize = 256.0f, float height = 0.0f);
     
     bool RaycastMap(glm::vec3 origin, glm::vec3 dir, float maxDist, HitResult& out) const;
     bool SweepAABB(const AABB& box, glm::vec3 delta, HitResult& out) const;

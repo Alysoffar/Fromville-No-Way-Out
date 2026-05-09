@@ -32,6 +32,7 @@ public:
     void SetVisibleTarget(const glm::vec3& targetPosition, bool targetVisible);
     void SetPerception(const EnemyPerception& newPerception);
     bool HasKilledPlayer() const;
+    bool IsInAttackRange(const glm::vec3& targetPos) const;
     EnemyAIState GetAIState() const { return aiState; }
 
     glm::vec3 GetDebugColor() const override;

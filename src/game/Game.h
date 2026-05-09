@@ -9,6 +9,7 @@ class Camera;
 class Engine;
 
 #include "engine/renderer/Camera.h"
+#include "engine/renderer/TextRenderer.h"
 #include "game/world/World.h"
 
 class Game {
@@ -22,10 +23,14 @@ public:
 
 private:
     std::unique_ptr<Camera> camera;
+    std::unique_ptr<TextRenderer> hudRenderer;
     std::unique_ptr<World> world;
 
     glm::vec3 spawnPosition = glm::vec3(0.0f, 1.8f, 3.5f);
     bool cursorLocked = true;
     bool sprintToggled = false;
     std::string lastInteractionPrompt;
+
+    void UpdateHudTitle(Engine& engine) const;
+    void RenderHud(const Engine& engine) const;
 };

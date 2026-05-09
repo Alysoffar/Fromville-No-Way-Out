@@ -157,3 +157,9 @@ void Enemy::MoveToward(const glm::vec3& target, float dt, float swayAmount) {
     Move(direction.x, direction.z, dt);
     transform.rotation.y = glm::degrees(std::atan2(direction.x, direction.z));
 }
+
+bool Enemy::IsInAttackRange(const glm::vec3& targetPos) const {
+    glm::vec3 delta = targetPos - transform.position;
+    delta.y = 0.0f;
+    return glm::length(delta) <= kAttackRange;
+}

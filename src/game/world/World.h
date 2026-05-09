@@ -66,6 +66,12 @@ public:
     bool TryActiveCharacterInteraction();
     std::string GetInteractionPrompt() const;
     bool HasStoryFlag(const std::string& flag) const;
+    std::string GetLastMonsterScream() const { return lastMonsterScream; }
+    float GetMonsterScreamDisplayTime() const { return monsterScreamDisplayTime; }
+    float GetLastDamageAmount() const { return lastDamageAmount; }
+    float GetLastDamageDisplayTime() const { return lastDamageTime; }
+    std::string GetLastNpcDialogue() const { return lastNpcDialogue; }
+    float GetNpcDialogueDisplayTime() const { return npcDialogueDisplayTime; }
     WorldSaveState CaptureSaveState() const;
     void RestoreSaveState(const WorldSaveState& state);
     bool SaveToFile(const std::string& path) const;
@@ -95,11 +101,29 @@ private:
     bool hasPreviousActivePosition = false;
     glm::vec3 previousActivePosition = glm::vec3(0.0f);
     std::array<float, 5> offscreenStoryTimers = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    std::array<float, 5> characterDamageCooldowns = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};  // Damage cooldown per character
 
     CollisionWorld collisionWorld;
+    
+    // Monster and damage feedback tracking
+    std::string lastMonsterScream;
+    float monsterScreamDisplayTime = 0.0f;
+    float lastDamageTime = 0.0f;
+    float lastDamageAmount = 0.0f;
+    std::string lastNpcDialogue;
+    float npcDialogueDisplayTime = 0.0f;
+    std::vector<std::array<float, 5>> npcTalkCooldowns;
+    std::vector<float> npcPanicCooldowns;
+    std::vector<float> npcNeighborTalkCooldowns;
+    std::array<float, 5> characterMonsterInteractionCooldowns = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    static constexpr float kScreamDisplayDuration = 2.5f;
+    static constexpr float kDamageDisplayDuration = 1.8f;
+    static constexpr float kNpcDialogueDisplayDuration = 4.5f;
 
     void InitializeCharacters();
     void InitializePlaceholderWorldRules();
+    void EnsureNpcDialogueCooldowns();
+    bool TryNpcDialogue(Character& character, bool explicitInteraction);
     void UpdateTimeOfDay(float dt);
     void UpdateOffscreenCharacters(float dt);
     bool IsProtectedByShelter(const glm::vec3& position) const;

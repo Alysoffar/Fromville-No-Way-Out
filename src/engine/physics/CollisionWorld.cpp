@@ -34,6 +34,28 @@ bool CollisionWorld::LoadMap(const std::string& path) {
     return true;
 }
 
+bool CollisionWorld::LoadFlatGround(float halfSize, float height) {
+    const float minX = -halfSize;
+    const float maxX = halfSize;
+    const float minZ = -halfSize;
+    const float maxZ = halfSize;
+
+    std::vector<Triangle> triangles;
+    triangles.push_back({
+        glm::vec3(minX, height, minZ),
+        glm::vec3(maxX, height, minZ),
+        glm::vec3(maxX, height, maxZ)
+    });
+    triangles.push_back({
+        glm::vec3(minX, height, minZ),
+        glm::vec3(maxX, height, maxZ),
+        glm::vec3(minX, height, maxZ)
+    });
+
+    m_MapBVH.Build(std::move(triangles));
+    return true;
+}
+
 bool CollisionWorld::RaycastMap(glm::vec3 origin, glm::vec3 dir, float maxDist, HitResult& out) const {
     return m_MapBVH.Raycast(origin, dir, maxDist, out);
 }
