@@ -29,8 +29,10 @@ bool gVillageReady = false;
 
 Mesh gNpcMesh;
 Mesh gEnemyMesh;
+Mesh gQuestMarkerMesh;
 Shader gCharacterShader("CharacterCubes");
 bool gCharacterReady = false;
+bool gQuestMarkerReady = false;
 
 constexpr float kNpcSightRange = 9.0f;
 constexpr float kEnemySightRange = 18.0f;
@@ -42,6 +44,18 @@ float HorizontalDistance(const glm::vec3& a, const glm::vec3& b) {
     glm::vec3 delta = a - b;
     delta.y = 0.0f;
     return glm::length(delta);
+}
+
+std::string CharacterTypeToName(CharacterType type) {
+    switch (type) {
+        case CharacterType::Boyd: return "Boyd";
+        case CharacterType::Jade: return "Jade";
+        case CharacterType::Tabitha: return "Tabitha";
+        case CharacterType::Victor: return "Victor";
+        case CharacterType::Sara: return "Sara";
+    }
+
+    return "";
 }
 
 float Clamp01(float value) {
@@ -344,6 +358,29 @@ void CreateColoredCubeMesh(Mesh& mesh, const glm::vec3& color) {
     mesh.Create(vertices, indices);
 }
 
+void CreateQuestTriangleMesh(Mesh& mesh, const glm::vec3& color) {
+    const std::vector<MeshVertex> vertices = {
+        // Front triangle
+        {glm::vec3(0.0f, 1.3f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), color},
+        {glm::vec3(-0.9f, -0.8f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), color},
+        {glm::vec3(0.9f, -0.8f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), color},
+        // Back triangle
+        {glm::vec3(0.0f, 1.3f, 0.14f), glm::vec3(0.0f, 0.0f, -1.0f), color},
+        {glm::vec3(-0.9f, -0.8f, 0.14f), glm::vec3(0.0f, 0.0f, -1.0f), color},
+        {glm::vec3(0.9f, -0.8f, 0.14f), glm::vec3(0.0f, 0.0f, -1.0f), color}
+    };
+
+    const std::vector<unsigned int> indices = {
+        0, 1, 2,
+        3, 5, 4,
+        0, 3, 4, 4, 1, 0,
+        1, 4, 5, 5, 2, 1,
+        2, 5, 3, 3, 0, 2
+    };
+
+    mesh.Create(vertices, indices);
+}
+
 void RenderCharacterCube(
     Shader& shader,
     const Mesh& mesh,
@@ -411,8 +448,10 @@ void InitializeModels() {
     if (!gCharacterReady) {
         CreateColoredCubeMesh(gNpcMesh, glm::vec3(0.25f, 0.90f, 0.65f));
         CreateColoredCubeMesh(gEnemyMesh, glm::vec3(0.95f, 0.22f, 0.18f));
+        CreateQuestTriangleMesh(gQuestMarkerMesh, glm::vec3(1.0f, 0.1f, 0.1f));
         gCharacterShader.Load("assets/shaders/model_lit.vert", "assets/shaders/model_lit.frag");
         gCharacterReady = gNpcMesh.IsValid() && gEnemyMesh.IsValid();
+        gQuestMarkerReady = gQuestMarkerMesh.IsValid();
     }
 }
 }
@@ -507,6 +546,9 @@ void World::Update(const Camera& camera, float dt) {
     for (float& cooldown : characterMonsterInteractionCooldowns) {
         cooldown = std::max(0.0f, cooldown - dt);
     }
+    
+    // Update interaction feedback display timer
+    lastInteractionFeedbackTime = std::max(0.0f, lastInteractionFeedbackTime - dt);
 
     UpdateTimeOfDay(dt);
 
@@ -521,6 +563,15 @@ void World::Update(const Camera& camera, float dt) {
         }
 
         interactionSystem.Update(dt, *questSystem);
+
+        if (hasActiveQuest) {
+            const Quest* activeQuest = questSystem->GetCharacterQuest(activeQuestCharacter);
+            if (activeQuest && activeQuest->IsComplete()) {
+                hasActiveQuest = false;
+                lastInteractionFeedback = "Quest complete! You can start another one.";
+                lastInteractionFeedbackTime = 2.5f;
+            }
+        }
     }
 
     // Update active character
@@ -838,6 +889,38 @@ void World::Render(const Camera& camera, float aspectRatio) {
             RenderCharacterCube(gCharacterShader, gEnemyMesh, camera, aspectRatio, enemy.transform.position, glm::vec3(0.30f, 0.55f, 0.30f), enemy.GetDebugColor());
         }
 
+        const Quest* activeQuest = nullptr;
+        if (questSystem && hasActiveQuest) {
+            activeQuest = questSystem->GetCharacterQuest(activeQuestCharacter);
+        }
+
+        const int activeObjectiveIndex = activeQuest ? activeQuest->GetNextIncompleteObjectiveIndex() : -1;
+        const std::string activeQuestCharacterName = activeQuest ? CharacterTypeToName(activeQuestCharacter) : "";
+
+        const auto renderQuestBeacon = [&](const glm::vec3& basePosition, bool highlighted) {
+            if (!gQuestMarkerReady) {
+                return;
+            }
+
+            const glm::vec3 markerColor = highlighted ? glm::vec3(1.0f, 0.10f, 0.10f) : glm::vec3(0.45f, 0.08f, 0.08f);
+            const glm::vec3 markerScale = highlighted ? glm::vec3(1.5f, 1.8f, 1.5f) : glm::vec3(1.05f, 1.25f, 1.05f);
+            RenderCharacterCube(gCharacterShader, gQuestMarkerMesh, camera, aspectRatio, basePosition + glm::vec3(0.0f, 1.45f, 0.0f), markerScale, markerColor);
+        };
+
+        for (const InteractionNode& node : interactionSystem.GetNodes()) {
+            if (node.questObjectiveIndex < 0) {
+                continue;
+            }
+
+            if (!node.requiredCharacter.empty() && node.requiredCharacter != activeQuestCharacterName) {
+                continue;
+            }
+
+            const bool isActiveStep = activeQuest && node.questObjectiveIndex == activeObjectiveIndex;
+            const glm::vec3 offsetPosition = node.position;
+            renderQuestBeacon(offsetPosition, isActiveStep && node.questObjectiveIndex >= 0);
+        }
+
         const auto renderProp = [&](const glm::vec3& position, const glm::vec3& scale, const glm::vec3& color) {
             RenderCharacterCube(gCharacterShader, gNpcMesh, camera, aspectRatio, position, scale, color);
         };
@@ -901,43 +984,45 @@ void World::InitializeCharacters() {
         return;
     }
 
-    // Create all 5 playable characters at different spawn points
-    characters.emplace_back(std::make_unique<Boyd>(glm::vec3(0.0f, 0.1f, 1.5f)));
-    characters.emplace_back(std::make_unique<Jade>(glm::vec3(-1.8f, 0.1f, 1.5f)));
-    characters.emplace_back(std::make_unique<Tabitha>(glm::vec3(1.8f, 0.1f, 1.5f)));
-    characters.emplace_back(std::make_unique<Victor>(glm::vec3(-2.4f, 0.1f, -0.6f)));
-    characters.emplace_back(std::make_unique<Sara>(glm::vec3(2.4f, 0.1f, -0.6f)));
+    // Create all 5 playable characters spread across the full map (±12 units)
+    characters.emplace_back(std::make_unique<Boyd>(glm::vec3(-8.0f, 0.1f, 9.0f)));      // NW quadrant
+    characters.emplace_back(std::make_unique<Jade>(glm::vec3(7.0f, 0.1f, 10.0f)));       // NE quadrant
+    characters.emplace_back(std::make_unique<Tabitha>(glm::vec3(-9.5f, 0.1f, -8.0f)));   // SW quadrant
+    characters.emplace_back(std::make_unique<Victor>(glm::vec3(8.5f, 0.1f, -9.5f)));     // SE quadrant
+    characters.emplace_back(std::make_unique<Sara>(glm::vec3(0.0f, 0.1f, 0.0f)));        // Center
 
-    // Create NPCs
+    // Create NPCs spread across the map
     if (npcs.empty()) {
-        npcs.emplace_back("Mara", glm::vec3(-1.6f, 0.0f, 3.2f));
-        npcs.emplace_back("Elena", glm::vec3(1.7f, 0.0f, 3.0f));
-        npcs.emplace_back("Tom", glm::vec3(3.4f, 0.0f, -0.8f));
+        npcs.emplace_back("Mara", glm::vec3(-10.0f, 0.0f, 0.0f));      // West
+        npcs.emplace_back("Elena", glm::vec3(10.0f, 0.0f, 2.0f));      // East
+        npcs.emplace_back("Tom", glm::vec3(2.0f, 0.0f, -10.5f));       // South
     }
     EnsureNpcDialogueCooldowns();
 
-    // Create enemies
+    // Create enemies spread across the map perimeter
     if (enemies.empty()) {
-        enemies.emplace_back(glm::vec3(5.5f, 0.0f, 5.5f));
-        enemies.emplace_back(glm::vec3(-5.5f, 0.0f, -4.5f));
+        enemies.emplace_back(glm::vec3(10.5f, 0.0f, 8.0f));   // NE corner
+        enemies.emplace_back(glm::vec3(-10.5f, 0.0f, -9.0f)); // SW corner
     }
 }
 
 void World::InitializePlaceholderWorldRules() {
     if (storyLocations.empty()) {
-        storyLocations.push_back({"sheriff_station", glm::vec3(0.0f, 0.0f, 3.5f), 4.0f});
-        storyLocations.push_back({"diner", glm::vec3(3.5f, 0.0f, 3.5f), 4.0f});
-        storyLocations.push_back({"church", glm::vec3(-3.5f, 0.0f, 3.5f), 4.0f});
-        storyLocations.push_back({"tunnel_entrance", glm::vec3(-4.5f, 0.0f, 0.0f), 4.0f});
-        storyLocations.push_back({"colony_house", glm::vec3(4.5f, 0.0f, 0.0f), 4.0f});
-        storyLocations.push_back({"victor_hideout", glm::vec3(0.0f, 0.0f, -4.0f), 4.0f});
+        // Spread story locations across the full map area
+        storyLocations.push_back({"sheriff_station", glm::vec3(-9.0f, 0.0f, 8.0f), 3.0f});      // NW
+        storyLocations.push_back({"diner", glm::vec3(9.0f, 0.0f, 7.5f), 3.0f});                 // NE
+        storyLocations.push_back({"church", glm::vec3(-8.5f, 0.0f, -7.0f), 3.0f});              // SW
+        storyLocations.push_back({"tunnel_entrance", glm::vec3(0.0f, 0.0f, -9.5f), 3.0f});      // South center
+        storyLocations.push_back({"colony_house", glm::vec3(9.5f, 0.0f, -8.5f), 3.0f});         // SE
+        storyLocations.push_back({"victor_hideout", glm::vec3(-11.0f, 0.0f, -1.0f), 3.0f});     // West
     }
 
     if (shelterZones.empty()) {
-        shelterZones.push_back({"sheriff_station_shelter", glm::vec3(0.0f, 0.0f, 3.5f), 4.0f, true, true});
-        shelterZones.push_back({"diner_shelter", glm::vec3(3.5f, 0.0f, 3.5f), 4.0f, true, true});
-        shelterZones.push_back({"colony_house_shelter", glm::vec3(4.5f, 0.0f, 0.0f), 4.0f, true, true});
-        shelterZones.push_back({"church_shelter", glm::vec3(-3.5f, 0.0f, 3.5f), 4.0f, true, true});
+        // Shelter zones co-located with story locations
+        shelterZones.push_back({"sheriff_station_shelter", glm::vec3(-9.0f, 0.0f, 8.0f), 3.0f, true, true});
+        shelterZones.push_back({"diner_shelter", glm::vec3(9.0f, 0.0f, 7.5f), 3.0f, true, true});
+        shelterZones.push_back({"colony_house_shelter", glm::vec3(9.5f, 0.0f, -8.5f), 3.0f, true, true});
+        shelterZones.push_back({"church_shelter", glm::vec3(-8.5f, 0.0f, -7.0f), 3.0f, true, true});
     }
 
     std::cout << "[World] Placeholder story locations and talisman shelter zones initialized.\n";
@@ -998,13 +1083,26 @@ bool World::TryActiveCharacterInteraction() {
         return false;
     }
 
-    const bool didInteract = interactionSystem.TryInteract(*activeChar, *questSystem);
+    const bool didInteract = interactionSystem.TryInteract(*activeChar, *questSystem, hasActiveQuest, activeQuestCharacter);
     if (!interactionSystem.GetLastInteractionMessage().empty()) {
         lastNpcDialogue = interactionSystem.GetLastInteractionMessage();
         npcDialogueDisplayTime = kNpcDialogueDisplayDuration;
     }
 
     if (didInteract) {
+        if (interactionSystem.HasLastQuestObjective()) {
+            SetActiveQuest(interactionSystem.GetLastInteractionQuestCharacter());
+            lastInteractionFeedback = "Quest step completed.";
+            lastInteractionFeedbackTime = 2.0f;
+
+            const Quest* quest = questSystem->GetCharacterQuest(interactionSystem.GetLastInteractionQuestCharacter());
+            if (quest && quest->IsComplete()) {
+                hasActiveQuest = false;
+                lastInteractionFeedback = "Quest complete! You can start another one.";
+                lastInteractionFeedbackTime = 2.5f;
+                std::cout << "[Quest] Active quest cleared after completion.\n";
+            }
+        }
         return true;
     }
 
@@ -1028,7 +1126,7 @@ std::string World::GetInteractionPrompt() const {
         return "";
     }
 
-    const std::string nodePrompt = interactionSystem.GetPromptFor(*activeChar, *questSystem);
+    const std::string nodePrompt = interactionSystem.GetPromptFor(*activeChar, *questSystem, hasActiveQuest, activeQuestCharacter);
     if (!nodePrompt.empty()) {
         return nodePrompt;
     }
@@ -1047,7 +1145,7 @@ std::string World::GetInteractionPrompt() const {
         return "Talk " + bestNpc->GetName();
     }
 
-    return interactionSystem.GetPromptFor(*activeChar, *questSystem);
+    return interactionSystem.GetPromptFor(*activeChar, *questSystem, hasActiveQuest, activeQuestCharacter);
 }
 
 bool World::HasStoryFlag(const std::string& flag) const {
@@ -1133,6 +1231,75 @@ bool World::LoadFromFile(const std::string& path) {
     RestoreSaveState(state);
     std::cout << "[Save] Loaded " << path << "\n";
     return true;
+}
+
+void World::SetActiveQuest(CharacterType characterType) {
+    const Quest* quest = questSystem ? questSystem->GetCharacterQuest(characterType) : nullptr;
+    if (quest && quest->IsComplete()) {
+        hasActiveQuest = false;
+        lastInteractionFeedback = "That quest is already complete.";
+        lastInteractionFeedbackTime = 2.0f;
+        return;
+    }
+
+    activeQuestCharacter = characterType;
+    hasActiveQuest = true;
+    std::cout << "[Quest] Active quest set for character type " << static_cast<int>(characterType) << "\n";
+}
+
+std::string World::GetQuestHelperText() const {
+    if (!questSystem) {
+        return "";
+    }
+
+    // Determine which character's quest to show help for
+    CharacterType questCharacter;
+    
+    // Use active quest character if one is set, otherwise use current active character
+    if (hasActiveQuest) {
+        questCharacter = activeQuestCharacter;
+    } else if (!characters.empty()) {
+        questCharacter = characters[activeCharacterIndex]->GetType();
+    } else {
+        return "";
+    }
+
+    const Quest* quest = questSystem->GetCharacterQuest(questCharacter);
+    if (!quest || quest->IsComplete()) {
+        return "";
+    }
+
+    const int nextObjectiveIndex = quest->GetNextIncompleteObjectiveIndex();
+    const auto& objectives = quest->GetObjectives();
+    if (nextObjectiveIndex < 0 || nextObjectiveIndex >= static_cast<int>(objectives.size())) {
+        return "";
+    }
+
+    const std::string objective = objectives[nextObjectiveIndex].description;
+
+    const auto& nodes = interactionSystem.GetNodes();
+    const InteractionNode* activeNode = nullptr;
+    for (const InteractionNode& node : nodes) {
+        if (node.questObjectiveIndex == nextObjectiveIndex && node.requiredCharacter == CharacterTypeToName(questCharacter)) {
+            activeNode = &node;
+            break;
+        }
+    }
+
+    if (activeNode) {
+        return "HELP: go to " + activeNode->name + " and press E to complete: " + objective;
+    }
+
+    return "HELP: " + objective;
+}
+
+void World::AbandonActiveQuest() {
+    if (hasActiveQuest) {
+        hasActiveQuest = false;
+        lastInteractionFeedback = "Quest abandoned.";
+        lastInteractionFeedbackTime = 2.0f;
+        std::cout << "[Quest] Quest abandoned.\n";
+    }
 }
 
 void World::SwitchCharacter(int index) {

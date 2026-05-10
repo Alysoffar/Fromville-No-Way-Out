@@ -7,6 +7,7 @@
 
 class Character;
 class QuestSystem;
+enum class CharacterType;
 
 enum class InteractionType {
     Conversation,
@@ -36,15 +37,21 @@ class InteractionSystem {
 public:
     void Initialize();
 
-    std::string GetPromptFor(const Character& character, const QuestSystem& questSystem) const;
-    bool TryInteract(Character& character, QuestSystem& questSystem);
+    std::string GetPromptFor(const Character& character, const QuestSystem& questSystem, bool hasActiveQuest, CharacterType activeQuestCharacter) const;
+    bool TryInteract(Character& character, QuestSystem& questSystem, bool hasActiveQuest, CharacterType activeQuestCharacter);
     const std::string& GetLastInteractionMessage() const { return lastInteractionMessage; }
+    const std::vector<InteractionNode>& GetNodes() const { return nodes; }
+    bool HasLastQuestObjective() const { return lastInteractionQuestObjectiveIndex >= 0; }
+    CharacterType GetLastInteractionQuestCharacter() const { return lastInteractionQuestCharacter; }
+    int GetLastInteractionQuestObjectiveIndex() const { return lastInteractionQuestObjectiveIndex; }
 
     void Update(float dt, QuestSystem& questSystem);
 
 private:
     std::vector<InteractionNode> nodes;
     std::string lastInteractionMessage;
+    CharacterType lastInteractionQuestCharacter{};
+    int lastInteractionQuestObjectiveIndex = -1;
 
     bool LoadFromConfig(const std::string& path);
     void LoadFallbackNodes();

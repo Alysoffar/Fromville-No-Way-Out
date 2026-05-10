@@ -65,6 +65,12 @@ public:
     QuestSystem* GetQuestSystem() { return questSystem.get(); }
     bool TryActiveCharacterInteraction();
     std::string GetInteractionPrompt() const;
+    void SetActiveQuest(CharacterType characterType);
+    void AbandonActiveQuest();
+    CharacterType GetActiveQuestCharacter() const { return activeQuestCharacter; }
+    bool HasActiveQuest() const { return hasActiveQuest; }
+    std::string GetLastInteractionFeedback() const { return lastInteractionFeedback; }
+    float GetLastInteractionFeedbackTime() const { return lastInteractionFeedbackTime; }
     bool HasStoryFlag(const std::string& flag) const;
     std::string GetLastMonsterScream() const { return lastMonsterScream; }
     float GetMonsterScreamDisplayTime() const { return monsterScreamDisplayTime; }
@@ -72,6 +78,7 @@ public:
     float GetLastDamageDisplayTime() const { return lastDamageTime; }
     std::string GetLastNpcDialogue() const { return lastNpcDialogue; }
     float GetNpcDialogueDisplayTime() const { return npcDialogueDisplayTime; }
+    std::string GetQuestHelperText() const;
     WorldSaveState CaptureSaveState() const;
     void RestoreSaveState(const WorldSaveState& state);
     bool SaveToFile(const std::string& path) const;
@@ -91,6 +98,12 @@ private:
     
     // Quest system
     std::unique_ptr<QuestSystem> questSystem;
+    
+    // Active quest tracking
+    CharacterType activeQuestCharacter = CharacterType::Boyd;
+    bool hasActiveQuest = false;
+    std::string lastInteractionFeedback;
+    float lastInteractionFeedbackTime = 0.0f;
 
     // Interaction system
     InteractionSystem interactionSystem;

@@ -71,7 +71,7 @@ void Game::UpdateHudTitle(Engine& engine) const {
         title << " | " << interactionPrompt << " (E)";
     }
 
-    title << " | 1-5 switch | WASD move | Q ability | Space jump | C crouch | Shift sprint";
+    title << " | 1-5 switch | WASD move | E interact | Q abandon quest | Space jump | C crouch | Shift sprint";
     engine.GetWindow().SetTitle(title.str());
 }
 
@@ -83,6 +83,7 @@ void Game::RenderHud(const Engine& engine) const {
     const Character* activeChar = world->GetActiveCharacter();
     const QuestSystem* questSystem = world->GetQuestSystem();
     const std::string interactionPrompt = world->GetInteractionPrompt();
+    const std::string questHelper = world->GetQuestHelperText();
     const int width = engine.GetWindow().GetWidth();
     const int height = engine.GetWindow().GetHeight();
 
@@ -119,17 +120,31 @@ void Game::RenderHud(const Engine& engine) const {
         line3 << "NO INTERACTION IN RANGE";
     }
 
+    std::ostringstream line4;
+    if (!questHelper.empty()) {
+        line4 << questHelper;
+    }
+
     hudRenderer->RenderText("FROMVILLE TEST ARENA", 24.0f, static_cast<float>(height) - 30.0f, 0.7f, glm::vec3(0.96f, 0.93f, 0.78f), width, height);
     hudRenderer->RenderText(line1.str(), 24.0f, static_cast<float>(height) - 62.0f, 0.55f, glm::vec3(0.92f, 0.96f, 1.0f), width, height);
     hudRenderer->RenderText(line2.str(), 24.0f, static_cast<float>(height) - 92.0f, 0.50f, glm::vec3(0.74f, 0.88f, 0.78f), width, height);
     hudRenderer->RenderText(line3.str(), 24.0f, static_cast<float>(height) - 122.0f, 0.52f, glm::vec3(1.0f, 0.92f, 0.58f), width, height);
+    if (!questHelper.empty()) {
+        hudRenderer->RenderText(line4.str(), 26.0f, static_cast<float>(height) - 204.0f, 0.50f, glm::vec3(1.0f, 0.28f, 0.28f), width, height);
+    }
 
     if (activeChar && questSystem) {
         const Quest* quest = questSystem->GetCharacterQuest(activeChar->GetType());
         if (quest) {
             std::ostringstream questLine;
-            questLine << "QUEST: " << quest->GetTitle() << "  " << static_cast<int>(quest->GetProgress()) << "%";
-            hudRenderer->RenderText(questLine.str(), 24.0f, static_cast<float>(height) - 152.0f, 0.46f, glm::vec3(0.72f, 0.90f, 1.0f), width, height);
+            const bool isActiveQuest = world->HasActiveQuest() && world->GetActiveQuestCharacter() == activeChar->GetType();
+            if (isActiveQuest) {
+                questLine << ">>> ACTIVE QUEST: " << quest->GetTitle() << "  " << static_cast<int>(quest->GetProgress()) << "% <<<";
+                hudRenderer->RenderText(questLine.str(), 28.0f, static_cast<float>(height) - 152.0f, 0.48f, glm::vec3(1.0f, 0.8f, 0.2f), width, height);
+            } else {
+                questLine << "QUEST: " << quest->GetTitle() << "  " << static_cast<int>(quest->GetProgress()) << "%";
+                hudRenderer->RenderText(questLine.str(), 24.0f, static_cast<float>(height) - 152.0f, 0.46f, glm::vec3(0.72f, 0.90f, 1.0f), width, height);
+            }
 
             const auto& objectives = quest->GetObjectives();
             for (std::size_t objectiveIndex = 0; objectiveIndex < objectives.size(); ++objectiveIndex) {
@@ -138,6 +153,71 @@ void Game::RenderHud(const Engine& engine) const {
                     objectiveLine << "NEXT: " << objectives[objectiveIndex].description;
                     hudRenderer->RenderText(objectiveLine.str(), 24.0f, static_cast<float>(height) - 178.0f, 0.42f, glm::vec3(0.94f, 0.94f, 0.82f), width, height);
                     break;
+    
+                    // NEW: Show detailed objective information
+                    if (activeChar && questSystem && world->HasActiveQuest()) {
+                        const Quest* quest = questSystem->GetCharacterQuest(world->GetActiveQuestCharacter());
+                        if (quest) {
+                            int nextObjIndex = quest->GetNextIncompleteObjectiveIndex();
+                            if (nextObjIndex >= 0) {
+                                const auto& objectives = quest->GetObjectives();
+                                const auto& currentObj = objectives[nextObjIndex];
+                                float currentY = height - 230.0f;
+                
+                                // Objective type
+                                std::ostringstream typeLine;
+                                typeLine << "[";
+                                switch (currentObj.type) {
+                                    case ObjectiveType::Dialogue:      typeLine << "TALK"; break;
+                                    case ObjectiveType::Collect:       typeLine << "COLLECT"; break;
+                                    case ObjectiveType::Puzzle:        typeLine << "PUZZLE"; break;
+                                    case ObjectiveType::Observe:       typeLine << "OBSERVE"; break;
+                                    case ObjectiveType::Combat:        typeLine << "COMBAT"; break;
+                                    case ObjectiveType::Timed:         typeLine << "TIMED"; break;
+                                    case ObjectiveType::Skill:         typeLine << "SKILL"; break;
+                                    case ObjectiveType::Environmental: typeLine << "SEARCH"; break;
+                                }
+                                typeLine << "]";
+                                hudRenderer->RenderText(typeLine.str(), 20.0f, currentY, 0.45f, glm::vec3(0.4f, 1.0f, 0.4f), width, height);
+                
+                                // Progress (for multi-part objectives)
+                                std::string progress = currentObj.GetProgressString();
+                                if (!progress.empty()) {
+                                    std::ostringstream progressLine;
+                                    progressLine << "Progress: " << progress;
+                                    hudRenderer->RenderText(progressLine.str(), 20.0f, currentY - 20.0f, 0.40f, glm::vec3(1.0f, 0.8f, 0.4f), width, height);
+                                }
+                
+                                // Hint
+                                std::string hint = quest->GetCurrentObjectiveHint(nextObjIndex);
+                                if (!hint.empty()) {
+                                    std::ostringstream hintLine;
+                                    hintLine << "💡 " << hint;
+                                    hudRenderer->RenderText(hintLine.str(), 20.0f, currentY - 40.0f, 0.38f, glm::vec3(1.0f, 1.0f, 0.6f), width, height);
+                                }
+                
+                                // Environmental clues
+                                const auto& clues = quest->GetObjectiveClues(nextObjIndex);
+                                float clueY = currentY - 65.0f;
+                                for (std::size_t i = 0; i < clues.size() && i < 2; ++i) {
+                                    std::ostringstream clueLine;
+                                    clueLine << "📍 " << clues[i];
+                                    hudRenderer->RenderText(clueLine.str(), 20.0f, clueY - (static_cast<float>(i) * 18.0f), 0.35f, glm::vec3(0.7f, 0.9f, 1.0f), width, height);
+                                }
+                
+                                // Dialogue hints
+                                const auto& dialogues = quest->GetObjectiveDialogues(nextObjIndex);
+                                float dialogY = currentY - 110.0f;
+                                for (std::size_t i = 0; i < dialogues.size() && i < 1; ++i) {
+                                    if (dialogues[i].revealed) {
+                                        std::ostringstream dialogLine;
+                                        dialogLine << "💬 \"" << dialogues[i].text.substr(0, 50) << "...\"";
+                                        hudRenderer->RenderText(dialogLine.str(), 20.0f, dialogY, 0.34f, glm::vec3(0.8f, 0.9f, 1.0f), width, height);
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -162,7 +242,13 @@ void Game::RenderHud(const Engine& engine) const {
         hudRenderer->RenderText(damageMsg.str(), 36.0f, static_cast<float>(height) / 2.0f + 100.0f, 0.85f, glm::vec3(1.0f, 0.3f, 0.3f), width, height);
     }
     
-    hudRenderer->RenderText("1-5 SWITCH  WASD MOVE  SPACE JUMP  C CROUCH  SHIFT SPRINT  Q ABILITY  E INTERACT", 24.0f, 28.0f, 0.40f, glm::vec3(0.82f, 0.82f, 0.82f), width, height);
+    // Display quest acceptance/abandonment feedback
+    if (world->GetLastInteractionFeedbackTime() > 0.0f) {
+        const std::string& feedbackMsg = world->GetLastInteractionFeedback();
+        hudRenderer->RenderText(feedbackMsg, 32.0f, static_cast<float>(height) / 2.0f + 50.0f, 0.88f, glm::vec3(0.2f, 1.0f, 0.3f), width, height);
+    }
+    
+    hudRenderer->RenderText("1-5 SWITCH  WASD MOVE  SPACE JUMP  C CROUCH  SHIFT SPRINT  Q ABANDON QUEST  E INTERACT", 24.0f, 28.0f, 0.40f, glm::vec3(0.82f, 0.82f, 0.82f), width, height);
 }
 
 void Game::Update(float dt, Engine& engine) {
@@ -265,7 +351,7 @@ void Game::Update(float dt, Engine& engine) {
         }
 
         if (engine.GetInput().IsKeyPressed(GLFW_KEY_Q)) {
-            activeChar->ActivateAbility();
+            world->AbandonActiveQuest();
         }
 
         const std::string interactionPrompt = world->GetInteractionPrompt();

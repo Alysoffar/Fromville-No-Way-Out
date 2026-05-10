@@ -79,22 +79,68 @@ void InteractionSystem::Initialize() {
     }
 }
 
-std::string InteractionSystem::GetPromptFor(const Character& character, const QuestSystem& questSystem) const {
+std::string InteractionSystem::GetPromptFor(const Character& character, const QuestSystem& questSystem, bool hasActiveQuest, CharacterType activeQuestCharacter) const {
     const InteractionNode* node = FindBestNode(character, questSystem);
     if (!node) {
         return "";
     }
 
+    if (node->questObjectiveIndex >= 0) {
+        const Quest* quest = questSystem.GetCharacterQuest(character.GetType());
+        const bool questComplete = quest && quest->IsComplete();
+        const int nextObjectiveIndex = quest ? quest->GetNextIncompleteObjectiveIndex() : -1;
+
+        if (!questComplete && hasActiveQuest && activeQuestCharacter != character.GetType()) {
+            return "Finish your current quest first.";
+        }
+
+        if (!questComplete && nextObjectiveIndex != node->questObjectiveIndex) {
+            return "Keep going with your current quest step.";
+        }
+
+        // Show appropriate prompt based on interaction type
+        if (node->type == InteractionType::ItemPickup) {
+            return "Collect " + node->name;
+        } else {
+            // For Conversation, Trigger, Door: show the actual interaction prompt
+            return node->prompt + " " + node->name;
+        }
+    }
+
     return node->prompt + " " + node->name;
 }
 
-bool InteractionSystem::TryInteract(Character& character, QuestSystem& questSystem) {
+bool InteractionSystem::TryInteract(Character& character, QuestSystem& questSystem, bool hasActiveQuest, CharacterType activeQuestCharacter) {
     lastInteractionMessage.clear();
+    lastInteractionQuestObjectiveIndex = -1;
 
     InteractionNode* node = FindBestNode(character, questSystem);
     if (!node || !node->active) {
         lastInteractionMessage = "Nothing nearby to interact with.";
         return false;
+    }
+
+    if (node->questObjectiveIndex >= 0) {
+        Quest* quest = questSystem.GetCharacterQuest(character.GetType());
+        if (!quest) {
+            lastInteractionMessage = "This quest cannot be started right now.";
+            return false;
+        }
+
+        if (quest->IsComplete()) {
+            lastInteractionMessage = "That quest is already complete.";
+            return false;
+        }
+
+        if (hasActiveQuest && activeQuestCharacter != character.GetType()) {
+            lastInteractionMessage = "Finish your current quest before starting another one.";
+            return false;
+        }
+
+        if (quest->GetNextIncompleteObjectiveIndex() != node->questObjectiveIndex) {
+            lastInteractionMessage = "You need to do the current quest step first.";
+            return false;
+        }
     }
 
     if (!node->requiredFlag.empty() && !questSystem.HasStoryFlag(node->requiredFlag)) {
@@ -105,23 +151,28 @@ bool InteractionSystem::TryInteract(Character& character, QuestSystem& questSyst
 
     switch (node->type) {
         case InteractionType::Conversation:
-            lastInteractionMessage = node->successMessage;
-            std::cout << "[Conversation] " << node->successMessage << "\n";
-            if (node->questObjectiveIndex >= 0) {
-                questSystem.AdvanceObjective(character.GetType(), node->questObjectiveIndex);
-            }
-            questSystem.SetStoryFlag(node->questFlag);
-            break;
+        case InteractionType::Trigger:
         case InteractionType::ItemPickup:
-            if (!node->collected) {
+            if (node->questObjectiveIndex >= 0) {
                 node->collected = true;
                 node->active = false;
-                lastInteractionMessage = node->successMessage;
+                lastInteractionQuestCharacter = character.GetType();
+                lastInteractionQuestObjectiveIndex = node->questObjectiveIndex;
+            }
+
+            lastInteractionMessage = node->successMessage;
+            if (node->type == InteractionType::Conversation) {
+                std::cout << "[Conversation] " << node->successMessage << "\n";
+            } else if (node->type == InteractionType::ItemPickup) {
                 std::cout << "[Pickup] " << node->successMessage << "\n";
-                questSystem.SetStoryFlag(node->questFlag);
-                if (node->questObjectiveIndex >= 0) {
-                    questSystem.AdvanceObjective(character.GetType(), node->questObjectiveIndex);
-                }
+            } else {
+                std::cout << "[Trigger] " << node->successMessage << "\n";
+            }
+
+            questSystem.SetStoryFlag(node->questFlag);
+            if (node->questObjectiveIndex >= 0) {
+                questSystem.AdvanceObjective(character.GetType(), node->questObjectiveIndex);
+                lastInteractionMessage = "Collected " + node->name + ". " + node->successMessage;
             }
             break;
         case InteractionType::Door:
@@ -129,14 +180,6 @@ bool InteractionSystem::TryInteract(Character& character, QuestSystem& questSyst
             lastInteractionMessage = node->name + (node->open ? " opens. " : " closes. ") + node->successMessage;
             std::cout << "[Door] " << lastInteractionMessage << "\n";
             questSystem.SetStoryFlag(node->questFlag);
-            break;
-        case InteractionType::Trigger:
-            lastInteractionMessage = node->successMessage;
-            std::cout << "[Trigger] " << node->successMessage << "\n";
-            questSystem.SetStoryFlag(node->questFlag);
-            if (node->questObjectiveIndex >= 0) {
-                questSystem.AdvanceObjective(character.GetType(), node->questObjectiveIndex);
-            }
             break;
     }
 

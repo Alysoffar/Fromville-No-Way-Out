@@ -108,6 +108,13 @@ const Quest* QuestSystem::GetCharacterQuest(CharacterType type) const {
 void QuestSystem::AdvanceObjective(CharacterType type, int objectiveIndex) {
     Quest* quest = GetCharacterQuest(type);
     if (quest) {
+        const int nextObjectiveIndex = quest->GetNextIncompleteObjectiveIndex();
+        if (nextObjectiveIndex != objectiveIndex) {
+            std::cout << "[Objective] Ignored out-of-order step for " << static_cast<int>(type)
+                      << " (expected " << nextObjectiveIndex << ", got " << objectiveIndex << ")\n";
+            return;
+        }
+
         quest->CompleteObjective(objectiveIndex);
         
         // Log objective completion
