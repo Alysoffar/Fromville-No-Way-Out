@@ -49,6 +49,8 @@ public:
     void SetStoryFlag(const std::string& flag);
     bool HasStoryFlag(const std::string& flag) const;
     void ClearStoryFlag(const std::string& flag);
+    std::string SerializeState() const;
+    void DeserializeState(const std::string& state);
 
 private:
     std::array<std::unique_ptr<Quest>, 5> characterQuests;

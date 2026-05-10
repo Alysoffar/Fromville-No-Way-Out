@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <iostream>
+
+#include <nlohmann/json.hpp>
 #include "game/entities/Boyd.h"
 #include "game/entities/Victor.h"
 
@@ -190,4 +192,41 @@ void QuestSystem::TriggerConsequence(const std::string& consequence) {
     
     pendingConsequences.emplace_back(consequence);
     std::cout << "[Consequence] " << consequence << "\n";
+}
+
+std::string QuestSystem::SerializeState() const {
+    nlohmann::json json;
+    json["currentPhase"] = static_cast<int>(currentPhase);
+    json["elapsedTime"] = elapsedTime;
+    json["victorsMemoryTriggered"] = victorsMemoryTriggered;
+    json["cultAwarenessTriggered"] = cultAwarenessTriggered;
+    json["storyFlags"] = storyFlags;
+
+    for (const auto& quest : characterQuests) {
+        json["quests"].push_back(quest->SerializeState());
+    }
+
+    return json.dump();
+}
+
+void QuestSystem::DeserializeState(const std::string& stateText) {
+    if (stateText.empty()) {
+        return;
+    }
+
+    try {
+        const nlohmann::json json = nlohmann::json::parse(stateText);
+        currentPhase = static_cast<StoryPhase>(json.value("currentPhase", static_cast<int>(currentPhase)));
+        elapsedTime = json.value("elapsedTime", elapsedTime);
+        victorsMemoryTriggered = json.value("victorsMemoryTriggered", victorsMemoryTriggered);
+        cultAwarenessTriggered = json.value("cultAwarenessTriggered", cultAwarenessTriggered);
+        storyFlags = json.value("storyFlags", storyFlags);
+
+        const auto& quests = json.contains("quests") ? json["quests"] : nlohmann::json::array();
+        for (std::size_t i = 0; i < characterQuests.size() && i < quests.size(); ++i) {
+            characterQuests[i]->DeserializeState(quests[i].get<std::string>());
+        }
+    } catch (...) {
+        // Keep defaults when loading an invalid state payload.
+    }
 }

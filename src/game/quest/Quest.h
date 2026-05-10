@@ -116,6 +116,8 @@ public:
     std::string GetObjectiveProgress(int index) const;  // Returns "2/3" etc
     void ProgressSubObjective(int objectiveIndex, int subIndex);
     void RevealDialogue(int objectiveIndex, int dialogueIndex);
+    std::string SerializeState() const;
+    void DeserializeState(const std::string& state);
     
 private:
     QuestType type;
@@ -126,4 +128,5 @@ private:
     std::string consequenceDesc;  // What happens to other characters
     
     void InitializeObjectives();  // Called in constructor to set up quest steps
+    void RecalculateProgress();
 };

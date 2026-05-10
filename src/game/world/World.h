@@ -17,10 +17,13 @@
 #include "game/entities/Victor.h"
 #include "game/entities/Sara.h"
 #include "game/interactions/InteractionSystem.h"
+#include "game/puzzles/PuzzleManager.h"
 #include "game/quest/QuestSystem.h"
 
 class Shader;
 class Mesh;
+class TextRenderer;
+class InputManager;
 
 class Camera;
 class MapManager;
@@ -49,6 +52,8 @@ struct WorldSaveState {
     float worldClock = 0.0f;
     int activeCharacterIndex = 0;
     bool playerKilled = false;
+    std::string questState;
+    std::string puzzleState;
     std::array<CharacterSimState, 5> characters;
 };
 
@@ -64,9 +69,14 @@ public:
     void SwitchCharacter(int index);
     QuestSystem* GetQuestSystem() { return questSystem.get(); }
     bool TryActiveCharacterInteraction();
+    bool TryActiveCharacterPickup();
     std::string GetInteractionPrompt() const;
+    bool NearestInteractionIsPickup() const;
     void SetActiveQuest(CharacterType characterType);
     void AbandonActiveQuest();
+    bool IsPuzzleActive() const;
+    void UpdatePuzzle(float dt, const InputManager& input);
+    void RenderPuzzleOverlay(TextRenderer& textRenderer, int screenWidth, int screenHeight) const;
     CharacterType GetActiveQuestCharacter() const { return activeQuestCharacter; }
     bool HasActiveQuest() const { return hasActiveQuest; }
     std::string GetLastInteractionFeedback() const { return lastInteractionFeedback; }
@@ -79,6 +89,7 @@ public:
     std::string GetLastNpcDialogue() const { return lastNpcDialogue; }
     float GetNpcDialogueDisplayTime() const { return npcDialogueDisplayTime; }
     std::string GetQuestHelperText() const;
+    std::string GetQuestWaypointText() const;  // Returns compass waypoint info
     WorldSaveState CaptureSaveState() const;
     void RestoreSaveState(const WorldSaveState& state);
     bool SaveToFile(const std::string& path) const;
@@ -107,6 +118,7 @@ private:
 
     // Interaction system
     InteractionSystem interactionSystem;
+    PuzzleManager puzzleManager;
     
     float worldClock = 0.0f;
     bool nightTime = false;

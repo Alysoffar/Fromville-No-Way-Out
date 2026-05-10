@@ -1,6 +1,9 @@
 # id|type|name|x|y|z|radius|prompt|successMessage|questFlag|requiredFlag|questObjectiveIndex|requiredCharacter
 mara_conversation|Conversation|Mara Witness Lead|0.0|0.0|4.0|2.5|Talk|Mara gives Boyd a suspect name and points him toward the sheriff station board.|mara_talked||0|Boyd
-boyd_evidence_board|Trigger|Evidence Board|0.0|0.0|6.0|2.2|Inspect|Boyd pins three pieces of evidence to the sheriff station board.|boyd_evidence_found|mara_talked|1|Boyd
+boyd_evidence_knife|ItemPickup|Bloody Knife|2.0|0.0|6.0|2.0|Pick up|Boyd finds a bloody knife hidden behind the warehouse.|boyd_knife_taken|mara_talked|1|Boyd|0
+boyd_evidence_ledger|Trigger|Cult Ledger|4.5|0.0|6.5|2.0|Inspect|Boyd deciphers a ledger listing the cult's meeting dates.|boyd_ledger_found|boyd_knife_taken|1|Boyd|1
+boyd_evidence_idol|Trigger|Strange Idol|6.5|0.0|4.0|2.0|Inspect|Boyd recovers a strange idol that points to the ritual circle.|boyd_idol_found|boyd_ledger_found|1|Boyd|2
+boyd_evidence_board|Trigger|Evidence Board|0.0|0.0|6.0|2.2|Inspect|Boyd pins the final evidence board and reveals the cult trail.|boyd_evidence_found|boyd_idol_found|2|Boyd|0
 boyd_cult_place|Trigger|Cult Trail Marker|4.5|0.0|0.0|2.4|Track|Boyd discovers where the cult has been gathering after dark.|boyd_cult_place_found|boyd_evidence_found|2|Boyd
 boyd_leader_clue|Conversation|Leader Clue|6.0|0.0|0.0|2.4|Confront|Boyd corners a witness and learns who is leading the ritual.|boyd_leader_found|boyd_cult_place_found|3|Boyd
 boyd_ritual_stop|Trigger|Ritual Circle|6.0|0.0|6.0|2.6|Disrupt|Boyd breaks the ritual setup before the monsters can use it.|boyd_ritual_stopped|boyd_leader_found|4|Boyd

@@ -1,0 +1,39 @@
+#pragma once
+
+#include <functional>
+#include <string>
+
+#include "engine/core/InputManager.h"
+
+class TextRenderer;
+
+class PuzzleBase {
+public:
+    using SoundHook = std::function<void(const std::string&)>;
+
+    virtual ~PuzzleBase() = default;
+
+    void SetSoundHook(SoundHook hook) { soundHook = std::move(hook); }
+
+    virtual void Start() = 0;
+    virtual void Update(float dt, const InputManager& input) = 0;
+    virtual void Render(TextRenderer& textRenderer, int screenWidth, int screenHeight, float alpha) const = 0;
+    virtual bool IsSolved() const = 0;
+    virtual bool IsReady() const { return true; }
+    virtual std::string GetTitle() const = 0;
+    virtual std::string GetClueText() const = 0;
+    virtual std::string GetSolvedMessage() const = 0;
+    virtual std::string SerializeState() const = 0;
+    virtual void DeserializeState(const std::string& state) = 0;
+    virtual void Reset() = 0;
+
+protected:
+    void PlaySound(const std::string& cue) const {
+        if (soundHook) {
+            soundHook(cue);
+        }
+    }
+
+private:
+    SoundHook soundHook;
+};

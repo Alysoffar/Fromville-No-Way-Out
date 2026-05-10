@@ -30,6 +30,7 @@ struct InteractionNode {
     std::string questFlag;
     std::string requiredFlag;
     int questObjectiveIndex = -1;
+    int questSubObjectiveIndex = -1;
     std::string requiredCharacter;
 };
 
@@ -39,6 +40,9 @@ public:
 
     std::string GetPromptFor(const Character& character, const QuestSystem& questSystem, bool hasActiveQuest, CharacterType activeQuestCharacter) const;
     bool TryInteract(Character& character, QuestSystem& questSystem, bool hasActiveQuest, CharacterType activeQuestCharacter);
+    // Try pickup-only interaction (used for item pickup bound to a separate key)
+    bool TryPickup(Character& character, QuestSystem& questSystem, bool hasActiveQuest, CharacterType activeQuestCharacter);
+    void MarkQuestStepSolved(CharacterType characterType, int objectiveIndex);
     const std::string& GetLastInteractionMessage() const { return lastInteractionMessage; }
     const std::vector<InteractionNode>& GetNodes() const { return nodes; }
     bool HasLastQuestObjective() const { return lastInteractionQuestObjectiveIndex >= 0; }
@@ -46,6 +50,8 @@ public:
     int GetLastInteractionQuestObjectiveIndex() const { return lastInteractionQuestObjectiveIndex; }
 
     void Update(float dt, QuestSystem& questSystem);
+    // Add a new interaction node at runtime (used for spawning checkpoints)
+    void AddNode(const InteractionNode& node);
 
 private:
     std::vector<InteractionNode> nodes;

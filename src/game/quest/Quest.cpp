@@ -3,6 +3,8 @@
 #include <array>
 #include <iostream>
 
+#include <nlohmann/json.hpp>
+
 namespace {
 struct QuestDefinition {
     const char* title;
@@ -14,7 +16,7 @@ constexpr std::array<QuestDefinition, 5> kQuestDefinitions = {{
     {
         "Solve the Conspiracy",
         {"Interrogate first suspect",
-         "Gather 3 pieces of evidence",
+         "Gather 3 pieces of evidence (find: KNIFE, LEDGER, IDOL)",
          "Discover cult gathering place",
          "Confront the leader",
          "Prevent the ritual"},
@@ -123,8 +125,7 @@ void Quest::CompleteObjective(int index) {
             objectives[index].completed = true;
             objectives[index].progressPercent = 100.0f;
             
-            // Each completed objective is 20% progress (5 objectives = 100%)
-            AdvanceProgress(0.20f);
+            RecalculateProgress();
             std::cout << "[Quest] Objective completed: " << objectives[index].description << "\n";
         }
     }
@@ -560,6 +561,14 @@ void Quest::ProgressSubObjective(int objectiveIndex, int subIndex) {
                 if (sub.progress >= sub.required) {
                     sub.completed = true;
                 }
+                if (!obj.subObjectives.empty()) {
+                    const int completed = obj.GetProgressCount();
+                    obj.progressPercent = 100.0f * static_cast<float>(completed) / static_cast<float>(obj.subObjectives.size());
+                }
+                if (obj.GetProgressCount() >= static_cast<int>(obj.subObjectives.size())) {
+                    obj.completed = true;
+                }
+                RecalculateProgress();
             }
         }
     }
@@ -572,5 +581,116 @@ void Quest::RevealDialogue(int objectiveIndex, int dialogueIndex) {
         if (dialogueIndex >= 0 && dialogueIndex < static_cast<int>(obj.dialogues.size())) {
             obj.dialogues[dialogueIndex].revealed = true;
         }
+    }
+}
+
+std::string Quest::SerializeState() const {
+    nlohmann::json json;
+    json["state"] = static_cast<int>(state);
+    json["progressPercent"] = progressPercent;
+
+    for (const auto& objective : objectives) {
+        nlohmann::json objectiveJson;
+        objectiveJson["completed"] = objective.completed;
+        objectiveJson["progressPercent"] = objective.progressPercent;
+
+        for (const auto& sub : objective.subObjectives) {
+            objectiveJson["subObjectives"].push_back({
+                {"description", sub.description},
+                {"completed", sub.completed},
+                {"required", sub.required},
+                {"progress", sub.progress}
+            });
+        }
+
+        for (const auto& dialogue : objective.dialogues) {
+            objectiveJson["dialogues"].push_back({
+                {"speaker", dialogue.speaker},
+                {"text", dialogue.text},
+                {"hint", dialogue.hint},
+                {"revealed", dialogue.revealed}
+            });
+        }
+
+        json["objectives"].push_back(objectiveJson);
+    }
+
+    return json.dump();
+}
+
+void Quest::DeserializeState(const std::string& stateText) {
+    if (stateText.empty()) {
+        return;
+    }
+
+    try {
+        const nlohmann::json json = nlohmann::json::parse(stateText);
+        if (json.contains("state")) {
+            state = static_cast<QuestState>(json["state"].get<int>());
+        }
+        if (json.contains("progressPercent")) {
+            progressPercent = json["progressPercent"].get<float>();
+        }
+
+        const auto& savedObjectives = json.contains("objectives") ? json["objectives"] : nlohmann::json::array();
+        for (std::size_t i = 0; i < objectives.size() && i < savedObjectives.size(); ++i) {
+            auto& objective = objectives[i];
+            const auto& objectiveJson = savedObjectives[i];
+
+            objective.completed = objectiveJson.value("completed", objective.completed);
+            objective.progressPercent = objectiveJson.value("progressPercent", objective.progressPercent);
+
+            const auto& savedSubObjectives = objectiveJson.contains("subObjectives") ? objectiveJson["subObjectives"] : nlohmann::json::array();
+            for (std::size_t j = 0; j < objective.subObjectives.size() && j < savedSubObjectives.size(); ++j) {
+                auto& sub = objective.subObjectives[j];
+                const auto& subJson = savedSubObjectives[j];
+                sub.completed = subJson.value("completed", sub.completed);
+                sub.required = subJson.value("required", sub.required);
+                sub.progress = subJson.value("progress", sub.progress);
+            }
+
+            const auto& savedDialogues = objectiveJson.contains("dialogues") ? objectiveJson["dialogues"] : nlohmann::json::array();
+            for (std::size_t j = 0; j < objective.dialogues.size() && j < savedDialogues.size(); ++j) {
+                objective.dialogues[j].revealed = savedDialogues[j].value("revealed", objective.dialogues[j].revealed);
+            }
+        }
+    } catch (...) {
+        // Keep the initialized quest state if the save payload is invalid.
+    }
+}
+
+void Quest::RecalculateProgress() {
+    if (objectives.empty()) {
+        progressPercent = 0.0f;
+        return;
+    }
+
+    const float objectiveShare = 100.0f / static_cast<float>(objectives.size());
+    float total = 0.0f;
+    bool allComplete = true;
+
+    for (auto& objective : objectives) {
+        float fraction = 0.0f;
+        if (objective.completed) {
+            fraction = 1.0f;
+        } else if (!objective.subObjectives.empty()) {
+            fraction = static_cast<float>(objective.GetProgressCount()) / static_cast<float>(objective.subObjectives.size());
+            allComplete = false;
+        } else if (objective.progressPercent > 0.0f) {
+            fraction = objective.progressPercent / 100.0f;
+            allComplete = false;
+        } else {
+            allComplete = false;
+        }
+
+        total += objectiveShare * fraction;
+    }
+
+    progressPercent = total;
+    if (allComplete) {
+        progressPercent = 100.0f;
+        state = QuestState::Complete;
+    } else if (progressPercent > 0.0f && state == QuestState::InProgress) {
+        state = QuestState::PartialComplete;
     }
 }
