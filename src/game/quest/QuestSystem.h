@@ -61,6 +61,7 @@ private:
     int consequenceIndex = 0;
     std::vector<std::string> pendingConsequences;
     std::vector<std::string> storyFlags;
+    std::array<bool, 5> questCompletionConsequenceTriggered = {false, false, false, false, false};
     
     // Story milestone tracking
     bool victorsMemoryTriggered = false;

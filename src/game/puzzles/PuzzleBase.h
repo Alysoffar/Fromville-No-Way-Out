@@ -27,6 +27,9 @@ public:
     virtual void DeserializeState(const std::string& state) = 0;
     virtual void Reset() = 0;
 
+    // Optional: return currently selected index for UI (1-based expected); -1 if none
+    virtual int GetSelectedIndex() const { return -1; }
+
 protected:
     void PlaySound(const std::string& cue) const {
         if (soundHook) {

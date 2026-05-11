@@ -20,6 +20,7 @@
 #include "engine/renderer/terrain.h"
 #include "engine/resources/loader.h"
 #include "game/world/map_manager.h"
+#include "game/story/StoryManager.h"
 
 namespace {
 Mesh gPlayerMesh;
@@ -485,7 +486,22 @@ void World::Initialize() {
         if (questSystem) {
             questSystem->AdvanceObjective(characterType, objectiveIndex);
         }
+        StoryManager::Instance().AdvanceStep(objectiveIndex);
         interactionSystem.MarkQuestStepSolved(characterType, objectiveIndex);
+
+        // Ensure any story flags on nodes for this objective are set so subsequent nodes unlock
+        if (questSystem) {
+            const auto& nodes = interactionSystem.GetNodes();
+            for (const auto& n : nodes) {
+                if (n.questObjectiveIndex == objectiveIndex &&
+                    (n.requiredCharacter.empty() || n.requiredCharacter == CharacterTypeToName(characterType))) {
+                    if (!n.questFlag.empty()) {
+                        questSystem->SetStoryFlag(n.questFlag);
+                        std::cout << "[World] Set story flag from node '" << n.id << "' -> '" << n.questFlag << "'\n";
+                    }
+                }
+            }
+        }
 
         // Spawn a visible checkpoint flag after each puzzle completion to return to later
         InteractionNode checkpoint;
@@ -513,6 +529,12 @@ void World::Initialize() {
         } else if (objectiveIndex == 1) {
             checkpointMessage += "\nNEXT OBJECTIVE: Discover cult gathering place\n\nUse COMPASS (top-left) to locate the\nCULT TRAIL MARKER where the ritual\nceremony takes place.\n\nPress E to investigate.";
             feedbackMsg = "◆ CHECKPOINT SAVED! Follow COMPASS to cult gathering place.";
+        } else if (objectiveIndex == 2) {
+            checkpointMessage += "\nNEXT OBJECTIVE: Confront the leader\n\nUse COMPASS (top-left) to find\nLEADER CLUE.\n\nPress E to trigger the confrontation puzzle.";
+            feedbackMsg = "◆ CHECKPOINT SAVED! Follow COMPASS to LEADER CLUE.";
+        } else if (objectiveIndex == 3) {
+            checkpointMessage += "\nNEXT OBJECTIVE: Prevent the ritual\n\nUse COMPASS (top-left) to reach\nRITUAL CIRCLE.\n\nPress E to disrupt the ritual.";
+            feedbackMsg = "◆ CHECKPOINT SAVED! Follow COMPASS to RITUAL CIRCLE.";
         } else {
             checkpointMessage += "\nNEXT OBJECTIVE: Continue investigation\n\nUse COMPASS (top-left) for guidance.\nFollow the waypoint and press E.";
             feedbackMsg = "◆ CHECKPOINT SAVED! Follow COMPASS waypoint.";
@@ -583,6 +605,8 @@ void World::Update(const Camera& camera, float dt) {
         return;
     }
 
+    StoryManager::Instance().Update(dt);
+
     if (puzzleManager.IsActive()) {
         if (questSystem) {
             questSystem->Update(dt);
@@ -632,6 +656,68 @@ void World::Update(const Camera& camera, float dt) {
         }
 
         interactionSystem.Update(dt, *questSystem);
+
+        if (hasActiveQuest && !characters.empty()) {
+            Quest* activeQuest = questSystem->GetCharacterQuest(activeQuestCharacter);
+            if (activeQuest && !activeQuest->IsComplete() && !activeQuest->IsFailed()) {
+                const int nextObjectiveIndex = activeQuest->GetNextIncompleteObjectiveIndex();
+                const auto& objectives = activeQuest->GetObjectives();
+                if (nextObjectiveIndex >= 0 && nextObjectiveIndex < static_cast<int>(objectives.size())) {
+                    const QuestObjective& currentObjective = objectives[nextObjectiveIndex];
+                    if (currentObjective.type == ObjectiveType::Combat) {
+                        const std::string requiredCharacter = CharacterTypeToName(activeQuestCharacter);
+                        const Character* activeCharForSpawn = GetActiveCharacter();
+                        if (activeCharForSpawn) {
+                            float closestMatchingNodeDistance = std::numeric_limits<float>::max();
+                            bool hasMatchingNode = false;
+                            for (const InteractionNode& node : interactionSystem.GetNodes()) {
+                                if (node.questObjectiveIndex != nextObjectiveIndex || node.requiredCharacter != requiredCharacter) {
+                                    continue;
+                                }
+                                if (!node.active && node.type != InteractionType::Door) {
+                                    continue;
+                                }
+                                if (!node.requiredFlag.empty() && !questSystem->HasStoryFlag(node.requiredFlag)) {
+                                    continue;
+                                }
+                                const float distance = HorizontalDistance(activeCharForSpawn->transform.position, node.position);
+                                hasMatchingNode = true;
+                                closestMatchingNodeDistance = std::min(closestMatchingNodeDistance, distance);
+                            }
+
+                            if (!hasMatchingNode || closestMatchingNodeDistance > 5.0f) {
+                                const std::string runtimeNodeId = "runtime_combat_" + requiredCharacter + "_" + std::to_string(nextObjectiveIndex);
+                                bool nodeAlreadySpawned = false;
+                                for (const InteractionNode& node : interactionSystem.GetNodes()) {
+                                    if (node.id == runtimeNodeId) {
+                                        nodeAlreadySpawned = true;
+                                        break;
+                                    }
+                                }
+
+                                if (!nodeAlreadySpawned) {
+                                    InteractionNode runtimeNode;
+                                    runtimeNode.id = runtimeNodeId;
+                                    runtimeNode.type = InteractionType::Trigger;
+                                    runtimeNode.name = currentObjective.description;
+                                    runtimeNode.position = activeCharForSpawn->transform.position + glm::vec3(2.0f, 0.0f, 0.0f);
+                                    runtimeNode.radius = 3.0f;
+                                    runtimeNode.prompt = "Confront";
+                                    runtimeNode.successMessage = "The cult leader appears. Press E to confront him.";
+                                    runtimeNode.questFlag = "runtime_combat_start_" + requiredCharacter;
+                                    runtimeNode.requiredFlag = "";
+                                    runtimeNode.questObjectiveIndex = nextObjectiveIndex;
+                                    runtimeNode.requiredCharacter = requiredCharacter;
+                                    interactionSystem.AddNode(runtimeNode);
+                                    std::cout << "[World] Spawned runtime combat encounter: " << runtimeNode.id << " at "
+                                              << runtimeNode.position.x << "," << runtimeNode.position.y << "," << runtimeNode.position.z << "\n";
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         if (hasActiveQuest) {
             const Quest* activeQuest = questSystem->GetCharacterQuest(activeQuestCharacter);
@@ -1194,8 +1280,9 @@ bool World::TryActiveCharacterInteraction() {
                 const auto& objectives = quest->GetObjectives();
                 if (objectiveIndex < static_cast<int>(objectives.size())) {
                     const QuestObjective& objective = objectives[objectiveIndex];
-                    if (objective.type != ObjectiveType::Collect) {
-                        if (puzzleManager.StartPuzzle(interactionSystem.GetLastInteractionQuestCharacter(), objectiveIndex, objective, quest->GetTitle())) {
+                    const int subObjectiveIndex = interactionSystem.GetLastInteractionQuestSubObjectiveIndex();
+                    if (objective.type != ObjectiveType::Collect || (objectiveIndex == 1 && subObjectiveIndex == 1)) {
+                        if (puzzleManager.StartPuzzle(interactionSystem.GetLastInteractionQuestCharacter(), objectiveIndex, subObjectiveIndex, objective, quest->GetTitle())) {
                             lastInteractionFeedback = "Puzzle opened: " + objective.description;
                             lastInteractionFeedbackTime = 2.5f;
                             std::cout << "[Quest] Puzzle opened for objective " << objectiveIndex << "\n";
@@ -1263,8 +1350,9 @@ bool World::TryActiveCharacterPickup() {
                 const auto& objectives = quest->GetObjectives();
                 if (objectiveIndex < static_cast<int>(objectives.size())) {
                     const QuestObjective& objective = objectives[objectiveIndex];
-                    if (objective.type != ObjectiveType::Collect) {
-                        if (puzzleManager.StartPuzzle(interactionSystem.GetLastInteractionQuestCharacter(), objectiveIndex, objective, quest->GetTitle())) {
+                    const int subObjectiveIndex = interactionSystem.GetLastInteractionQuestSubObjectiveIndex();
+                    if (objective.type != ObjectiveType::Collect || (objectiveIndex == 1 && subObjectiveIndex == 1)) {
+                        if (puzzleManager.StartPuzzle(interactionSystem.GetLastInteractionQuestCharacter(), objectiveIndex, subObjectiveIndex, objective, quest->GetTitle())) {
                             lastInteractionFeedback = "Puzzle opened: " + objective.description;
                             lastInteractionFeedbackTime = 2.5f;
                             std::cout << "[Quest] Puzzle opened for objective " << objectiveIndex << "\n";
@@ -1528,7 +1616,8 @@ std::string World::GetQuestHelperText() const {
         return "";
     }
 
-    const std::string objective = objectives[nextObjectiveIndex].description;
+    const QuestObjective& currentObjective = objectives[nextObjectiveIndex];
+    const std::string objective = currentObjective.description;
 
     const auto& nodes = interactionSystem.GetNodes();
     const std::string requiredCharacter = CharacterTypeToName(questCharacter);
@@ -1549,7 +1638,7 @@ std::string World::GetQuestHelperText() const {
         if (!node.requiredFlag.empty() && !questSystem->HasStoryFlag(node.requiredFlag)) {
             continue;
         }
-        if (!node.questFlag.empty() && questSystem->HasStoryFlag(node.questFlag)) {
+        if (currentObjective.type == ObjectiveType::Collect && !node.questFlag.empty() && questSystem->HasStoryFlag(node.questFlag)) {
             continue;
         }
 
@@ -1599,6 +1688,8 @@ std::string World::GetQuestWaypointText() const {
         return "";
     }
 
+    const QuestObjective& currentObjective = objectives[nextObjectiveIndex];
+
     const auto& nodes = interactionSystem.GetNodes();
     const std::string requiredCharacter = CharacterTypeToName(questCharacter);
     const InteractionNode* activeNode = nullptr;
@@ -1613,7 +1704,7 @@ std::string World::GetQuestWaypointText() const {
         if (!node.requiredFlag.empty() && !questSystem->HasStoryFlag(node.requiredFlag)) {
             continue;
         }
-        if (!node.questFlag.empty() && questSystem->HasStoryFlag(node.questFlag)) {
+        if (currentObjective.type == ObjectiveType::Collect && !node.questFlag.empty() && questSystem->HasStoryFlag(node.questFlag)) {
             continue;
         }
 

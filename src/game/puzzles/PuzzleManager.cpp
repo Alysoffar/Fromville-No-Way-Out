@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cctype>
 #include <functional>
 #include <iomanip>
@@ -18,10 +19,16 @@
 #include "engine/renderer/Shader.h"
 #include "engine/renderer/TextRenderer.h"
 #include "game/puzzles/CipherDecodePuzzle.h"
+#include "game/puzzles/EvidenceBoardPuzzle.h"
 #include "game/puzzles/ConnectTheCluesPuzzle.h"
+#include "game/puzzles/CultDebatePuzzle.h"
+#include "game/puzzles/LedgerRotationPuzzle.h"
+#include "game/puzzles/MaraTrustDialoguePuzzle.h"
+#include "game/puzzles/RitualInferencePuzzle.h"
 #include "game/puzzles/SequenceMemoryPuzzle.h"
 #include "game/puzzles/SymbolMatchPuzzle.h"
 #include "game/puzzles/WordScramblePuzzle.h"
+#include "game/story/StoryManager.h"
 
 namespace {
 std::string ToUpper(std::string value) {
@@ -102,7 +109,29 @@ bool PuzzleManager::IsSolved(const std::string& puzzleKey) const {
     return solvedPuzzleKeys.find(puzzleKey) != solvedPuzzleKeys.end();
 }
 
-PuzzleType PuzzleManager::GetPuzzleTypeForObjective(CharacterType, int objectiveIndex) {
+PuzzleType PuzzleManager::GetPuzzleTypeForObjective(CharacterType questCharacter, int objectiveIndex, int subObjectiveIndex) {
+    if (questCharacter == CharacterType::Boyd) {
+        if (objectiveIndex == 0) {
+            return PuzzleType::MaraTrustDialogue;
+        }
+
+        if (objectiveIndex == 1 && subObjectiveIndex == 1) {
+            return PuzzleType::LedgerRotation;
+        }
+
+        if (objectiveIndex == 2) {
+            return PuzzleType::EvidenceBoard;
+        }
+
+        if (objectiveIndex == 3) {
+            return PuzzleType::CultDebate;
+        }
+
+        if (objectiveIndex == 4) {
+            return PuzzleType::RitualInference;
+        }
+    }
+
     switch (objectiveIndex % 5) {
         case 0: return PuzzleType::WordScramble;
         case 1: return PuzzleType::SymbolMatch;
@@ -145,11 +174,23 @@ std::unique_ptr<PuzzleBase> PuzzleManager::CreatePuzzle(PuzzleType puzzleType,
                                                         const std::string& questTitle,
                                                         const QuestObjective& objective,
                                                         CharacterType questCharacter,
-                                                        int objectiveIndex) const {
+                                                        int objectiveIndex,
+                                                        int subObjectiveIndex) const {
+    (void)subObjectiveIndex;
     const std::string key = MakePuzzleKey(questCharacter, objectiveIndex);
     const std::string clue = objective.environmentalClues.empty() ? objective.description : objective.environmentalClues.front();
 
     switch (puzzleType) {
+        case PuzzleType::MaraTrustDialogue:
+            return std::make_unique<MaraTrustDialoguePuzzle>(questTitle, clue, "SOLVED: Mara trusts you and reveals the first lead.");
+        case PuzzleType::LedgerRotation:
+            return std::make_unique<LedgerRotationPuzzle>(questTitle, clue, "SOLVED: the ledger reveals the next shadow path.");
+        case PuzzleType::EvidenceBoard:
+            return std::make_unique<EvidenceBoardPuzzle>(questTitle, clue, "SOLVED: the evidence board maps the cult territory.");
+        case PuzzleType::CultDebate:
+            return std::make_unique<CultDebatePuzzle>(questTitle, clue, "SOLVED: the leader breaks under pressure.");
+        case PuzzleType::RitualInference:
+            return std::make_unique<RitualInferencePuzzle>(questTitle, clue, "SOLVED: the ritual pattern collapses.");
         case PuzzleType::WordScramble: {
             const std::array<std::string, 4> options = BuildOptionSet(ToUpper(objective.description));
             return std::make_unique<WordScramblePuzzle>(questTitle, clue, ToUpper(objective.description), options,
@@ -187,6 +228,10 @@ std::unique_ptr<PuzzleBase> PuzzleManager::CreatePuzzle(PuzzleType puzzleType,
 }
 
 bool PuzzleManager::StartPuzzle(CharacterType questCharacter, int objectiveIndex, const QuestObjective& objective, const std::string& questTitle) {
+    return StartPuzzle(questCharacter, objectiveIndex, -1, objective, questTitle);
+}
+
+bool PuzzleManager::StartPuzzle(CharacterType questCharacter, int objectiveIndex, int subObjectiveIndex, const QuestObjective& objective, const std::string& questTitle) {
     const std::string puzzleKey = MakePuzzleKey(questCharacter, objectiveIndex);
     if (IsSolved(puzzleKey)) {
         solvedMessage = "This clue is already solved.";
@@ -199,11 +244,12 @@ bool PuzzleManager::StartPuzzle(CharacterType questCharacter, int objectiveIndex
 
     activeContext.questCharacter = questCharacter;
     activeContext.objectiveIndex = objectiveIndex;
+    activeContext.subObjectiveIndex = subObjectiveIndex;
     activeContext.questTitle = questTitle;
     activeContext.puzzleKey = puzzleKey;
 
-    const PuzzleType puzzleType = GetPuzzleTypeForObjective(questCharacter, objectiveIndex);
-    activePuzzle = CreatePuzzle(puzzleType, questTitle, objective, questCharacter, objectiveIndex);
+    const PuzzleType puzzleType = GetPuzzleTypeForObjective(questCharacter, objectiveIndex, subObjectiveIndex);
+    activePuzzle = CreatePuzzle(puzzleType, questTitle, objective, questCharacter, objectiveIndex, subObjectiveIndex);
     if (!activePuzzle) {
         return false;
     }
@@ -219,6 +265,11 @@ bool PuzzleManager::StartPuzzle(CharacterType questCharacter, int objectiveIndex
     overlayAlpha = 0.0f;
     solvedMessage.clear();
     solvedMessageTimer = 0.0f;
+    modalAge = 0.0f;
+    lastPuzzleSnapshot = activePuzzle->SerializeState();
+    showHint = false;
+    hintText.clear();
+    StoryManager::Instance().ResetHintTimer();
     return true;
 }
 
@@ -240,12 +291,32 @@ void PuzzleManager::CompleteActivePuzzle() {
     }
     activePuzzle.reset();
     overlayAlpha = 0.0f;
+    modalAge = 0.0f;
+    lastPuzzleSnapshot.clear();
+    showHint = false;
+    hintText.clear();
 }
 
 void PuzzleManager::Update(float dt, const InputManager& input) {
     if (activePuzzle) {
+        modalAge += dt;
         overlayAlpha = std::min(1.0f, overlayAlpha + dt * 3.5f);
         activePuzzle->Update(dt, input);
+
+        const std::string snapshot = activePuzzle->SerializeState();
+        if (snapshot != lastPuzzleSnapshot) {
+            lastPuzzleSnapshot = snapshot;
+            StoryManager::Instance().ResetHintTimer();
+        } else {
+            StoryManager::Instance().AdvanceHintTimer(dt);
+        }
+
+        if (StoryManager::Instance().ShouldDecayHintText()) {
+            hintText = StoryManager::Instance().GetCrypticHintForObjective(activeContext.objectiveIndex, activePuzzle->GetTitle());
+        } else if (showHint) {
+            hintText = activePuzzle->GetClueText();
+        }
+
         if (activePuzzle->IsSolved()) {
             CompleteActivePuzzle();
         }
@@ -281,6 +352,9 @@ void PuzzleManager::Render(TextRenderer& textRenderer, int screenWidth, int scre
 
         overlayShader.Bind();
         overlayShader.SetFloat("uAlpha", 0.82f * overlayAlpha);
+        overlayShader.SetFloat("uInvestigationMode", activePuzzle ? 1.0f : 0.0f);
+        overlayShader.SetFloat("uTerrorLevel", StoryManager::Instance().GetGlobalTension());
+        overlayShader.SetFloat("uModalAge", modalAge);
         overlayShader.SetVec3("uTint", glm::vec3(0.02f, 0.02f, 0.03f));
         overlayMesh.Draw();
         overlayShader.Unbind();
@@ -293,29 +367,51 @@ void PuzzleManager::Render(TextRenderer& textRenderer, int screenWidth, int scre
         const float centerX = static_cast<float>(screenWidth) * 0.5f;
         const float topY = static_cast<float>(screenHeight) - 100.0f;
         const std::string title = activePuzzle->GetTitle();
-        const std::string objective = activePuzzle->GetClueText();
+        const bool decayHints = StoryManager::Instance().ShouldDecayHintText();
+        const std::string objective = decayHints && !hintText.empty() ? hintText : activePuzzle->GetClueText();
+        const float jitter = decayHints ? std::sin(modalAge * 17.0f) * 6.0f : 0.0f;
 
         // ◆ PUZZLE HEADER (circle marker)
-        textRenderer.RenderText("◆ PUZZLE ◆", centerX - 200.0f, topY + 40.0f, 0.8f, glm::vec3(1.0f, 0.7f, 0.3f) * overlayAlpha, screenWidth, screenHeight);
+        textRenderer.RenderText("◆ PUZZLE ◆", centerX - 200.0f + jitter, topY + 40.0f, 0.8f, glm::vec3(1.0f, 0.7f, 0.3f) * overlayAlpha, screenWidth, screenHeight);
         
         // Puzzle title (in center, spaced down)
-        textRenderer.RenderText(title, centerX - 280.0f, topY, 1.3f, glm::vec3(1.0f, 0.95f, 0.8f) * overlayAlpha, screenWidth, screenHeight);
+        textRenderer.RenderText(title, centerX - 280.0f + jitter, topY, 1.3f, glm::vec3(1.0f, 0.95f, 0.8f) * overlayAlpha, screenWidth, screenHeight);
         
         // Blank line for spacing
         textRenderer.RenderText("", centerX, topY - 30.0f, 0.5f, glm::vec3(1.0f, 1.0f, 1.0f), screenWidth, screenHeight);
         
         // Objective / instructions (clearly labeled)
-        textRenderer.RenderText("INSTRUCTIONS:", centerX - 280.0f, topY - 50.0f, 0.7f, glm::vec3(0.9f, 0.9f, 0.7f) * overlayAlpha, screenWidth, screenHeight);
-        textRenderer.RenderText(objective, centerX - 280.0f, topY - 85.0f, 0.65f, glm::vec3(0.85f, 0.85f, 0.85f) * overlayAlpha, screenWidth, screenHeight);
+        textRenderer.RenderText("INSTRUCTIONS:", centerX - 280.0f + jitter, topY - 50.0f, 0.7f, glm::vec3(0.9f, 0.9f, 0.7f) * overlayAlpha, screenWidth, screenHeight);
+        textRenderer.RenderText(objective, centerX - 280.0f + jitter, topY - 85.0f, 0.65f, glm::vec3(0.85f, 0.85f, 0.85f) * overlayAlpha, screenWidth, screenHeight);
         
         // Blank line for spacing
         textRenderer.RenderText("", centerX, topY - 130.0f, 0.5f, glm::vec3(1.0f, 1.0f, 1.0f), screenWidth, screenHeight);
 
         // Controls line (diamond marker for distinction)
-        textRenderer.RenderText("◇ CONTROLS: [H] = Hint  |  [ESC] = Close Puzzle", centerX - 280.0f, topY - 145.0f, 0.55f, glm::vec3(0.8f, 0.8f, 0.8f) * overlayAlpha, screenWidth, screenHeight);
+        textRenderer.RenderText("◇ CONTROLS: [H] = Hint  |  [ESC] = Close Puzzle", centerX - 280.0f + jitter, topY - 145.0f, 0.55f, glm::vec3(0.8f, 0.8f, 0.8f) * overlayAlpha, screenWidth, screenHeight);
 
         // Draw the puzzle itself with good spacing below
         activePuzzle->Render(textRenderer, screenWidth, screenHeight, overlayAlpha);
+
+        // Unified big selector UI for puzzles that support selection
+        const int sel = activePuzzle->GetSelectedIndex();
+        if (sel >= 1 && sel <= 3) {
+            const float selY = static_cast<float>(screenHeight) * 0.6f;
+            const float selX = static_cast<float>(screenWidth) * 0.5f;
+            const float boxSpacing = 120.0f;
+            for (int i = 1; i <= 3; ++i) {
+                const bool isSel = (i == sel);
+                const glm::vec3 boxBg = isSel ? glm::vec3(0.16f, 0.12f, 0.08f) : glm::vec3(0.1f, 0.12f, 0.14f);
+                const glm::vec3 boxFg = isSel ? glm::vec3(1.0f, 0.9f, 0.75f) : glm::vec3(0.9f, 0.9f, 0.86f);
+                const float x = selX + (static_cast<float>(i) - 2.0f) * boxSpacing;
+                textRenderer.RenderText("[ ", x - 48.0f, selY + 18.0f, 2.4f, boxBg * overlayAlpha, screenWidth, screenHeight);
+                std::ostringstream label;
+                label << i;
+                textRenderer.RenderText(label.str(), x - 8.0f, selY - 12.0f, 2.6f, boxFg * overlayAlpha, screenWidth, screenHeight);
+                textRenderer.RenderText(" ]", x + 32.0f, selY + 18.0f, 2.4f, boxBg * overlayAlpha, screenWidth, screenHeight);
+            }
+            textRenderer.RenderText("Press number keys to change selection", selX - 320.0f, selY + 120.0f, 0.56f, glm::vec3(0.92f,0.92f,0.88f) * overlayAlpha, screenWidth, screenHeight);
+        }
 
         if (overlayAlpha > 0.0f) {
             const std::string solvedBanner = "★ PUZZLE SOLVED ★";
@@ -333,6 +429,10 @@ void PuzzleManager::Render(TextRenderer& textRenderer, int screenWidth, int scre
 void PuzzleManager::CancelActivePuzzle() {
     activePuzzle.reset();
     overlayAlpha = 0.0f;
+    modalAge = 0.0f;
+    lastPuzzleSnapshot.clear();
+    showHint = false;
+    hintText.clear();
 }
 
 void PuzzleManager::ResetSolvedState() {

@@ -19,6 +19,7 @@ QuestSystem::QuestSystem(float* worldClockPtr)
 
 void QuestSystem::Initialize(const std::array<Character*, 5>& characters) {
     characterPointers = characters;
+    questCompletionConsequenceTriggered = {false, false, false, false, false};
     
     // Start all quests
     for (auto& quest : characterQuests) {
@@ -85,8 +86,9 @@ void QuestSystem::CheckConsequences() {
     // Check if any character completed a major quest
     for (size_t i = 0; i < characterQuests.size(); ++i) {
         Quest* quest = characterQuests[i].get();
-        if (quest->IsComplete() && quest->HasConsequence()) {
+        if (!questCompletionConsequenceTriggered[i] && quest->IsComplete() && quest->HasConsequence()) {
             TriggerConsequence(quest->GetConsequenceDescription());
+            questCompletionConsequenceTriggered[i] = true;
         }
     }
 }
@@ -225,6 +227,7 @@ void QuestSystem::DeserializeState(const std::string& stateText) {
         const auto& quests = json.contains("quests") ? json["quests"] : nlohmann::json::array();
         for (std::size_t i = 0; i < characterQuests.size() && i < quests.size(); ++i) {
             characterQuests[i]->DeserializeState(quests[i].get<std::string>());
+            questCompletionConsequenceTriggered[i] = characterQuests[i]->IsComplete();
         }
     } catch (...) {
         // Keep defaults when loading an invalid state payload.

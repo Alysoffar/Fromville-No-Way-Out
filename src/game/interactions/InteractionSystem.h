@@ -48,6 +48,7 @@ public:
     bool HasLastQuestObjective() const { return lastInteractionQuestObjectiveIndex >= 0; }
     CharacterType GetLastInteractionQuestCharacter() const { return lastInteractionQuestCharacter; }
     int GetLastInteractionQuestObjectiveIndex() const { return lastInteractionQuestObjectiveIndex; }
+    int GetLastInteractionQuestSubObjectiveIndex() const { return lastInteractionQuestSubObjectiveIndex; }
 
     void Update(float dt, QuestSystem& questSystem);
     // Add a new interaction node at runtime (used for spawning checkpoints)
@@ -58,6 +59,7 @@ private:
     std::string lastInteractionMessage;
     CharacterType lastInteractionQuestCharacter{};
     int lastInteractionQuestObjectiveIndex = -1;
+    int lastInteractionQuestSubObjectiveIndex = -1;
 
     bool LoadFromConfig(const std::string& path);
     void LoadFallbackNodes();

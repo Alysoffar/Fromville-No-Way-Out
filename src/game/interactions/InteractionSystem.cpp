@@ -1,6 +1,7 @@
 #include "game/interactions/InteractionSystem.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cctype>
 #include <fstream>
 #include <iostream>
@@ -14,6 +15,22 @@ float HorizontalDistance(const glm::vec3& a, const glm::vec3& b) {
     glm::vec3 delta = a - b;
     delta.y = 0.0f;
     return glm::length(delta);
+}
+
+glm::vec3 GetCharacterForward(const Character& character) {
+    const float yawRadians = glm::radians(character.transform.rotation.y);
+    return glm::normalize(glm::vec3(std::sin(yawRadians), 0.0f, std::cos(yawRadians)));
+}
+
+bool IsShadowAligned(const Character& character, const InteractionNode& node) {
+    glm::vec3 toTarget = node.position - character.transform.position;
+    toTarget.y = 0.0f;
+    if (glm::length(toTarget) <= 0.0001f) {
+        return true;
+    }
+
+    toTarget = glm::normalize(toTarget);
+    return glm::dot(GetCharacterForward(character), toTarget) > 0.98f;
 }
 
 std::string Trim(std::string value) {
@@ -88,6 +105,10 @@ std::string InteractionSystem::GetPromptFor(const Character& character, const Qu
         return "";
     }
 
+    if (node->id == "boyd_evidence_idol" && !IsShadowAligned(character, *node)) {
+        return "Hold the light on the idol";
+    }
+
     if (node->questObjectiveIndex >= 0) {
         const Quest* quest = questSystem.GetCharacterQuest(character.GetType());
         const bool questComplete = quest && quest->IsComplete();
@@ -116,10 +137,16 @@ std::string InteractionSystem::GetPromptFor(const Character& character, const Qu
 bool InteractionSystem::TryInteract(Character& character, QuestSystem& questSystem, bool hasActiveQuest, CharacterType activeQuestCharacter) {
     lastInteractionMessage.clear();
     lastInteractionQuestObjectiveIndex = -1;
+    lastInteractionQuestSubObjectiveIndex = -1;
 
     InteractionNode* node = FindBestNode(character, questSystem);
     if (!node || !node->active) {
         lastInteractionMessage = "Nothing nearby to interact with.";
+        return false;
+    }
+
+    if (node->id == "boyd_evidence_idol" && !IsShadowAligned(character, *node)) {
+        lastInteractionMessage = "The idol stays hidden until the light lines up.";
         return false;
     }
 
@@ -159,6 +186,7 @@ bool InteractionSystem::TryInteract(Character& character, QuestSystem& questSyst
             if (node->questObjectiveIndex >= 0) {
                 lastInteractionQuestCharacter = character.GetType();
                 lastInteractionQuestObjectiveIndex = node->questObjectiveIndex;
+                lastInteractionQuestSubObjectiveIndex = node->questSubObjectiveIndex;
                 lastInteractionMessage = "Puzzle opened: " + node->name;
             }
 
@@ -174,7 +202,16 @@ bool InteractionSystem::TryInteract(Character& character, QuestSystem& questSyst
             questSystem.SetStoryFlag(node->questFlag);
             if (node->questObjectiveIndex >= 0) {
                 lastInteractionMessage = "Collected " + node->name + ". " + node->successMessage;
-                if (node->type == InteractionType::Conversation || node->type == InteractionType::Trigger) {
+                bool isCollectObjective = false;
+                Quest* quest = questSystem.GetCharacterQuest(character.GetType());
+                if (quest) {
+                    const auto& objectives = quest->GetObjectives();
+                    if (node->questObjectiveIndex >= 0 && node->questObjectiveIndex < static_cast<int>(objectives.size())) {
+                        isCollectObjective = (objectives[node->questObjectiveIndex].type == ObjectiveType::Collect);
+                    }
+                }
+
+                if (isCollectObjective && (node->type == InteractionType::Conversation || node->type == InteractionType::Trigger)) {
                     node->collected = true;
                     node->active = false;
                 }
@@ -239,10 +276,16 @@ void InteractionSystem::AddNode(const InteractionNode& node) {
 bool InteractionSystem::TryPickup(Character& character, QuestSystem& questSystem, bool hasActiveQuest, CharacterType activeQuestCharacter) {
     lastInteractionMessage.clear();
     lastInteractionQuestObjectiveIndex = -1;
+    lastInteractionQuestSubObjectiveIndex = -1;
 
     InteractionNode* node = FindBestNode(character, questSystem);
     if (!node || !node->active || node->type != InteractionType::ItemPickup) {
         lastInteractionMessage = "No item to pick up.";
+        return false;
+    }
+
+    if (node->id == "boyd_evidence_idol" && !IsShadowAligned(character, *node)) {
+        lastInteractionMessage = "The idol won't show itself until the light aligns.";
         return false;
     }
 
@@ -283,6 +326,7 @@ bool InteractionSystem::TryPickup(Character& character, QuestSystem& questSystem
         lastInteractionMessage = "Collected " + node->name + ". " + node->successMessage;
         lastInteractionQuestCharacter = character.GetType();
         lastInteractionQuestObjectiveIndex = node->questObjectiveIndex;
+        lastInteractionQuestSubObjectiveIndex = node->questSubObjectiveIndex;
     }
 
     node->collected = true;

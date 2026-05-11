@@ -27,6 +27,7 @@ public:
     void SetSoundHook(PuzzleBase::SoundHook hook);
 
     bool StartPuzzle(CharacterType questCharacter, int objectiveIndex, const QuestObjective& objective, const std::string& questTitle);
+    bool StartPuzzle(CharacterType questCharacter, int objectiveIndex, int subObjectiveIndex, const QuestObjective& objective, const std::string& questTitle);
     void Update(float dt, const InputManager& input);
     void Render(TextRenderer& textRenderer, int screenWidth, int screenHeight) const;
 
@@ -46,6 +47,7 @@ private:
     struct ActivePuzzleContext {
         CharacterType questCharacter = CharacterType::Boyd;
         int objectiveIndex = -1;
+        int subObjectiveIndex = -1;
         std::string questTitle;
         std::string puzzleKey;
     };
@@ -66,6 +68,8 @@ private:
     // Hint UI state
     bool showHint = false;
     std::string hintText;
+    float modalAge = 0.0f;
+    std::string lastPuzzleSnapshot;
 
     static std::string MakePuzzleKey(CharacterType questCharacter, int objectiveIndex);
     static std::string ShiftCipher(const std::string& value, int offset);
@@ -75,7 +79,8 @@ private:
                                              const std::string& questTitle,
                                              const QuestObjective& objective,
                                              CharacterType questCharacter,
-                                             int objectiveIndex) const;
-    static PuzzleType GetPuzzleTypeForObjective(CharacterType questCharacter, int objectiveIndex);
+                                             int objectiveIndex,
+                                             int subObjectiveIndex) const;
+    static PuzzleType GetPuzzleTypeForObjective(CharacterType questCharacter, int objectiveIndex, int subObjectiveIndex);
     void CompleteActivePuzzle();
 };

@@ -1,9 +1,14 @@
 #pragma once
 
 enum class PuzzleType {
+    MaraTrustDialogue,
     WordScramble,
     SymbolMatch,
     SequenceMemory,
     CipherDecode,
-    ConnectTheClues
+    ConnectTheClues,
+    LedgerRotation,
+    EvidenceBoard,
+    CultDebate,
+    RitualInference
 };
