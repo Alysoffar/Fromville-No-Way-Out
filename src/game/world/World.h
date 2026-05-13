@@ -4,8 +4,7 @@
 #include "engine/physics/CollisionWorld.h"
 
 class Camera;
-class MapManager;
-class TerrainRenderer;
+class DayNightCycle;
 
 class World {
 public:
@@ -14,12 +13,11 @@ public:
     void Initialize();
     void Update(const Camera& camera, float dt);
     void Render(const Camera& camera, float aspectRatio);
+    void RenderObjects(const Camera& camera, float aspectRatio, const DayNightCycle& dayNight);
 
     Player& GetPlayer() { return player; }
 
 private:
-    MapManager* mapManager = nullptr;
-    TerrainRenderer* terrain = nullptr;
     Player player;
     CollisionWorld collisionWorld;
-};
+};

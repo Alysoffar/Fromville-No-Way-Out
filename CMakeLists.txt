@@ -145,4 +145,11 @@ add_custom_command(TARGET fromville POST_BUILD
     COMMENT "Copying assets directory to runtime output"
 )
 
+add_custom_command(TARGET fromville POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/shaders
+            $<TARGET_FILE_DIR:fromville>/shaders
+    COMMENT "Copying terrain shaders to runtime output"
+)
+
 # Force rebuild

@@ -3,6 +3,9 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
+#include <glad/glad.h>
+#include <glm/gtc/matrix_transform.hpp>
+
 #include "engine/core/Engine.h"
 #include "game/world/World.h"
 #include "engine/renderer/Camera.h"
@@ -15,6 +18,11 @@ bool Game::Initialize(Engine& engine) {
 
     world = std::make_unique<World>();
     world->Initialize();
+
+    // Initialize new terrain rendering subsystems
+    groundRenderer.init();
+    grassRenderer.init();
+    skydomeRenderer.init();
 
     engine.GetInput().SetCursorLocked(true);
     return true;
@@ -64,6 +72,13 @@ void Game::Update(float dt, Engine& engine) {
 
     camera->Update(engine.GetInput(), dt, world->GetPlayer().transform.position);
     world->Update(*camera, dt);
+
+    // Advance day/night cycle
+    dayNightCycle.update(dt);
+
+    // Set clear color to current fog color so BeginFrame clears with the right color
+    glm::vec3 fogColor = dayNightCycle.getFogColor();
+    glClearColor(fogColor.r, fogColor.g, fogColor.b, 1.0f);
 }
 
 void Game::Render(Engine& engine) const {
@@ -71,10 +86,45 @@ void Game::Render(Engine& engine) const {
         return;
     }
 
-    world->Render(*camera, engine.GetAspectRatio());
+    const float aspectRatio = engine.GetAspectRatio();
+    const glm::mat4 view = camera->GetViewMatrix();
+    const glm::mat4 projection = camera->GetProjectionMatrix(aspectRatio);
+    const glm::vec3 cameraPos = camera->GetPosition();
+    const float currentTime = static_cast<float>(glfwGetTime());
+
+    const float fogDensity = 0.004f;
+
+    // 1. Skydome (drawn first, behind everything)
+    skydomeRenderer.render(view, projection,
+                           dayNightCycle.getSunDirection(),
+                           dayNightCycle.getDayFactor(),
+                           dayNightCycle.getDayTime());
+
+    // 2. Textured ground quad
+    groundRenderer.render(view, projection, cameraPos,
+                          dayNightCycle.getActiveLightDir(),
+                          dayNightCycle.getLightColor(),
+                          dayNightCycle.getAmbientColor(),
+                          dayNightCycle.getDiffuseStrength(),
+                          dayNightCycle.getFogColor(), fogDensity);
+
+    // 3. Instanced grass billboards
+    grassRenderer.render(view, projection, cameraPos, currentTime,
+                         dayNightCycle.getActiveLightDir(),
+                         dayNightCycle.getLightColor(),
+                         dayNightCycle.getAmbientColor(),
+                         dayNightCycle.getDiffuseStrength(),
+                         dayNightCycle.getFogColor(), fogDensity);
+
+    // 4. World objects and player (using dynamic day/night lighting)
+    world->RenderObjects(*camera, aspectRatio, dayNightCycle);
 }
 
 void Game::Shutdown() {
+    groundRenderer.cleanup();
+    grassRenderer.cleanup();
+    skydomeRenderer.cleanup();
+
     world.reset();
     camera.reset();
 }
