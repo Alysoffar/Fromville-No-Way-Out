@@ -75,6 +75,11 @@ void TabithaWhisperRoutePuzzle::ApplyInterpretation(int choice) {
         ambientTension = std::max(0.0f, ambientTension - 0.12f);
         node.revealed = true;
         PlaySound("whisper_ack");
+        if (node.hazardLevel >= 2) {
+            EmitConsequence("tabitha_whisper_hidden_path_open");
+        } else if (node.hazardLevel == 0 && phase >= Phase::PatternRecognition) {
+            EmitConsequence("tabitha_whisper_child_memory_awakened");
+        }
         // record pattern observation
         AddJournalEntry("Pattern observed at: " + node.locationDesc + " — interpretation matches the children's tone.");
         // advance or try to progress phase
@@ -92,6 +97,10 @@ void TabithaWhisperRoutePuzzle::ApplyInterpretation(int choice) {
         statusLine = "The children wail — your meaning is lost. The tunnel grows crueler.";
         statusTimer = 3.4f;
         PlaySound("whisper_wrong");
+        EmitConsequence("tabitha_whisper_false_chamber_active");
+        if (node.hazardLevel >= 1) {
+            EmitConsequence("tabitha_whisper_creature_attracted");
+        }
         // consequences depending on hazard level
         const int hazard = node.hazardLevel;
         if (hazard >= 2 && ambientTension > 0.6f) {
@@ -273,6 +282,9 @@ void TabithaWhisperRoutePuzzle::InspectNode() {
         node.evidenceCollected = true;
         evidenceCount++;
         AddJournalEntry(std::string("Found: ") + node.ambientCue + " at " + node.locationDesc);
+        if (currentNode == 1 || currentNode == 3) {
+            EmitConsequence("tabitha_whisper_child_memory_awakened");
+        }
         statusLine = "You inspect the nearby wall; something small suggests the children's presence.";
         statusTimer = 3.0f;
         PlaySound("inspect_rustle");
@@ -324,6 +336,7 @@ void TabithaWhisperRoutePuzzle::TryAdvancePhase() {
         AddJournalEntry("Phase: Environmental investigation — testing reactions.");
         statusLine = "The tunnel itself seems to answer when the word is spoken.";
         statusTimer = 3.0f;
+        EmitConsequence("tabitha_whisper_hidden_path_open");
         PlaySound("note_record");
         return;
     }
@@ -332,6 +345,7 @@ void TabithaWhisperRoutePuzzle::TryAdvancePhase() {
         AddJournalEntry("Phase: Emotional understanding — the word's meaning shifts with feeling.");
         statusLine = "You understand now: the children speak with feeling, not words.";
         statusTimer = 3.0f;
+        EmitConsequence("tabitha_whisper_child_memory_awakened");
         PlaySound("puzzle_complete");
         // do not mark solved here; leave for the player to confirm via evidence
     }

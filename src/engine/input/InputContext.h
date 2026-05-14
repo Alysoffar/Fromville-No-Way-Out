@@ -29,6 +29,10 @@ public:
     bool IsActionReleased(InputAction action) const;
     float GetAxis(InputAction negativeAction, InputAction positiveAction) const;
     glm::vec2 GetMovementVector() const;
+    glm::vec2 GetMousePosition() const;
+    glm::ivec2 GetFramebufferSize() const;
+    bool IsMouseButtonDown(int button) const;
+    bool IsMouseButtonPressed(int button) const;
 
 private:
     std::string name;

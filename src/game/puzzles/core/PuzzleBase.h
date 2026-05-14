@@ -10,10 +10,12 @@ class TextRenderer;
 class PuzzleBase {
 public:
     using SoundHook = std::function<void(const std::string&)>;
+    using ConsequenceHook = std::function<void(const std::string&)>;
 
     virtual ~PuzzleBase() = default;
 
     void SetSoundHook(SoundHook hook) { soundHook = std::move(hook); }
+    void SetConsequenceHook(ConsequenceHook hook) { consequenceHook = std::move(hook); }
 
     virtual void Start() = 0;
     virtual void Update(float dt, const InputContext& input) = 0;
@@ -38,6 +40,13 @@ protected:
         }
     }
 
+    void EmitConsequence(const std::string& consequence) const {
+        if (consequenceHook) {
+            consequenceHook(consequence);
+        }
+    }
+
 private:
     SoundHook soundHook;
+    ConsequenceHook consequenceHook;
 };

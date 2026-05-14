@@ -258,7 +258,7 @@ void Game::RenderHud(const Engine& engine) const {
         hudRenderer->RenderText(feedbackMsg, 32.0f, static_cast<float>(height) / 2.0f + 50.0f, 0.88f, glm::vec3(0.2f, 1.0f, 0.3f), width, height);
     }
 
-    hudRenderer->RenderText("1-5 SWITCH  WASD MOVE  SPACE JUMP  C CROUCH  SHIFT SPRINT  Q ABANDON QUEST  E INTERACT", 24.0f, 28.0f, 0.40f, glm::vec3(0.82f, 0.82f, 0.82f), width, height);
+    hudRenderer->RenderText("1-4 SWITCH  WASD MOVE  SPACE JUMP  C CROUCH  SHIFT SPRINT  Q ABANDON QUEST  E INTERACT", 24.0f, 28.0f, 0.40f, glm::vec3(0.82f, 0.82f, 0.82f), width, height);
 
     if (!interactionPrompt.empty() && world) {
         const bool isPickup = world->NearestInteractionIsPickup();
@@ -304,8 +304,6 @@ void Game::HandleGameplayInput(float dt, Engine& engine) {
         world->SwitchCharacter(2);
     } else if (input.IsActionPressed(InputAction::SwitchCharacter4)) {
         world->SwitchCharacter(3);
-    } else if (input.IsActionPressed(InputAction::SwitchCharacter5)) {
-        world->SwitchCharacter(4);
     }
 
     Character* activeChar = world->GetActiveCharacter();

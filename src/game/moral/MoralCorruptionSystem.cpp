@@ -20,7 +20,7 @@ MoralCorruptionSystem::MoralCorruptionSystem()
     RegisterNPC("Thomas Reed", 0.1f);  // The torturer — low initial trust
     RegisterNPC("Doctor Marcus", 0.6f);  // Former cult member, sympathetic
     RegisterNPC("Sheriff Grant", 0.3f);  // Complicit but not primary offender
-    RegisterNPC("Sara's Mother", 0.8f);  // Supportive
+    // Sara-related NPCs removed; keep core NPCs only
 }
 
 void MoralCorruptionSystem::Update(float dt) {
@@ -172,13 +172,13 @@ MoralChoice MoralCorruptionSystem::CalculateFinalEnding() const {
 std::string MoralCorruptionSystem::GetEndingNarrative(MoralChoice choice) const {
     switch (choice) {
         case MoralChoice::Mercy:
-            return "Sara chooses mercy. Breaking the cycle saves more than one soul.";
+            return "A merciful choice soothes some wounds and opens paths to healing.";
         case MoralChoice::Revenge:
-            return "Sara chooses vengeance. Justice becomes indistinguishable from cruelty.";
+            return "Vengeance escalates the conflict, trading justice for more violence.";
         case MoralChoice::Exposure:
-            return "Sara chooses exposure. The town's sins become public, but at a cost.";
+            return "Exposing the truth forces the town to face its past, with uncertain outcomes.";
         case MoralChoice::Sacrifice:
-            return "Sara sacrifices herself to seal the town's corruption away.";
+            return "A sacrifice seals the danger but at great personal cost.";
     }
     return "";
 }

@@ -124,6 +124,28 @@ glm::vec2 InputContext::GetMovementVector() const {
     return movement;
 }
 
+glm::vec2 InputContext::GetMousePosition() const {
+    if (!input) {
+        return glm::vec2(0.0f);
+    }
+    return input->GetMousePos();
+}
+
+glm::ivec2 InputContext::GetFramebufferSize() const {
+    if (!input) {
+        return glm::ivec2(0, 0);
+    }
+    return input->GetFramebufferSize();
+}
+
+bool InputContext::IsMouseButtonDown(int button) const {
+    return input && input->IsMouseButtonDown(button);
+}
+
+bool InputContext::IsMouseButtonPressed(int button) const {
+    return input && input->IsMouseButtonPressed(button);
+}
+
 bool InputContext::IsBoundKeyDown(InputAction action) const {
     if (!input) {
         return false;

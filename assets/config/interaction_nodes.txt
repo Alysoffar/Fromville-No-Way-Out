@@ -23,11 +23,6 @@ victor_second_memory|Trigger|Old Drawing|0.0|0.0|-6.0|2.2|Remember|Victor rememb
 victor_cult_memory|Trigger|Burned Photo|-4.0|0.0|-2.0|2.4|Remember|Victor remembers the cult gathering and the faces around the fire.|victor_cult_memory|victor_second_memory|2|Victor
 victor_betrayal_memory|Trigger|Broken Toy|0.0|0.0|-4.0|2.4|Remember|Victor remembers the betrayal that let the monsters into town.|victor_betrayal_memory|victor_cult_memory|3|Victor
 victor_survivor_memory|Trigger|Survivor Token|2.0|0.0|-6.0|2.4|Remember|Victor remembers the survivor's identity and why the town hid it.|victor_survivor_memory|victor_betrayal_memory|4|Victor
-sara_whisper_trigger|Trigger|Whispering Point|4.0|0.0|-4.0|3.0|Listen|Sara hears a warning and identifies the first voice following her.|sara_whisper_heard||0|Sara
-sara_testimony_one|Conversation|First Testimony|1.7|0.0|3.0|2.5|Ask|Sara gathers a witness testimony without obeying the voices.|sara_testimony_one|sara_whisper_heard|1|Sara
-sara_crime_scene|Trigger|Crime Scene|6.0|0.0|0.0|2.5|Inspect|Sara locates the crime scene and sees what the voice left out.|sara_crime_scene|sara_testimony_one|2|Sara
-sara_perpetrator|Conversation|Perpetrator Trail|6.0|0.0|-2.0|2.5|Confront|Sara confronts the trail and refuses to accuse the wrong person.|sara_perpetrator|sara_crime_scene|3|Sara
-sara_mercy_choice|Trigger|Mercy Choice|4.0|0.0|-6.0|2.6|Choose|Sara chooses mercy without surrendering to the thing whispering to her.|sara_mercy_choice|sara_perpetrator|4|Sara
 sheriff_talisman|Trigger|Sheriff Station Talisman|0.0|0.0|6.0|3.0|Check|The talisman holds. The monsters circle outside but cannot enter.|sheriff_talisman_checked||-1|
 diner_shelter|Trigger|Diner Shelter|4.0|0.0|6.0|3.0|Secure|The doors are sealed and the townspeople settle in for the night.|diner_secured||-1|
 colony_house_warning|Trigger|Colony House Window|6.0|0.0|0.0|3.0|Inspect|A window latch is loose. At night this would break the protection.|colony_window_checked||-1|

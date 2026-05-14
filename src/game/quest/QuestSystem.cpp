@@ -14,16 +14,16 @@ QuestSystem::QuestSystem(float* worldClockPtr)
     characterQuests[1] = std::make_unique<Quest>(QuestType::Jade_DecodeSymbols, "Jade's Quest");
     characterQuests[2] = std::make_unique<Quest>(QuestType::Tabitha_MapTunnels, "Tabitha's Quest");
     characterQuests[3] = std::make_unique<Quest>(QuestType::Victor_RecallPast, "Victor's Quest");
-    characterQuests[4] = std::make_unique<Quest>(QuestType::Sara_FindRedemption, "Sara's Quest");
+    // Sara's quest removed per user request; leave slot empty
 }
 
 void QuestSystem::Initialize(const std::array<Character*, 5>& characters) {
     characterPointers = characters;
     questCompletionConsequenceTriggered = {false, false, false, false, false};
     
-    // Start all quests
+    // Start all quests (skip empty slots)
     for (auto& quest : characterQuests) {
-        quest->Start();
+        if (quest) quest->Start();
     }
     
     std::cout << "[QuestSystem] All character quests initialized and started.\n";
@@ -86,6 +86,7 @@ void QuestSystem::CheckConsequences() {
     // Check if any character completed a major quest
     for (size_t i = 0; i < characterQuests.size(); ++i) {
         Quest* quest = characterQuests[i].get();
+        if (!quest) continue;
         if (!questCompletionConsequenceTriggered[i] && quest->IsComplete() && quest->HasConsequence()) {
             TriggerConsequence(quest->GetConsequenceDescription());
             questCompletionConsequenceTriggered[i] = true;
@@ -135,7 +136,7 @@ void QuestSystem::AdvanceObjective(CharacterType type, int objectiveIndex) {
 int QuestSystem::GetCompletedQuestCount() const {
     int count = 0;
     for (const auto& quest : characterQuests) {
-        if (quest->IsComplete()) {
+        if (quest && quest->IsComplete()) {
             ++count;
         }
     }
@@ -144,7 +145,7 @@ int QuestSystem::GetCompletedQuestCount() const {
 
 bool QuestSystem::AreAllQuestsComplete() const {
     for (const auto& quest : characterQuests) {
-        if (!quest->IsComplete()) {
+        if (quest && !quest->IsComplete()) {
             return false;
         }
     }
@@ -205,7 +206,8 @@ std::string QuestSystem::SerializeState() const {
     json["storyFlags"] = storyFlags;
 
     for (const auto& quest : characterQuests) {
-        json["quests"].push_back(quest->SerializeState());
+        if (quest) json["quests"].push_back(quest->SerializeState());
+        else json["quests"].push_back(std::string());
     }
 
     return json.dump();
@@ -226,8 +228,12 @@ void QuestSystem::DeserializeState(const std::string& stateText) {
 
         const auto& quests = json.contains("quests") ? json["quests"] : nlohmann::json::array();
         for (std::size_t i = 0; i < characterQuests.size() && i < quests.size(); ++i) {
-            characterQuests[i]->DeserializeState(quests[i].get<std::string>());
-            questCompletionConsequenceTriggered[i] = characterQuests[i]->IsComplete();
+            if (characterQuests[i]) {
+                characterQuests[i]->DeserializeState(quests[i].get<std::string>());
+                questCompletionConsequenceTriggered[i] = characterQuests[i]->IsComplete();
+            } else {
+                questCompletionConsequenceTriggered[i] = false;
+            }
         }
     } catch (...) {
         // Keep defaults when loading an invalid state payload.

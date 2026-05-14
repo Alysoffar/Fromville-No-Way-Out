@@ -18,6 +18,7 @@ class TextRenderer;
 class PuzzleManager {
 public:
     using CompletionCallback = std::function<void(CharacterType characterType, int objectiveIndex)>;
+    using ConsequenceCallback = std::function<void(const std::string&)>;
 
     PuzzleManager();
     ~PuzzleManager();
@@ -25,6 +26,7 @@ public:
     void Initialize();
     void SetCompletionCallback(CompletionCallback callback);
     void SetSoundHook(PuzzleBase::SoundHook hook);
+    void SetConsequenceHook(ConsequenceCallback hook);
 
     bool StartPuzzle(CharacterType questCharacter, int objectiveIndex, const QuestObjective& objective, const std::string& questTitle);
     bool StartPuzzle(CharacterType questCharacter, int objectiveIndex, int subObjectiveIndex, const QuestObjective& objective, const std::string& questTitle);
@@ -58,6 +60,7 @@ private:
     std::unordered_set<std::string> solvedPuzzleKeys;
     CompletionCallback completionCallback;
     PuzzleBase::SoundHook soundHook;
+    ConsequenceCallback consequenceHook;
     float overlayAlpha = 0.0f;
     float solvedMessageTimer = 0.0f;
     float solvedMessageHold = 1.25f;

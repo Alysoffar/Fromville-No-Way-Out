@@ -28,8 +28,8 @@
 #include "game/puzzles/logic/Boyed/RitualInferencePuzzle.h"
 #include "game/puzzles/logic/Jade/JadeSymbolPuzzle.h"
 #include "game/puzzles/logic/Jade/JadeSymbolVaultPuzzle.h"
-#include "game/puzzles/logic/Sara/SaraRedemptionPuzzle.h"
-#include "game/puzzles/logic/Sara/SaraFinalJudgmentPuzzle.h"
+#include "game/puzzles/logic/Tabitha/HollowWallPuzzle.h"
+#include "game/puzzles/logic/Victor/GhostWitnessPuzzle.h"
 #include "game/puzzles/logic/Boyed/SequenceMemoryPuzzle.h"
 #include "game/puzzles/logic/Boyed/SymbolMatchPuzzle.h"
 #include "game/puzzles/logic/Tabitha/TabithaTunnelPuzzle.h"
@@ -46,9 +46,7 @@
 #include "game/puzzles/logic/Boyed/WordScramblePuzzle.h"
 #include "game/story/StoryManager.h"
 
-#include "game/puzzles/logic/Sara/SaraBreathingClosetPuzzle.h"
-#include "game/puzzles/logic/Sara/SaraFalseSurvivorPuzzle.h"
-#include "game/puzzles/logic/Sara/SaraMercyTestPuzzle.h"
+// Sara puzzle headers removed
 
 #include "game/puzzles/logic/Tabitha/HollowWallPuzzle.h"
 #include "game/puzzles/logic/Victor/GhostWitnessPuzzle.h"
@@ -122,6 +120,10 @@ void PuzzleManager::SetSoundHook(PuzzleBase::SoundHook hook) {
     soundHook = std::move(hook);
 }
 
+void PuzzleManager::SetConsequenceHook(ConsequenceCallback hook) {
+    consequenceHook = std::move(hook);
+}
+
 std::string PuzzleManager::MakePuzzleKey(CharacterType questCharacter, int objectiveIndex) {
     std::ostringstream stream;
     stream << static_cast<int>(questCharacter) << ':' << objectiveIndex;
@@ -185,11 +187,7 @@ PuzzleType PuzzleManager::GetPuzzleTypeForObjective(CharacterType questCharacter
         return PuzzleType::VictorMemoryPuzzle;
     }
 
-    if (questCharacter == CharacterType::Sara) {
-        if (objectiveIndex == 0) return PuzzleType::SaraBreathingClosetPuzzle;
-        if (objectiveIndex == 1) return PuzzleType::SaraFalseSurvivorPuzzle;
-        return PuzzleType::SaraMercyTestPuzzle;
-    }
+    // Sara puzzles removed; fall through to default assignment
 
     switch (objectiveIndex % 5) {
         case 0: return PuzzleType::WordScramble;
@@ -258,14 +256,7 @@ std::unique_ptr<PuzzleBase> PuzzleManager::CreatePuzzle(PuzzleType puzzleType,
             return std::make_unique<TabithaTunnelPuzzle>(questTitle, clue, "SOLVED: the mimic voice is exposed.");
         case PuzzleType::VictorMemoryPuzzle:
             return std::make_unique<VictorMemoryPuzzle>(questTitle, clue, "SOLVED: the memory loop stops lying.");
-        case PuzzleType::SaraRedemptionPuzzle:
-            return std::make_unique<SaraRedemptionPuzzle>(questTitle, clue, "SOLVED: the hidden confession is heard.");
-        case PuzzleType::SaraBreathingClosetPuzzle:
-            return std::make_unique<SaraBreathingClosetPuzzle>(questTitle, clue, "SOLVED: you survive the silence and learn a new way to listen.");
-        case PuzzleType::SaraFalseSurvivorPuzzle:
-            return std::make_unique<SaraFalseSurvivorPuzzle>(questTitle, clue, "SOLVED: the survivor's truth — or lie — shapes what follows.");
-        case PuzzleType::SaraMercyTestPuzzle:
-            return std::make_unique<SaraMercyTestPuzzle>(questTitle, clue, "SOLVED: mercy and justice are balanced by trembling hands.");
+        // Sara puzzles removed
         case PuzzleType::JadeSymbolVaultPuzzle:
             return std::make_unique<JadeSymbolVaultPuzzle>(questTitle, clue, "SOLVED: the living symbols are contained.");
         case PuzzleType::TabithaTunnelMapPuzzle:
@@ -276,8 +267,7 @@ std::unique_ptr<PuzzleBase> PuzzleManager::CreatePuzzle(PuzzleType puzzleType,
             return std::make_unique<TabithaEchoDialoguePuzzle>(questTitle, clue, "SOLVED: Tabitha reads the echoes and finds a new way forward.");
         case PuzzleType::VictorMemoryTimelinePuzzle:
             return std::make_unique<VictorMemoryTimelinePuzzle>(questTitle, clue, "SOLVED: the missing person is recovered from absence.");
-        case PuzzleType::SaraFinalJudgmentPuzzle:
-            return std::make_unique<SaraFinalJudgmentPuzzle>(questTitle, clue, "SOLVED: the confrontation breaks the torturer.");
+        // Sara final judgment puzzle removed
         case PuzzleType::HollowWallPuzzle:
             return std::make_unique<HollowWallPuzzle>(questTitle, clue, "SOLVED: the wall gives up its hidden chamber.");
         case PuzzleType::GhostWitnessPuzzle:
@@ -356,6 +346,13 @@ bool PuzzleManager::StartPuzzle(CharacterType questCharacter, int objectiveIndex
             soundHook(cue);
         } else {
             std::cout << "[PuzzleSound] " << cue << "\n";
+        }
+    });
+    activePuzzle->SetConsequenceHook([this](const std::string& consequence) {
+        if (consequenceHook) {
+            consequenceHook(consequence);
+        } else {
+            std::cout << "[PuzzleConsequence] " << consequence << "\n";
         }
     });
     activePuzzle->Start();
@@ -485,8 +482,6 @@ void PuzzleManager::Render(TextRenderer& textRenderer, int screenWidth, int scre
                 symbolVis = 0.0f;
             } else if (ptype == PuzzleType::VictorMemoryPuzzle) {
                 sketchOverlayAlpha = 0.5f * overlayAlpha;
-            } else if (ptype == PuzzleType::SaraRedemptionPuzzle) {
-                invisibilityDistortion = (0.25f + 0.35f * std::sin(modalAge * 4.0f)) * overlayAlpha;
             }
         }
         overlayShader.SetFloat("u_SymbolVisibility", symbolVis);

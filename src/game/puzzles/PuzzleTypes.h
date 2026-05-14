@@ -15,20 +15,16 @@ enum class PuzzleType {
     JadeSymbolPuzzle,
     TabithaTunnelPuzzle,
     VictorMemoryPuzzle,
-    SaraRedemptionPuzzle,
     JadeSymbolVaultPuzzle,
     TabithaTunnelMapPuzzle,
     TabithaEchoDialoguePuzzle,
     TabithaWhisperRoutePuzzle,
     VictorMemoryTimelinePuzzle,
-    SaraFinalJudgmentPuzzle,
     HollowWallPuzzle,
     GhostWitnessPuzzle,
     VictorEmptyChairPuzzle,
     VictorMirrorCollapsePuzzle,
     VictorSilentProcessionPuzzle
     ,
-    SaraBreathingClosetPuzzle,
-    SaraFalseSurvivorPuzzle,
-    SaraMercyTestPuzzle
+    
 };

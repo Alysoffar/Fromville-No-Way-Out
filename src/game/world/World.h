@@ -105,6 +105,8 @@ public:
 
 private:
     MapManager* mapManager = nullptr;
+     void ApplyPuzzleConsequence(const std::string& consequence);
+     void EnsureTabithaWhisperRouteNodes();
     TerrainRenderer* terrain = nullptr;
     std::vector<NPC> npcs;
     std::vector<Enemy> enemies;
@@ -158,6 +160,8 @@ private:
     WorldSaveState initialSpawnState;
     bool hasInitialSpawnState = false;
     bool spawnRestartRequested = false;
+        float tabithaWhisperTempRouteTimer = 0.0f;
+        float tabithaWhisperFalseChamberTimer = 0.0f;
     static constexpr float kScreamDisplayDuration = 2.5f;
     static constexpr float kDamageDisplayDuration = 1.8f;
     static constexpr float kNpcDialogueDisplayDuration = 4.5f;

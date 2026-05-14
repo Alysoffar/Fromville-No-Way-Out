@@ -50,13 +50,9 @@ constexpr std::array<QuestDefinition, 5> kQuestDefinitions = {{
         "Each recalled memory is broadcast to all characters, advancing everyone's understanding of the truth."
     },
     {
-        "Find Your Redeemer",
-        {"Identify your torturer",
-         "Gather testimonies (2 witnesses)",
-         "Locate the crime scene",
-         "Confront the perpetrator",
-         "Choose justice or mercy"},
-        "Each truth Sara uncovers increases creature awareness. A false accusation resets all clues and kills Sara."
+        "(removed)",
+        {"", "", "", "", ""},
+        ""
     }
 }};
 
@@ -398,87 +394,25 @@ void Quest::InitializeObjectives() {
         objectives.push_back(BuildObjective(
             "Remember the betrayal (2000)",
             ObjectiveType::Dialogue,
-            {{SubObjective{"Recall who betrayed him", false, 1, 0}}, {SubObjective{"Understand why", false, 1, 0}}},
+            {{SubObjective{"Identify the betrayer by name", false, 1, 0}}, {SubObjective{"Locate evidence of motive (letter or token)", false, 1, 0}}},
             {
                 {DialogueEntry{"Victor's memory", "The leader... told me I was chosen. That together we would unlock the prophecy. For a moment, I believed him.", "He was almost tempted"}}
             },
-            {"The cult leader tried to recruit Victor as his successor"},
+            {"Search the mentor's study for a hidden letter or token that explains the motive."},
             "Victor"
         ));
         
         objectives.push_back(BuildObjective(
             "Remember the survivor's identity (now)",
             ObjectiveType::Puzzle,
-            {{SubObjective{"Identify the survivor", false, 1, 0}}, {SubObjective{"Find them", false, 1, 0}}},
+            {{SubObjective{"Confirm the survivor's identity (find ID or photo)", false, 1, 0}}, {SubObjective{"Locate the survivor in town (ask NPCs or check boardinghouse)", false, 1, 0}}},
             {
                 {DialogueEntry{"Victor", "Wait... the young woman who came to town last month... she looks familiar... it's Sarah. She survived.", "Could it be?"}}
             },
-            {"One victim escaped 25 years ago and has returned to stop the cycle"},
+            {"Check the inn, hospital, and boardinghouse; ask townsfolk and look for a photograph or identification confirming her name."},
             "Victor"
         ));
         
-    } else if (type == QuestType::Sara_FindRedemption) {
-        // SARA: Investigation with moral choices and skill checks
-        objectives.clear();
-        
-        objectives.push_back(BuildObjective(
-            "Identify your torturer",
-            ObjectiveType::Observe,
-            {{SubObjective{"Gather descriptions", false, 1, 0}}, {SubObjective{"Identify the person", false, 1, 0}}},
-            {
-                {DialogueEntry{"Sara's intuition", "He had a scar on his left hand. And that voice... I could never forget it.", "Description is clear"}}
-            },
-            {"Evidence points to Thomas Reed, currently sheriff"}
-        ));
-        
-        objectives.push_back(BuildObjective(
-            "Gather testimonies (2 witnesses)",
-            ObjectiveType::Dialogue,
-            {
-                {SubObjective{"First witness", false, 1, 0}},
-                {SubObjective{"Second witness", false, 1, 0}}
-            },
-            {},
-            {
-                "Old doctor remembers treating cult torture victims in 1995",
-                "Former cult member will testify against Reed in exchange for protection"
-            }
-        ));
-        
-        objectives.push_back(BuildObjective(
-            "Locate the crime scene",
-            ObjectiveType::Environmental,
-            {{SubObjective{"Find the basement", false, 1, 0}}, {SubObjective{"Collect evidence", false, 1, 0}}, {SubObjective{"Document it", false, 1, 0}}},
-            {},
-            {
-                "Basement beneath old Reed family house",
-                "Contains torture equipment and cult symbols",
-                "Evidence: blood samples, journals, victim photographs"
-            }
-        ));
-        
-        objectives.push_back(BuildObjective(
-            "Confront the perpetrator",
-            ObjectiveType::Combat,
-            {{SubObjective{"Survive the confrontation", false, 1, 0}}, {SubObjective{"Get confession", false, 1, 0}}},
-            {
-                {DialogueEntry{"Reed", "You should have stayed forgotten, Sara. Now I have to silence you.", "He's not sorry"}}
-            },
-            {"Reed becomes extremely dangerous when cornered"}
-        ));
-        
-        objectives.push_back(BuildObjective(
-            "Choose justice or mercy",
-            ObjectiveType::Puzzle,
-            {{SubObjective{"Make your choice", false, 1, 0}}, {SubObjective{"Live with consequences", false, 1, 0}}},
-            {
-                {DialogueEntry{"Sara", "Do I destroy him like he destroyed me? Or do I let the law handle it?", "This defines who she is now"}}
-            },
-            {},
-            "",
-            "Sara finds closure. Cult is exposed to authorities. Other characters get justice.",
-            "Sara's vengeance creates new enemies. Cult's backup leader takes power."
-        ));
     }
     
     consequenceDesc = definition->consequence;
@@ -500,6 +434,15 @@ std::string Quest::GetCurrentObjectiveHint(int index) const {
     }
     
     const auto& obj = objectives[index];
+    // Victor-specific hints for clarity
+    if (!obj.requiredCharacter.empty() && obj.requiredCharacter == "Victor") {
+        if (obj.description.find("betrayal") != std::string::npos) {
+            return "Search the mentor's study for a hidden letter or token; interview NPCs who knew the mentor.";
+        }
+        if (obj.description.find("survivor") != std::string::npos) {
+            return "Check the inn, hospital, and boardinghouse; ask townsfolk and look for a photo or ID to confirm identity.";
+        }
+    }
     switch (obj.type) {
         case ObjectiveType::Dialogue:
             return "Talk to the NPC and listen carefully";

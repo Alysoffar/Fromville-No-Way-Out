@@ -660,6 +660,9 @@ void World::Initialize() {
     puzzleManager.SetSoundHook([](const std::string& cue) {
         std::cout << "[AudioCue] " << cue << "\n";
     });
+    puzzleManager.SetConsequenceHook([this](const std::string& consequence) {
+        ApplyPuzzleConsequence(consequence);
+    });
     puzzleManager.SetCompletionCallback([this](CharacterType characterType, int objectiveIndex) {
         eventBus.Publish(PuzzleCompletedEvent{characterType, objectiveIndex});
 
@@ -1109,6 +1112,24 @@ void World::UpdateQuestAndInteractionPhase(float dt) {
 
     questSystem->Update(dt);
 
+    if (tabithaWhisperTempRouteTimer > 0.0f) {
+        tabithaWhisperTempRouteTimer = std::max(0.0f, tabithaWhisperTempRouteTimer - dt);
+        if (tabithaWhisperTempRouteTimer <= 0.0f) {
+            questSystem->ClearStoryFlag("tabitha_whisper_hidden_path_open");
+            std::cout << "[World] Tabitha's temporary whisper route faded.\n";
+        }
+    }
+
+    if (tabithaWhisperFalseChamberTimer > 0.0f) {
+        tabithaWhisperFalseChamberTimer = std::max(0.0f, tabithaWhisperFalseChamberTimer - dt);
+        if (tabithaWhisperFalseChamberTimer <= 0.0f) {
+            questSystem->ClearStoryFlag("tabitha_whisper_false_chamber_active");
+            std::cout << "[World] Tabitha's false chamber dissolved.\n";
+        }
+    }
+
+    EnsureTabithaWhisperRouteNodes();
+
     while (questSystem->HasPendingConsequences()) {
         const std::string& consequence = questSystem->GetNextConsequence();
         std::cout << "[Story Consequence] " << consequence << "\n";
@@ -1557,6 +1578,113 @@ bool World::NearestInteractionIsPickup() const {
 
 bool World::HasStoryFlag(const std::string& flag) const {
     return questSystem ? questSystem->HasStoryFlag(flag) : false;
+}
+
+void World::ApplyPuzzleConsequence(const std::string& consequence) {
+    if (!questSystem || consequence.empty()) {
+        return;
+    }
+
+    if (consequence == "tabitha_whisper_hidden_path_open") {
+        questSystem->SetStoryFlag("tabitha_whisper_hidden_path_open");
+        tabithaWhisperTempRouteTimer = 24.0f;
+        lastInteractionFeedback = "The tunnel shivers and a hidden route appears for a short time.";
+        lastInteractionFeedbackTimer.Start(4.0f);
+        std::cout << "[World] Tabitha hidden path opened temporarily.\n";
+        EnsureTabithaWhisperRouteNodes();
+        return;
+    }
+
+    if (consequence == "tabitha_whisper_child_memory_awakened") {
+        questSystem->SetStoryFlag("tabitha_whisper_child_memory_awakened");
+        lastInteractionFeedback = "A child drawing holds still long enough to be remembered.";
+        lastInteractionFeedbackTimer.Start(4.0f);
+        std::cout << "[World] Tabitha child-memory state unlocked permanently.\n";
+        EnsureTabithaWhisperRouteNodes();
+        return;
+    }
+
+    if (consequence == "tabitha_whisper_false_chamber_active") {
+        questSystem->SetStoryFlag("tabitha_whisper_false_chamber_active");
+        tabithaWhisperFalseChamberTimer = 16.0f;
+        lastInteractionFeedback = "The tunnel offers a false safe zone, then breathes wrong.";
+        lastInteractionFeedbackTimer.Start(4.0f);
+        std::cout << "[World] Tabitha false chamber branch activated.\n";
+        EnsureTabithaWhisperRouteNodes();
+        return;
+    }
+
+    if (consequence == "tabitha_whisper_creature_attracted") {
+        questSystem->SetStoryFlag("tabitha_whisper_creature_attracted");
+        lastMonsterScream = "A creature stirs in the dark after the wrong whisper.";
+        monsterScreamDisplayTimer.Start(kScreamDisplayDuration);
+        lastInteractionFeedback = "The wrong interpretation draws something closer.";
+        lastInteractionFeedbackTimer.Start(3.5f);
+        std::cout << "[World] Tabitha wrong interpretation attracted danger.\n";
+        return;
+    }
+}
+
+void World::EnsureTabithaWhisperRouteNodes() {
+    if (!questSystem) {
+        return;
+    }
+
+    const auto& nodes = interactionSystem.GetNodes();
+    const auto hasNode = [&nodes](const std::string& id) {
+        return std::any_of(nodes.begin(), nodes.end(), [&id](const InteractionNode& node) {
+            return node.id == id;
+        });
+    };
+
+    if (questSystem->HasStoryFlag("tabitha_whisper_hidden_path_open") && !hasNode("tabitha_whisper_hidden_route_door")) {
+        InteractionNode node;
+        node.id = "tabitha_whisper_hidden_route_door";
+        node.type = InteractionType::Door;
+        node.name = "Hidden Whisper Route";
+        node.position = glm::vec3(-9.2f, 0.0f, -6.8f);
+        node.radius = 2.6f;
+        node.active = true;
+        node.open = false;
+        node.prompt = "Open";
+        node.successMessage = "A narrow seam in the stone yields to the children' whispered guidance.";
+        node.questFlag = "tabitha_whisper_hidden_route_entered";
+        node.requiredFlag = "tabitha_whisper_hidden_path_open";
+        node.requiredCharacter = "Tabitha";
+        interactionSystem.AddNode(node);
+    }
+
+    if (questSystem->HasStoryFlag("tabitha_whisper_child_memory_awakened") && !hasNode("tabitha_whisper_child_memory")) {
+        InteractionNode node;
+        node.id = "tabitha_whisper_child_memory";
+        node.type = InteractionType::Trigger;
+        node.name = "Child Memory Hollow";
+        node.position = glm::vec3(-6.7f, 0.0f, -4.9f);
+        node.radius = 2.8f;
+        node.active = true;
+        node.prompt = "Inspect";
+        node.successMessage = "The drawings stop being random. Tabitha feels the children's fear and hope as one memory.";
+        node.questFlag = "tabitha_whisper_child_memory_seen";
+        node.requiredFlag = "tabitha_whisper_child_memory_awakened";
+        node.requiredCharacter = "Tabitha";
+        interactionSystem.AddNode(node);
+    }
+
+    if (questSystem->HasStoryFlag("tabitha_whisper_false_chamber_active") && !hasNode("tabitha_whisper_false_chamber")) {
+        InteractionNode node;
+        node.id = "tabitha_whisper_false_chamber";
+        node.type = InteractionType::Trigger;
+        node.name = "False Chamber";
+        node.position = glm::vec3(-10.5f, 0.0f, -7.6f);
+        node.radius = 2.5f;
+        node.active = true;
+        node.prompt = "Enter";
+        node.successMessage = "The chamber feels safe until the whispers go silent. It was only a lure.";
+        node.questFlag = "tabitha_whisper_false_chamber_seen";
+        node.requiredFlag = "tabitha_whisper_false_chamber_active";
+        node.requiredCharacter = "Tabitha";
+        interactionSystem.AddNode(node);
+    }
 }
 
 WorldSaveState World::CaptureSaveState() const {
