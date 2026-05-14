@@ -57,6 +57,7 @@ PFNGLTEXPARAMETERIPROC glad_glTexParameteri = nullptr;
 PFNGLGENERATEMIPMAPPROC glad_glGenerateMipmap = nullptr;
 PFNGLACTIVETEXTUREPROC glad_glActiveTexture = nullptr;
 PFNGLDRAWARRAYSINSTANCEDPROC glad_glDrawArraysInstanced = nullptr;
+PFNGLDRAWELEMENTSINSTANCEDPROC glad_glDrawElementsInstanced = nullptr;
 PFNGLVERTEXATTRIBDIVISORPROC glad_glVertexAttribDivisor = nullptr;
 PFNGLISENABLEDPROC glad_glIsEnabled = nullptr;
 PFNGLGETBOOLEANVPROC glad_glGetBooleanv = nullptr;
@@ -116,6 +117,7 @@ static void LoadCoreFunctions(GLADloadproc loader) {
 	glad_glGenerateMipmap = reinterpret_cast<PFNGLGENERATEMIPMAPPROC>(loader("glGenerateMipmap"));
 	glad_glActiveTexture = reinterpret_cast<PFNGLACTIVETEXTUREPROC>(loader("glActiveTexture"));
 	glad_glDrawArraysInstanced = reinterpret_cast<PFNGLDRAWARRAYSINSTANCEDPROC>(loader("glDrawArraysInstanced"));
+	glad_glDrawElementsInstanced = reinterpret_cast<PFNGLDRAWELEMENTSINSTANCEDPROC>(loader("glDrawElementsInstanced"));
 	glad_glVertexAttribDivisor = reinterpret_cast<PFNGLVERTEXATTRIBDIVISORPROC>(loader("glVertexAttribDivisor"));
 	glad_glIsEnabled = reinterpret_cast<PFNGLISENABLEDPROC>(loader("glIsEnabled"));
 	glad_glGetBooleanv = reinterpret_cast<PFNGLGETBOOLEANVPROC>(loader("glGetBooleanv"));

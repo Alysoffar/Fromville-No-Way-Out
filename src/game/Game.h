@@ -11,6 +11,7 @@ class Engine;
 #include "game/world/World.h"
 #include "engine/renderer/TerrainRenderer.h"
 #include "engine/renderer/GrassRenderer.h"
+#include "engine/renderer/TreeRenderer.h"
 #include "engine/renderer/SkydomeRenderer.h"
 #include "game/world/DayNightCycle.h"
 
@@ -29,6 +30,7 @@ private:
 
     mutable GroundRenderer   groundRenderer;
     mutable GrassRenderer    grassRenderer;
+    mutable TreeRenderer     treeRenderer;
     mutable SkydomeRenderer  skydomeRenderer;
     DayNightCycle            dayNightCycle;
 

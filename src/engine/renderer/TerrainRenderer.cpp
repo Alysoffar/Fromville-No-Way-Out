@@ -17,8 +17,8 @@ struct GroundVertex {
 };
 
 void GroundRenderer::init() {
-    // Build a flat quad: 1000x1000 units centered at origin, Y = 0
-    const float halfSize = 500.0f;
+    // Build a flat quad: 200x200 units centered at origin, Y = 0
+    const float halfSize = 100.0f;
     GroundVertex vertices[6] = {
         // Triangle 1
         { glm::vec3(-halfSize, 0.0f, -halfSize), glm::vec3(0.0f, 1.0f, 0.0f), glm::vec2(0.0f, 0.0f) },

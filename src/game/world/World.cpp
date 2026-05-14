@@ -39,7 +39,7 @@ float CalculateMinY(const std::vector<MeshVertex>& vertices) {
     return minY;
 }
 
-void LoadMeshes() {
+void LoadMeshes(CollisionWorld* cw) {
     if (gPlayerReady) return;
 
     std::cout << "[World] Loading meshes...\n";
@@ -64,6 +64,14 @@ void LoadMeshes() {
         gHouseMesh.minY = CalculateMinY(vertices);
         gHouseMesh.valid = gHouseMesh.mesh.IsValid();
         std::cout << "  [OK] House mesh loaded (minY=" << gHouseMesh.minY << ")\n";
+
+        glm::mat4 hModel1 = glm::translate(glm::mat4(1.0f), glm::vec3(-25.0f, -gHouseMesh.minY + 0.05f, 0.0f));
+        hModel1 = glm::rotate(hModel1, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        if (cw) cw->AddTrianglesFromMesh(vertices, indices, hModel1, true);
+
+        glm::mat4 hModel2 = glm::translate(glm::mat4(1.0f), glm::vec3(25.0f, -gHouseMesh.minY + 0.05f, 0.0f));
+        hModel2 = glm::rotate(hModel2, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        if (cw) cw->AddTrianglesFromMesh(vertices, indices, hModel2, true);
     } else {
         std::cerr << "  [FAIL] Could not load house mesh.\n";
         gHouseMesh.valid = false;
@@ -76,6 +84,11 @@ void LoadMeshes() {
         gDinnerMesh.minY = CalculateMinY(vertices);
         gDinnerMesh.valid = gDinnerMesh.mesh.IsValid();
         std::cout << "  [OK] Dinner mesh loaded (minY=" << gDinnerMesh.minY << ")\n";
+
+        glm::mat4 dModel = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -gDinnerMesh.minY * 2.0f + 0.05f, -40.0f));
+        dModel = glm::rotate(dModel, glm::radians(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        dModel = glm::scale(dModel, glm::vec3(2.0f));
+        if (cw) cw->AddTrianglesFromMesh(vertices, indices, dModel, true);
     } else {
         std::cerr << "  [FAIL] Could not load dinner mesh.\n";
         gDinnerMesh.valid = false;
@@ -88,6 +101,11 @@ void LoadMeshes() {
         gPoliceMesh.minY = CalculateMinY(vertices);
         gPoliceMesh.valid = gPoliceMesh.mesh.IsValid();
         std::cout << "  [OK] Police mesh loaded (minY=" << gPoliceMesh.minY << ")\n";
+
+        glm::mat4 pModel = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -gPoliceMesh.minY * 2.0f + 0.05f, 40.0f));
+        pModel = glm::rotate(pModel, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        pModel = glm::scale(pModel, glm::vec3(2.0f));
+        if (cw) cw->AddTrianglesFromMesh(vertices, indices, pModel, true);
     } else {
         std::cerr << "  [FAIL] Could not load police mesh.\n";
         gPoliceMesh.valid = false;
@@ -108,7 +126,7 @@ World::World() = default;
 void World::Initialize() {
     player.transform.position = glm::vec3(0.0f, 2.0f, 10.0f);
 
-    LoadMeshes();
+    LoadMeshes(&collisionWorld);
 
     // Wire collision system to entities
     player.SetCollisionWorld(&collisionWorld);
@@ -178,10 +196,14 @@ void World::Render(const Camera& camera, float aspectRatio) {
     }
 }
 
-void World::RenderObjects(const Camera& camera, float aspectRatio, const DayNightCycle& dayNight) {
+void World::RenderObjects(const Camera& camera, float aspectRatio, const DayNightCycle& dayNight, float fogDensity) {
     const glm::mat4 projection = camera.GetProjectionMatrix(aspectRatio);
     const glm::mat4 view = camera.GetViewMatrix();
     const glm::vec3 lightDir = dayNight.getActiveLightDir();
+    const glm::vec3 lightColor = dayNight.getLightColor();
+    const glm::vec3 ambient = dayNight.getAmbientColor();
+    float diffuseStrength = dayNight.getDiffuseStrength();
+    const glm::vec3 fogColor = dayNight.getFogColor();
     const glm::vec3 viewPos = camera.GetPosition();
 
     // Player character
@@ -196,8 +218,14 @@ void World::RenderObjects(const Camera& camera, float aspectRatio, const DayNigh
         gPlayerShader.SetMat4("projection", projection);
         gPlayerShader.SetMat4("view", view);
         gPlayerShader.SetMat4("model", model);
-        gPlayerShader.SetVec3("lightDir", lightDir);
-        gPlayerShader.SetVec3("viewPos", viewPos);
+        
+        gPlayerShader.SetVec3("uLightDir", lightDir);
+        gPlayerShader.SetVec3("uLightColor", lightColor);
+        gPlayerShader.SetVec3("uAmbient", ambient);
+        gPlayerShader.SetFloat("uDiffuseStrength", diffuseStrength);
+        gPlayerShader.SetVec3("uViewPos", viewPos);
+        gPlayerShader.SetVec3("uFogColor", fogColor);
+        gPlayerShader.SetFloat("uFogDensity", fogDensity);
         gPlayerMesh.mesh.Draw();
 
         if (gHouseMesh.valid) {

@@ -40,8 +40,8 @@ void GrassRenderer::init() {
         float x, z;
         bool inHouseArea = true;
         while (inHouseArea) {
-            x = (static_cast<float>(std::rand()) / RAND_MAX) * 1000.0f - 500.0f;
-            z = (static_cast<float>(std::rand()) / RAND_MAX) * 1000.0f - 500.0f;
+            x = (static_cast<float>(std::rand()) / RAND_MAX) * 200.0f - 100.0f;
+            z = (static_cast<float>(std::rand()) / RAND_MAX) * 200.0f - 100.0f;
 
             // House 1 world bounds: X[-44, -14], Z[-15, 15]
             bool inHouse1 = (x > -45.0f && x < -13.0f && z > -16.0f && z < 16.0f);

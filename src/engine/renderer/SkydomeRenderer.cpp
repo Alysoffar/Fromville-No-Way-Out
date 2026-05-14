@@ -12,7 +12,7 @@
 void SkydomeRenderer::init() {
     const int stacks = 16;
     const int slices = 24;
-    const float radius = 450.0f;
+    const float radius = 150.0f;
 
     std::vector<glm::vec3> vertices;
     std::vector<unsigned int> indices;

@@ -13,9 +13,10 @@ public:
     void Initialize();
     void Update(const Camera& camera, float dt);
     void Render(const Camera& camera, float aspectRatio);
-    void RenderObjects(const Camera& camera, float aspectRatio, const DayNightCycle& dayNight);
+    void RenderObjects(const Camera& camera, float aspectRatio, const DayNightCycle& dayNight, float fogDensity);
 
     Player& GetPlayer() { return player; }
+    CollisionWorld* GetCollisionWorld() { return &collisionWorld; }
 
 private:
     Player player;

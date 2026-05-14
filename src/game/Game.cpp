@@ -22,6 +22,8 @@ bool Game::Initialize(Engine& engine) {
     // Initialize new terrain rendering subsystems
     groundRenderer.init();
     grassRenderer.init();
+    treeRenderer.init(world->GetCollisionWorld());
+    world->GetCollisionWorld()->BuildBVH();
     skydomeRenderer.init();
 
     engine.GetInput().SetCursorLocked(true);
@@ -92,7 +94,7 @@ void Game::Render(Engine& engine) const {
     const glm::vec3 cameraPos = camera->GetPosition();
     const float currentTime = static_cast<float>(glfwGetTime());
 
-    const float fogDensity = 0.004f;
+    const float fogDensity = 0.018f;
 
     // 1. Skydome (drawn first, behind everything)
     skydomeRenderer.render(view, projection,
@@ -116,13 +118,22 @@ void Game::Render(Engine& engine) const {
                          dayNightCycle.getDiffuseStrength(),
                          dayNightCycle.getFogColor(), fogDensity);
 
+    // 3.5 Instanced trees
+    treeRenderer.render(view, projection, cameraPos,
+                        dayNightCycle.getActiveLightDir(),
+                        dayNightCycle.getLightColor(),
+                        dayNightCycle.getAmbientColor(),
+                        dayNightCycle.getDiffuseStrength(),
+                        dayNightCycle.getFogColor(), fogDensity);
+
     // 4. World objects and player (using dynamic day/night lighting)
-    world->RenderObjects(*camera, aspectRatio, dayNightCycle);
+    world->RenderObjects(*camera, aspectRatio, dayNightCycle, fogDensity);
 }
 
 void Game::Shutdown() {
     groundRenderer.cleanup();
     grassRenderer.cleanup();
+    treeRenderer.cleanup();
     skydomeRenderer.cleanup();
 
     world.reset();
