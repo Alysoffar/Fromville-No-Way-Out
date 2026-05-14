@@ -1,0 +1,56 @@
+#pragma once
+
+#include <cstddef>
+
+enum class InputAction {
+    MoveForward = 0,
+    MoveBackward,
+    MoveLeft,
+    MoveRight,
+    Sprint,
+    Crouch,
+    Jump,
+    Interact,
+    Pickup,
+    Ability,
+    Pause,
+    OpenJournal,
+    Confirm,
+    Cancel,
+    ToggleHint,
+    PuzzleReset,
+    PuzzleConfirm,
+    PuzzleCancel,
+    PuzzleOption1,
+    PuzzleOption2,
+    PuzzleOption3,
+    PuzzleOption4,
+    PuzzleOption5,
+    PuzzleUp,
+    PuzzleDown,
+    PuzzleLeft,
+    PuzzleRight,
+    PuzzleIncrease,
+    PuzzleDecrease,
+    PuzzleMoveForward,
+    PuzzleMoveBackward,
+    PuzzleMoveLeft,
+    PuzzleMoveRight,
+    PuzzleSprint,
+    ResetView,
+    SaveGame,
+    LoadGame,
+    AbandonQuest,
+    SwitchCharacter1,
+    SwitchCharacter2,
+    SwitchCharacter3,
+    SwitchCharacter4,
+    SwitchCharacter5,
+    Count
+};
+
+constexpr std::size_t kInputActionCount = static_cast<std::size_t>(InputAction::Count);
+
+constexpr std::size_t ToIndex(InputAction action) {
+    return static_cast<std::size_t>(action);
+}

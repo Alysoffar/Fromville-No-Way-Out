@@ -95,6 +95,9 @@ file(GLOB_RECURSE FROMVILLE_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
 )
 
+# Remove old engine-level puzzle implementations (now in game/puzzles/core)
+list(FILTER FROMVILLE_SOURCES EXCLUDE REGEX "src/engine/puzzle")
+
 add_executable(fromville ${FROMVILLE_SOURCES})
 
 target_include_directories(fromville

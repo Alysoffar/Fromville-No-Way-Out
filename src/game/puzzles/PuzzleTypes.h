@@ -10,5 +10,25 @@ enum class PuzzleType {
     LedgerRotation,
     EvidenceBoard,
     CultDebate,
-    RitualInference
+    RitualInference,
+    JadeDebatePuzzle,
+    JadeSymbolPuzzle,
+    TabithaTunnelPuzzle,
+    VictorMemoryPuzzle,
+    SaraRedemptionPuzzle,
+    JadeSymbolVaultPuzzle,
+    TabithaTunnelMapPuzzle,
+    TabithaEchoDialoguePuzzle,
+    TabithaWhisperRoutePuzzle,
+    VictorMemoryTimelinePuzzle,
+    SaraFinalJudgmentPuzzle,
+    HollowWallPuzzle,
+    GhostWitnessPuzzle,
+    VictorEmptyChairPuzzle,
+    VictorMirrorCollapsePuzzle,
+    VictorSilentProcessionPuzzle
+    ,
+    SaraBreathingClosetPuzzle,
+    SaraFalseSurvivorPuzzle,
+    SaraMercyTestPuzzle
 };

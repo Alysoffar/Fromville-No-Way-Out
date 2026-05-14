@@ -1,5 +1,4 @@
 #include "game/entities/Boyd.h"
-#include "game/entities/Boyd.h"
 
 #include <iostream>
 #include "game/quest/Quest.h"
@@ -9,9 +8,7 @@ Boyd::Boyd(glm::vec3 startPos)
     : Character(CharacterType::Boyd, "Boyd", startPos) {
 }
 
-void Boyd::Update(float dt) {
-    Character::Update(dt);
-    
+void Boyd::UpdateCharacterState(float dt) {
     // Update curse level decay
     if (curseLevel > 0.0f && !isRaging) {
         curseLevel -= dt * 5.0f;  // Decay over time

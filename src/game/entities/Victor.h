@@ -6,7 +6,6 @@ class Victor : public Character {
 public:
     explicit Victor(glm::vec3 startPos = glm::vec3(0.0f));
 
-    void Update(float dt) override;
     void OnSwitchedTo() override;
     void ActivateAbility() override;  // Memory Mode
 
@@ -15,6 +14,7 @@ public:
     int GetMapProgress() const { return 80; }  // Starts with 80%
 
 protected:
+    void UpdateCharacterState(float dt) override;
     float GetMoveSpeed() const override { return 7.0f; }
 
 private:

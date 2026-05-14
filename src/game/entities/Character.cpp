@@ -15,6 +15,8 @@ void Character::Update(float dt) {
     if (abilityTimer > 0.0f) {
         abilityTimer -= dt;
     }
+
+    UpdateCharacterState(dt);
 }
 
 void Character::OnSwitchedTo() {
@@ -27,4 +29,8 @@ void Character::OnSwitchedFrom() {
 
 void Character::ActivateAbility() {
     // Override in derived classes
+}
+
+void Character::UpdateCharacterState(float dt) {
+    (void)dt;
 }

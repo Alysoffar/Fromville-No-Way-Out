@@ -6,7 +6,6 @@ class Sara : public Character {
 public:
     explicit Sara(glm::vec3 startPos = glm::vec3(0.0f));
 
-    void Update(float dt) override;
     void OnSwitchedTo() override;
     void ActivateAbility() override;  // Ghost Step
 
@@ -15,6 +14,7 @@ public:
     void AddRedemption(float amount) { redemptionScore = glm::clamp(redemptionScore + amount, 0.0f, 100.0f); }
 
 protected:
+    void UpdateCharacterState(float dt) override;
     float GetMoveSpeed() const override { return 8.5f; }
 
 private:

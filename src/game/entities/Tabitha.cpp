@@ -1,15 +1,10 @@
 #include "game/entities/Tabitha.h"
-#include "game/entities/Tabitha.h"
 
 #include <iostream>
 #include "game/quest/Quest.h"
 
 Tabitha::Tabitha(glm::vec3 startPos)
     : Character(CharacterType::Tabitha, "Tabitha", startPos) {
-}
-
-void Tabitha::Update(float dt) {
-    Character::Update(dt);
 }
 
 void Tabitha::OnSwitchedTo() {

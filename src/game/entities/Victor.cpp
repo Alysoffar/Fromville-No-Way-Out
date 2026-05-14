@@ -1,5 +1,4 @@
 #include "game/entities/Victor.h"
-#include "game/entities/Victor.h"
 
 #include <iostream>
 #include "game/quest/Quest.h"
@@ -8,9 +7,7 @@ Victor::Victor(glm::vec3 startPos)
     : Character(CharacterType::Victor, "Victor", startPos) {
 }
 
-void Victor::Update(float dt) {
-    Character::Update(dt);
-    
+void Victor::UpdateCharacterState(float dt) {
     // Update memory mode
     if (memoryModeActive) {
         memoryModeDuration -= dt;

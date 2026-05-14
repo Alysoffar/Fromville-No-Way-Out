@@ -1,5 +1,4 @@
 #include "game/entities/Sara.h"
-#include "game/entities/Sara.h"
 
 #include <iostream>
 #include "game/quest/Quest.h"
@@ -8,9 +7,7 @@ Sara::Sara(glm::vec3 startPos)
     : Character(CharacterType::Sara, "Sara", startPos) {
 }
 
-void Sara::Update(float dt) {
-    Character::Update(dt);
-    
+void Sara::UpdateCharacterState(float dt) {
     // Update ghost step
     if (ghostStepActive) {
         ghostStepDuration -= dt;

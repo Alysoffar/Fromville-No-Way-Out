@@ -147,6 +147,7 @@ void TextRenderer::RenderText(const std::string& inputText, float x, float y, fl
 		return;
 	}
 
+	scale = std::max(scale, minimumScale) * scaleMultiplier;
 	std::string text = ToUpperAscii(inputText);
 	const glm::mat4 projection = glm::ortho(0.0f, static_cast<float>(screenWidth), 0.0f, static_cast<float>(screenHeight));
 

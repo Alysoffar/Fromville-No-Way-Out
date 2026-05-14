@@ -2,14 +2,12 @@
 
 #include <string>
 
-#include <glm/glm.hpp>
-
-#include "engine/Transform.h"
 #include "engine/physics/Collision.h"
+#include "game/entities/BaseEntity.h"
 
 class CollisionWorld;
 
-class Entity {
+class Entity : public BaseEntity {
 public:
     explicit Entity(std::string entityName = "Entity");
     virtual ~Entity() = default;
@@ -26,12 +24,7 @@ public:
     bool IsCrouching() const { return isCrouching; }
     bool IsSprinting() const { return isSprinting; }
 
-    Transform transform;
-    const std::string& GetName() const;
-
 protected:
-    std::string name;
-
     // Movement profile hooks for derived character types.
     virtual float GetMoveSpeed() const;
     virtual float GetSprintSpeed() const;

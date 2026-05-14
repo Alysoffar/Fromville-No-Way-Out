@@ -31,6 +31,9 @@ private:
     bool sprintToggled = false;
     std::string lastInteractionPrompt;
 
+    void HandleGlobalInput(Engine& engine);
+    void HandleGameplayInput(float dt, Engine& engine);
+    void HandleCharacterInput(float dt, Engine& engine);
     void UpdateHudTitle(Engine& engine) const;
     void RenderHud(const Engine& engine) const;
 };

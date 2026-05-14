@@ -1,5 +1,4 @@
 #include "game/entities/Jade.h"
-#include "game/entities/Jade.h"
 
 #include <iostream>
 #include "game/quest/Quest.h"
@@ -8,9 +7,7 @@ Jade::Jade(glm::vec3 startPos)
     : Character(CharacterType::Jade, "Jade", startPos) {
 }
 
-void Jade::Update(float dt) {
-    Character::Update(dt);
-    
+void Jade::UpdateCharacterState(float dt) {
     // Update vision timer
     if (visionTimer > 0.0f) {
         visionTimer -= dt;

@@ -6,7 +6,6 @@ class Tabitha : public Character {
 public:
     explicit Tabitha(glm::vec3 startPos = glm::vec3(0.0f));
 
-    void Update(float dt) override;
     void OnSwitchedTo() override;
     void ActivateAbility() override;  // Listen at walls
 

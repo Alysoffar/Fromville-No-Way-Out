@@ -6,7 +6,6 @@ class Boyd : public Character {
 public:
     explicit Boyd(glm::vec3 startPos = glm::vec3(0.0f));
 
-    void Update(float dt) override;
     void OnSwitchedTo() override;
     void ActivateAbility() override;  // Interrogate NPCs
 
@@ -15,6 +14,7 @@ public:
     bool IsRaging() const { return isRaging; }
 
 protected:
+    void UpdateCharacterState(float dt) override;
     float GetMoveSpeed() const override { return 10.0f; }
 
 private:

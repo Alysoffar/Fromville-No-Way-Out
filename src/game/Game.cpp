@@ -3,15 +3,17 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
+#include <cmath>
 #include <iostream>
 #include <sstream>
 
 #include "engine/core/Engine.h"
-#include "game/world/World.h"
-#include "game/entities/Character.h"
+#include "engine/input/InputAction.h"
 #include "engine/renderer/Camera.h"
+#include "game/entities/Character.h"
 #include "game/quest/Quest.h"
 #include "game/quest/QuestSystem.h"
+#include "game/world/World.h"
 
 Game::Game() = default;
 
@@ -58,7 +60,7 @@ void Game::UpdateHudTitle(Engine& engine) const {
         title << " | Day " << questSystem->GetDayNumber();
 
         switch (questSystem->GetCurrentPhase()) {
-            case StoryPhase::Exploration:    title << " | Phase: Exploration"; break;
+            case StoryPhase::Exploration:   title << " | Phase: Exploration"; break;
             case StoryPhase::Revelation:     title << " | Phase: Revelation"; break;
             case StoryPhase::Confrontation:  title << " | Phase: Confrontation"; break;
             case StoryPhase::Climax:         title << " | Phase: Climax"; break;
@@ -68,8 +70,7 @@ void Game::UpdateHudTitle(Engine& engine) const {
 
     const std::string interactionPrompt = world->GetInteractionPrompt();
     if (!interactionPrompt.empty()) {
-        // Show correct key hint: use F for pickups and E for general interactions
-        if (world && world->NearestInteractionIsPickup()) {
+        if (world->NearestInteractionIsPickup()) {
             title << " | " << interactionPrompt << " (F)";
         } else {
             title << " | " << interactionPrompt << " (E)";
@@ -85,7 +86,6 @@ void Game::RenderHud(const Engine& engine) const {
         return;
     }
 
-    // When a puzzle modal is active, hide the normal HUD to avoid text overlap
     if (world->IsPuzzleActive()) {
         return;
     }
@@ -112,8 +112,7 @@ void Game::RenderHud(const Engine& engine) const {
 
     std::ostringstream line2;
     if (questSystem) {
-        line2 << "DAY " << static_cast<int>(questSystem->GetDayNumber()) + 1 << "  ";
-        line2 << "PHASE ";
+        line2 << "DAY " << static_cast<int>(questSystem->GetDayNumber()) + 1 << "  PHASE ";
         switch (questSystem->GetCurrentPhase()) {
             case StoryPhase::Exploration:   line2 << "EXPLORATION"; break;
             case StoryPhase::Revelation:    line2 << "REVELATION"; break;
@@ -138,27 +137,23 @@ void Game::RenderHud(const Engine& engine) const {
     hudRenderer->RenderText("FROMVILLE TEST ARENA", 24.0f, static_cast<float>(height) - 30.0f, 0.7f, glm::vec3(0.96f, 0.93f, 0.78f), width, height);
     hudRenderer->RenderText(line1.str(), 24.0f, static_cast<float>(height) - 62.0f, 0.55f, glm::vec3(0.92f, 0.96f, 1.0f), width, height);
     hudRenderer->RenderText(line2.str(), 24.0f, static_cast<float>(height) - 92.0f, 0.50f, glm::vec3(0.74f, 0.88f, 0.78f), width, height);
-    
-    // Interaction prompt with shapes for distinction
+
     std::ostringstream promptFormatted;
     if (!interactionPrompt.empty()) {
-        promptFormatted << "▶ [E] " << interactionPrompt;
+        promptFormatted << "[E] " << interactionPrompt;
     } else {
-        promptFormatted << "▶ No interaction nearby";
+        promptFormatted << "No interaction nearby";
     }
     hudRenderer->RenderText(promptFormatted.str(), 24.0f, static_cast<float>(height) - 140.0f, 0.58f, glm::vec3(1.0f, 1.0f, 0.3f), width, height);
-    
-    // Quest helper text with clear label
+
     if (!questHelper.empty()) {
         hudRenderer->RenderText("HELP:", 26.0f, static_cast<float>(height) - 190.0f, 0.48f, glm::vec3(1.0f, 0.6f, 0.2f), width, height);
         hudRenderer->RenderText(line4.str(), 26.0f, static_cast<float>(height) - 220.0f, 0.50f, glm::vec3(1.0f, 0.5f, 0.2f), width, height);
     }
-    
-    // Quest waypoint compass marker
+
     const std::string waypointText = world->GetQuestWaypointText();
     if (!waypointText.empty()) {
-        const std::string directionalArrow = "➤ NEXT POINT: " + waypointText;
-        hudRenderer->RenderText(directionalArrow, 26.0f, static_cast<float>(height) - 250.0f, 0.56f, glm::vec3(0.78f, 0.32f, 1.0f), width, height);
+        hudRenderer->RenderText("NEXT POINT: " + waypointText, 26.0f, static_cast<float>(height) - 250.0f, 0.56f, glm::vec3(0.78f, 0.32f, 1.0f), width, height);
         hudRenderer->RenderText(waypointText, 26.0f, static_cast<float>(height) - 278.0f, 0.48f, glm::vec3(0.3f, 1.0f, 0.8f), width, height);
     }
 
@@ -182,8 +177,8 @@ void Game::RenderHud(const Engine& engine) const {
                     objectiveLine << "NEXT: " << objectives[objectiveIndex].description;
                     hudRenderer->RenderText(objectiveLine.str(), 24.0f, static_cast<float>(height) - 178.0f, 0.42f, glm::vec3(0.94f, 0.94f, 0.82f), width, height);
                     break;
-                    }
                 }
+            }
 
             if (isActiveQuest) {
                 const int nextObjIndex = quest->GetNextIncompleteObjectiveIndex();
@@ -241,35 +236,30 @@ void Game::RenderHud(const Engine& engine) const {
             }
         }
     }
-    
-    // Display NPC dialogue (center-screen, large yellow-green text)
+
     if (world->GetNpcDialogueDisplayTime() > 0.0f) {
         const std::string& npcMsg = world->GetLastNpcDialogue();
         hudRenderer->RenderText(npcMsg, 36.0f, static_cast<float>(height) / 2.0f - 80.0f, 0.9f, glm::vec3(0.85f, 1.0f, 0.65f), width, height);
     }
-    
-    // Display monster scream message (center-screen, large, intense red)
+
     if (world->GetMonsterScreamDisplayTime() > 0.0f) {
         const std::string& screamMsg = world->GetLastMonsterScream();
         hudRenderer->RenderText(screamMsg, 48.0f, static_cast<float>(height) / 2.0f, 0.9f, glm::vec3(1.0f, 0.2f, 0.2f), width, height);
     }
-    
-    // Display damage taken message (center-right, red damage indicator)
+
     if (world->GetLastDamageDisplayTime() > 0.0f) {
         std::ostringstream damageMsg;
         damageMsg << "DAMAGED -" << static_cast<int>(world->GetLastDamageAmount()) << " HP";
         hudRenderer->RenderText(damageMsg.str(), 36.0f, static_cast<float>(height) / 2.0f + 100.0f, 0.85f, glm::vec3(1.0f, 0.3f, 0.3f), width, height);
     }
-    
-    // Display quest acceptance/abandonment feedback
+
     if (world->GetLastInteractionFeedbackTime() > 0.0f) {
         const std::string& feedbackMsg = world->GetLastInteractionFeedback();
         hudRenderer->RenderText(feedbackMsg, 32.0f, static_cast<float>(height) / 2.0f + 50.0f, 0.88f, glm::vec3(0.2f, 1.0f, 0.3f), width, height);
     }
-    
+
     hudRenderer->RenderText("1-5 SWITCH  WASD MOVE  SPACE JUMP  C CROUCH  SHIFT SPRINT  Q ABANDON QUEST  E INTERACT", 24.0f, 28.0f, 0.40f, glm::vec3(0.82f, 0.82f, 0.82f), width, height);
 
-    // When near an interactable, render a large, readable prompt in the center-bottom
     if (!interactionPrompt.empty() && world) {
         const bool isPickup = world->NearestInteractionIsPickup();
         const std::string key = isPickup ? "[F] " : "[E] ";
@@ -278,134 +268,134 @@ void Game::RenderHud(const Engine& engine) const {
     }
 }
 
+void Game::HandleGlobalInput(Engine& engine) {
+    const InputContext& input = engine.GetGameplayInput();
+
+    if (input.IsActionPressed(InputAction::Pause)) {
+        cursorLocked = !cursorLocked;
+        engine.GetInput().SetCursorLocked(cursorLocked);
+    }
+
+    if (input.IsActionPressed(InputAction::ResetView)) {
+        camera->Reset(spawnPosition);
+    }
+
+    if (input.IsActionPressed(InputAction::SaveGame)) {
+        world->SaveToFile("savegame.txt");
+    }
+
+    if (input.IsActionPressed(InputAction::LoadGame)) {
+        world->LoadFromFile("savegame.txt");
+    }
+}
+
+void Game::HandleGameplayInput(float dt, Engine& engine) {
+    const InputContext& input = engine.GetGameplayInput();
+
+    if (input.IsActionPressed(InputAction::Sprint)) {
+        sprintToggled = !sprintToggled;
+    }
+
+    if (input.IsActionPressed(InputAction::SwitchCharacter1)) {
+        world->SwitchCharacter(0);
+    } else if (input.IsActionPressed(InputAction::SwitchCharacter2)) {
+        world->SwitchCharacter(1);
+    } else if (input.IsActionPressed(InputAction::SwitchCharacter3)) {
+        world->SwitchCharacter(2);
+    } else if (input.IsActionPressed(InputAction::SwitchCharacter4)) {
+        world->SwitchCharacter(3);
+    } else if (input.IsActionPressed(InputAction::SwitchCharacter5)) {
+        world->SwitchCharacter(4);
+    }
+
+    Character* activeChar = world->GetActiveCharacter();
+    if (!activeChar) {
+        return;
+    }
+
+    if (input.IsActionPressed(InputAction::Jump)) {
+        activeChar->Jump();
+    }
+    if (input.IsActionReleased(InputAction::Jump)) {
+        activeChar->ReleaseJump();
+    }
+    activeChar->Crouch(input.IsActionDown(InputAction::Crouch));
+    activeChar->Sprint(input.IsActionDown(InputAction::Sprint) || sprintToggled);
+
+    if (input.IsActionPressed(InputAction::Interact)) {
+        world->TryActiveCharacterInteraction();
+    }
+    if (input.IsActionPressed(InputAction::Pickup)) {
+        world->TryActiveCharacterPickup();
+    }
+    if (input.IsActionPressed(InputAction::AbandonQuest)) {
+        world->AbandonActiveQuest();
+    }
+
+    const glm::vec2 movement = input.GetMovementVector();
+    glm::vec3 camForward = camera->GetForward();
+    camForward.y = 0.0f;
+    if (glm::length(camForward) > 0.001f) {
+        camForward = glm::normalize(camForward);
+    }
+
+    glm::vec3 camRight = camera->GetRight();
+    camRight.y = 0.0f;
+    if (glm::length(camRight) > 0.001f) {
+        camRight = glm::normalize(camRight);
+    }
+
+    const glm::vec3 moveDir = camForward * movement.y + camRight * movement.x;
+    activeChar->Move(moveDir.x, moveDir.z, dt);
+    if (glm::length(moveDir) > 0.001f) {
+        activeChar->transform.rotation.y = glm::degrees(std::atan2(moveDir.x, moveDir.z));
+    }
+
+    camera->Update(engine.GetInput(), dt, activeChar->transform.position);
+}
+
+void Game::HandleCharacterInput(float dt, Engine& engine) {
+    if (world->IsPuzzleActive()) {
+        world->UpdatePuzzle(dt, engine.GetUiInput());
+        if (world->ConsumeSpawnRestartRequest()) {
+            camera->Reset(spawnPosition);
+            lastInteractionPrompt.clear();
+        }
+        return;
+    }
+
+    HandleGameplayInput(dt, engine);
+}
+
 void Game::Update(float dt, Engine& engine) {
     if (!camera || !world) {
         return;
     }
 
-    if (engine.GetInput().IsKeyPressed(GLFW_KEY_ESCAPE)) {
-        cursorLocked = !cursorLocked;
-        engine.GetInput().SetCursorLocked(cursorLocked);
-    }
+    HandleGlobalInput(engine);
 
-    if (engine.GetInput().IsKeyPressed(GLFW_KEY_R)) {
-        camera->Reset(spawnPosition);
-    }
-
-    if (engine.GetInput().IsKeyPressed(GLFW_KEY_F5)) {
-        world->SaveToFile("savegame.txt");
-    }
-
-    if (engine.GetInput().IsKeyPressed(GLFW_KEY_F9)) {
-        world->LoadFromFile("savegame.txt");
-    }
-
-    if (world->IsPuzzleActive()) {
-        world->UpdatePuzzle(dt, engine.GetInput());
-        return;
-    }
-
-    if (engine.GetInput().IsKeyPressed(GLFW_KEY_LEFT_ALT)) {
-        sprintToggled = !sprintToggled;
-    }
-
-    if (engine.GetInput().IsKeyPressed(GLFW_KEY_1)) {
-        world->SwitchCharacter(0);
-        if (Character* activeChar = world->GetActiveCharacter()) {
-            camera->SnapToTarget(activeChar->transform.position);
-            lastInteractionPrompt.clear();
-        }
-    } else if (engine.GetInput().IsKeyPressed(GLFW_KEY_2)) {
-        world->SwitchCharacter(1);
-        if (Character* activeChar = world->GetActiveCharacter()) {
-            camera->SnapToTarget(activeChar->transform.position);
-            lastInteractionPrompt.clear();
-        }
-    } else if (engine.GetInput().IsKeyPressed(GLFW_KEY_3)) {
-        world->SwitchCharacter(2);
-        if (Character* activeChar = world->GetActiveCharacter()) {
-            camera->SnapToTarget(activeChar->transform.position);
-            lastInteractionPrompt.clear();
-        }
-    } else if (engine.GetInput().IsKeyPressed(GLFW_KEY_4)) {
-        world->SwitchCharacter(3);
-        if (Character* activeChar = world->GetActiveCharacter()) {
-            camera->SnapToTarget(activeChar->transform.position);
-            lastInteractionPrompt.clear();
-        }
-    } else if (engine.GetInput().IsKeyPressed(GLFW_KEY_5)) {
-        world->SwitchCharacter(4);
+    const InputContext& input = engine.GetGameplayInput();
+    if (input.IsActionPressed(InputAction::SwitchCharacter1) ||
+        input.IsActionPressed(InputAction::SwitchCharacter2) ||
+        input.IsActionPressed(InputAction::SwitchCharacter3) ||
+        input.IsActionPressed(InputAction::SwitchCharacter4) ||
+        input.IsActionPressed(InputAction::SwitchCharacter5)) {
         if (Character* activeChar = world->GetActiveCharacter()) {
             camera->SnapToTarget(activeChar->transform.position);
             lastInteractionPrompt.clear();
         }
     }
 
-    // If a puzzle modal is active, update puzzle input and freeze player movement/camera
-    if (world && world->IsPuzzleActive()) {
-        world->UpdatePuzzle(dt, engine.GetInput());
-        return;
+    HandleCharacterInput(dt, engine);
+
+    const std::string interactionPrompt = world->GetInteractionPrompt();
+    if (interactionPrompt != lastInteractionPrompt) {
+        lastInteractionPrompt = interactionPrompt;
+        if (!interactionPrompt.empty()) {
+            std::cout << "[Interact] " << interactionPrompt << " (E)\n";
+        }
     }
 
-    // Get camera's forward and right vectors, flattened to the XZ plane
-    glm::vec3 camForward = camera->GetForward();
-    camForward.y = 0.0f;
-    if (glm::length(camForward) > 0.001f) camForward = glm::normalize(camForward);
-
-    glm::vec3 camRight = camera->GetRight();
-    camRight.y = 0.0f;
-    if (glm::length(camRight) > 0.001f) camRight = glm::normalize(camRight);
-
-    // Build a movement direction relative to the camera
-    glm::vec3 moveDir(0.0f);
-    if (engine.GetInput().IsKeyDown(GLFW_KEY_W)) moveDir += camForward;
-    if (engine.GetInput().IsKeyDown(GLFW_KEY_S)) moveDir -= camForward;
-    if (engine.GetInput().IsKeyDown(GLFW_KEY_D)) moveDir += camRight;
-    if (engine.GetInput().IsKeyDown(GLFW_KEY_A)) moveDir -= camRight;
-
-    if (glm::length(moveDir) > 0.001f) {
-        moveDir = glm::normalize(moveDir);
-    }
-
-    Character* activeChar = world->GetActiveCharacter();
-    if (activeChar) {
-        activeChar->Move(moveDir.x, moveDir.z, dt);
-        if (glm::length(moveDir) > 0.001f) {
-            activeChar->transform.rotation.y = glm::degrees(std::atan2(moveDir.x, moveDir.z));
-        }
-
-        if (engine.GetInput().IsKeyPressed(GLFW_KEY_SPACE)) {
-            activeChar->Jump();
-        }
-        if (engine.GetInput().IsKeyReleased(GLFW_KEY_SPACE)) {
-            activeChar->ReleaseJump();
-        }
-        activeChar->Crouch(engine.GetInput().IsKeyDown(GLFW_KEY_C));
-        const bool sprintHeld = engine.GetInput().IsKeyDown(GLFW_KEY_LEFT_SHIFT);
-        activeChar->Sprint(sprintHeld || sprintToggled);
-
-        if (engine.GetInput().IsKeyPressed(GLFW_KEY_E)) {
-            world->TryActiveCharacterInteraction();
-        }
-        // Use F for item pickups (collect glyphs/triangles)
-        if (engine.GetInput().IsKeyPressed(GLFW_KEY_F)) {
-            world->TryActiveCharacterPickup();
-        }
-
-        if (engine.GetInput().IsKeyPressed(GLFW_KEY_Q)) {
-            world->AbandonActiveQuest();
-        }
-
-        const std::string interactionPrompt = world->GetInteractionPrompt();
-        if (interactionPrompt != lastInteractionPrompt) {
-            lastInteractionPrompt = interactionPrompt;
-            if (!interactionPrompt.empty()) {
-                std::cout << "[Interact] " << interactionPrompt << " (E)\n";
-            }
-        }
-
-        camera->Update(engine.GetInput(), dt, activeChar->transform.position);
-    }
     world->Update(*camera, dt);
 }
 
@@ -416,6 +406,9 @@ void Game::Render(Engine& engine) const {
 
     world->Render(*camera, engine.GetAspectRatio());
     if (hudRenderer) {
+        if (!world->IsPuzzleActive()) {
+            world->RenderNarrativeOverlays(*hudRenderer, engine.GetWindow().GetWidth(), engine.GetWindow().GetHeight());
+        }
         world->RenderPuzzleOverlay(*hudRenderer, engine.GetWindow().GetWidth(), engine.GetWindow().GetHeight());
     }
     RenderHud(engine);

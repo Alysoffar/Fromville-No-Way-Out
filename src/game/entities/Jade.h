@@ -6,7 +6,6 @@ class Jade : public Character {
 public:
     explicit Jade(glm::vec3 startPos = glm::vec3(0.0f));
 
-    void Update(float dt) override;
     void OnSwitchedTo() override;
     void ActivateAbility() override;  // Symbol Sight
 
@@ -15,6 +14,7 @@ public:
     int GetGlyphsDecoded() const { return glyphsDecoded; }
 
 protected:
+    void UpdateCharacterState(float dt) override;
     float GetMoveSpeed() const override { return 8.0f; }
 
 private:

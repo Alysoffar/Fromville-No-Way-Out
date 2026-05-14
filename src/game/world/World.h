@@ -17,13 +17,18 @@
 #include "game/entities/Victor.h"
 #include "game/entities/Sara.h"
 #include "game/interactions/InteractionSystem.h"
-#include "game/puzzles/PuzzleManager.h"
+#include "game/puzzles/core/PuzzleManager.h"
 #include "game/quest/QuestSystem.h"
+#include "game/runtime/EventBus.h"
+#include "game/runtime/RuntimeProfiler.h"
+#include "game/runtime/Timers.h"
+#include "game/world/EntityManager.h"
+#include "game/world/WorldManager.h"
 
 class Shader;
 class Mesh;
 class TextRenderer;
-class InputManager;
+class InputContext;
 
 class Camera;
 class MapManager;
@@ -65,7 +70,8 @@ public:
     void Update(const Camera& camera, float dt);
     void Render(const Camera& camera, float aspectRatio);
 
-    Character* GetActiveCharacter() { return characters[activeCharacterIndex].get(); }
+    Character* GetActiveCharacter();
+    const Character* GetActiveCharacter() const;
     void SwitchCharacter(int index);
     QuestSystem* GetQuestSystem() { return questSystem.get(); }
     bool TryActiveCharacterInteraction();
@@ -75,23 +81,25 @@ public:
     void SetActiveQuest(CharacterType characterType);
     void AbandonActiveQuest();
     bool IsPuzzleActive() const;
-    void UpdatePuzzle(float dt, const InputManager& input);
+    void UpdatePuzzle(float dt, const InputContext& input);
     void RenderPuzzleOverlay(TextRenderer& textRenderer, int screenWidth, int screenHeight) const;
+    void RenderNarrativeOverlays(TextRenderer& textRenderer, int screenWidth, int screenHeight) const;
     CharacterType GetActiveQuestCharacter() const { return activeQuestCharacter; }
     bool HasActiveQuest() const { return hasActiveQuest; }
     std::string GetLastInteractionFeedback() const { return lastInteractionFeedback; }
-    float GetLastInteractionFeedbackTime() const { return lastInteractionFeedbackTime; }
+    float GetLastInteractionFeedbackTime() const { return lastInteractionFeedbackTimer.Remaining(); }
     bool HasStoryFlag(const std::string& flag) const;
     std::string GetLastMonsterScream() const { return lastMonsterScream; }
-    float GetMonsterScreamDisplayTime() const { return monsterScreamDisplayTime; }
+    float GetMonsterScreamDisplayTime() const { return monsterScreamDisplayTimer.Remaining(); }
     float GetLastDamageAmount() const { return lastDamageAmount; }
-    float GetLastDamageDisplayTime() const { return lastDamageTime; }
+    float GetLastDamageDisplayTime() const { return lastDamageDisplayTimer.Remaining(); }
     std::string GetLastNpcDialogue() const { return lastNpcDialogue; }
-    float GetNpcDialogueDisplayTime() const { return npcDialogueDisplayTime; }
+    float GetNpcDialogueDisplayTime() const { return npcDialogueDisplayTimer.Remaining(); }
     std::string GetQuestHelperText() const;
     std::string GetQuestWaypointText() const;  // Returns compass waypoint info
     WorldSaveState CaptureSaveState() const;
     void RestoreSaveState(const WorldSaveState& state);
+    bool ConsumeSpawnRestartRequest();
     bool SaveToFile(const std::string& path) const;
     bool LoadFromFile(const std::string& path);
 
@@ -114,11 +122,15 @@ private:
     CharacterType activeQuestCharacter = CharacterType::Boyd;
     bool hasActiveQuest = false;
     std::string lastInteractionFeedback;
-    float lastInteractionFeedbackTime = 0.0f;
+    DurationTimer lastInteractionFeedbackTimer;
 
     // Interaction system
     InteractionSystem interactionSystem;
     PuzzleManager puzzleManager;
+    EntityManager entityManager;
+    WorldManager worldManager;
+    EventBus eventBus;
+    RuntimeProfiler runtimeProfiler;
     
     float worldClock = 0.0f;
     bool nightTime = false;
@@ -132,15 +144,20 @@ private:
     
     // Monster and damage feedback tracking
     std::string lastMonsterScream;
-    float monsterScreamDisplayTime = 0.0f;
-    float lastDamageTime = 0.0f;
+    DurationTimer monsterScreamDisplayTimer;
+    DurationTimer lastDamageDisplayTimer;
     float lastDamageAmount = 0.0f;
     std::string lastNpcDialogue;
-    float npcDialogueDisplayTime = 0.0f;
+    DurationTimer npcDialogueDisplayTimer;
     std::vector<std::array<float, 5>> npcTalkCooldowns;
     std::vector<float> npcPanicCooldowns;
     std::vector<float> npcNeighborTalkCooldowns;
     std::array<float, 5> characterMonsterInteractionCooldowns = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    std::array<float, 5> characterReactionCooldowns = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    int debugFrameCounter = 0;
+    WorldSaveState initialSpawnState;
+    bool hasInitialSpawnState = false;
+    bool spawnRestartRequested = false;
     static constexpr float kScreamDisplayDuration = 2.5f;
     static constexpr float kDamageDisplayDuration = 1.8f;
     static constexpr float kNpcDialogueDisplayDuration = 4.5f;
@@ -150,6 +167,10 @@ private:
     void EnsureNpcDialogueCooldowns();
     bool TryNpcDialogue(Character& character, bool explicitInteraction);
     void UpdateTimeOfDay(float dt);
+    void UpdateWorldSystemsPhase(float dt);
+    void UpdateTimersAndCooldownsPhase(float dt);
+    void UpdateQuestAndInteractionPhase(float dt);
+    bool HandleInteractionOutcome(Character& activeChar, bool didInteract, const char* noTargetLog);
     void UpdateOffscreenCharacters(float dt);
     bool IsProtectedByShelter(const glm::vec3& position) const;
     glm::vec3 GetNearestShelterCenter(const glm::vec3& position) const;
@@ -157,4 +178,5 @@ private:
     bool MoveCharacterToward(Character& character, const glm::vec3& target, float dt);
     void TryAdvanceOffscreenStory(Character& character, std::size_t index, float dt, bool atGoal);
     void RenderInteriorZoneBounds(const Camera& camera, float aspectRatio) const;
+    void RestartFromSpawn();
 };

@@ -18,7 +18,7 @@ public:
     explicit Character(CharacterType type, std::string name, glm::vec3 startPos = glm::vec3(0.0f));
     virtual ~Character() = default;
 
-    void Update(float dt) override;
+    void Update(float dt) final;
     virtual void OnSwitchedTo();   // Called when this character becomes active
     virtual void OnSwitchedFrom(); // Called when this character is no longer active
     virtual void ActivateAbility();  // Q-key ability, overridden per character
@@ -41,6 +41,8 @@ public:
     }
 
 protected:
+    virtual void UpdateCharacterState(float dt);
+
     CharacterType type;
     bool isActive = false;
     float health = 100.0f;

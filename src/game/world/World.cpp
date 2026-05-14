@@ -19,6 +19,12 @@
 #include "engine/core/InputManager.h"
 #include "engine/renderer/terrain.h"
 #include "engine/resources/loader.h"
+#include "game/atmosphere/AtmosphereManager.h"
+#include "game/memory/MemoryReplaySystem.h"
+#include "game/moral/MoralCorruptionSystem.h"
+#include "game/symbols/SymbolSystem.h"
+#include "game/tunnels/TunnelMappingSystem.h"
+#include "game/runtime/GameplayEvents.h"
 #include "game/world/map_manager.h"
 #include "game/story/StoryManager.h"
 
@@ -61,6 +67,68 @@ std::string CharacterTypeToName(CharacterType type) {
     }
 
     return "";
+}
+
+const InteractionNode* FindNearestInteractionNode(const std::vector<InteractionNode>& nodes, const Character& character, const QuestSystem& questSystem) {
+    const InteractionNode* bestNode = nullptr;
+    float bestDistance = std::numeric_limits<float>::max();
+
+    for (const InteractionNode& node : nodes) {
+        if (!node.active && node.type != InteractionType::Door) {
+            continue;
+        }
+
+        if (!node.requiredFlag.empty() && !questSystem.HasStoryFlag(node.requiredFlag)) {
+            continue;
+        }
+
+        if (!node.requiredCharacter.empty() && node.requiredCharacter != CharacterTypeToName(character.GetType())) {
+            continue;
+        }
+
+        const float distance = HorizontalDistance(character.transform.position, node.position);
+        if (distance <= node.radius && distance < bestDistance) {
+            bestDistance = distance;
+            bestNode = &node;
+        }
+    }
+
+    return bestNode;
+}
+
+const InteractionNode* FindQuestInteractionNode(
+    const std::vector<InteractionNode>& nodes,
+    const Character* playerChar,
+    const QuestSystem& questSystem,
+    CharacterType questCharacter,
+    int objectiveIndex,
+    const QuestObjective& currentObjective) {
+    const std::string requiredCharacter = CharacterTypeToName(questCharacter);
+    const InteractionNode* activeNode = nullptr;
+    float bestDistance = std::numeric_limits<float>::max();
+
+    for (const InteractionNode& node : nodes) {
+        if (node.questObjectiveIndex != objectiveIndex || node.requiredCharacter != requiredCharacter) {
+            continue;
+        }
+        if (!node.active && node.type != InteractionType::Door) {
+            continue;
+        }
+        if (!node.requiredFlag.empty() && !questSystem.HasStoryFlag(node.requiredFlag)) {
+            continue;
+        }
+        if (currentObjective.type == ObjectiveType::Collect && !node.questFlag.empty() && questSystem.HasStoryFlag(node.questFlag)) {
+            continue;
+        }
+
+        const float distance = playerChar ? HorizontalDistance(playerChar->transform.position, node.position) : 0.0f;
+        if (!activeNode || distance < bestDistance) {
+            activeNode = &node;
+            bestDistance = distance;
+        }
+    }
+
+    return activeNode;
 }
 
 float Clamp01(float value) {
@@ -256,6 +324,114 @@ std::string GetPanicLine(const Character& character) {
     };
 
     return lines[static_cast<std::size_t>(character.GetType()) % lines.size()];
+}
+
+void SeedNarrativeSystems() {
+    AtmosphereManager::Instance().SetGlobalTension(0.28f);
+    AtmosphereManager::Instance().SetCorruption(0.06f);
+
+    MoralCorruptionSystem& moralSystem = MoralCorruptionSystem::Instance();
+    if (moralSystem.GetAllEvidence().empty()) {
+        moralSystem.RegisterEvidence({"Witness Statement", "A witness places the cult near the chapel.", MoralChoice::Exposure});
+        moralSystem.RegisterEvidence({"Smeared Key", "A key found near the tunnel entrance.", MoralChoice::Mercy});
+        moralSystem.RegisterEvidence({"Blood Note", "A torn note linking the town leadership to the disappearances.", MoralChoice::Revenge});
+    }
+}
+
+void TriggerQuestlineNarrativeHooks(CharacterType characterType, int objectiveIndex, const Quest* quest, const glm::vec3& focusPosition) {
+    if (!quest || objectiveIndex < 0) {
+        return;
+    }
+
+    const auto& objectives = quest->GetObjectives();
+    if (objectiveIndex >= static_cast<int>(objectives.size())) {
+        return;
+    }
+
+    const QuestObjective& objective = objectives[objectiveIndex];
+    AtmosphereManager& atmosphere = AtmosphereManager::Instance();
+    SymbolSystem& symbolSystem = SymbolSystem::Instance();
+    TunnelMappingSystem& tunnelSystem = TunnelMappingSystem::Instance();
+    MemoryReplaySystem& memorySystem = MemoryReplaySystem::Instance();
+    MoralCorruptionSystem& moralSystem = MoralCorruptionSystem::Instance();
+
+    atmosphere.IncreaseTension(0.04f);
+
+    switch (characterType) {
+        case CharacterType::Boyd:
+            if (objective.type == ObjectiveType::Combat) {
+                atmosphere.TriggerEvent(AtmosphereEvent::DistantSinging, focusPosition, 0.7f);
+            } else if (objective.type == ObjectiveType::Environmental) {
+                atmosphere.TriggerEvent(AtmosphereEvent::WallBleeding, focusPosition, 0.45f);
+            }
+            break;
+        case CharacterType::Jade:
+            symbolSystem.AdvanceDecoding(0.18f);
+            atmosphere.TriggerEvent(AtmosphereEvent::SymbolRearrangement, focusPosition, 0.8f);
+            if (objectiveIndex == 0) {
+                symbolSystem.RevealSymbols(3.0f);
+            } else if (objectiveIndex == 4) {
+                symbolSystem.TriggerSymbolRearrangement();
+            }
+            break;
+        case CharacterType::Tabitha:
+            if (objectiveIndex == 0) {
+                tunnelSystem.DiscoverNode("North Passage");
+            } else if (objectiveIndex == 1) {
+                tunnelSystem.DiscoverNode("East Chamber");
+            } else if (objectiveIndex == 2) {
+                tunnelSystem.FloatThroughWater(2.5f);
+            } else if (objectiveIndex == 3) {
+                tunnelSystem.DiscoverNode("West Shrine");
+            } else if (objectiveIndex == 4) {
+                tunnelSystem.ReachCentralChamber();
+            }
+            atmosphere.TriggerEvent(AtmosphereEvent::ShadowMovement, focusPosition, 0.55f);
+            break;
+        case CharacterType::Victor:
+            memorySystem.ActivateMemoryMode(3.5f);
+            memorySystem.ProcessTraumaticMemory(objective.description);
+            memorySystem.TriggerGhostReplica("Victor", objective.description, focusPosition);
+            atmosphere.TriggerEvent(AtmosphereEvent::MemoryFlash, focusPosition, 0.9f);
+            break;
+        case CharacterType::Sara:
+            moralSystem.OverhearConversation("Town secrets", objective.description);
+            moralSystem.DetectGuilt("Thomas Reed", 0.08f);
+            if (objectiveIndex == 4) {
+                moralSystem.RecordChoice(MoralChoice::Exposure);
+            }
+            atmosphere.TriggerEvent(AtmosphereEvent::CorruptionPulse, focusPosition, 0.9f);
+            break;
+    }
+}
+
+void TriggerDialogueNarrativeHooks(Character& character, const NPC& npc, const std::string& npcLine, const std::string& characterReply) {
+    const glm::vec3 focusPosition = npc.transform.position;
+
+    switch (character.GetType()) {
+        case CharacterType::Boyd:
+            AtmosphereManager::Instance().TriggerEvent(AtmosphereEvent::DistantSinging, focusPosition, 0.35f);
+            break;
+        case CharacterType::Jade:
+            SymbolSystem::Instance().AdvanceDecoding(0.03f);
+            if (npcLine.find("symbol") != std::string::npos || characterReply.find("symbol") != std::string::npos) {
+                SymbolSystem::Instance().RevealSymbols(2.5f);
+            }
+            break;
+        case CharacterType::Tabitha:
+            TunnelMappingSystem::Instance().PlayDistortedEcho();
+            break;
+        case CharacterType::Victor:
+            MemoryReplaySystem::Instance().ActivateMemoryMode(1.75f);
+            MemoryReplaySystem::Instance().TriggerGhostReplica(npc.GetName(), characterReply, focusPosition);
+            break;
+        case CharacterType::Sara:
+            MoralCorruptionSystem::Instance().OverhearConversation(npc.GetName(), npcLine + " | " + characterReply);
+            if (npcLine.find("guilty") != std::string::npos || characterReply.find("sorry") != std::string::npos) {
+                MoralCorruptionSystem::Instance().DetectGuilt(npc.GetName(), 0.1f);
+            }
+            break;
+    }
 }
 
 std::string GetMonsterTauntLine(const Character& character, float distance, float worldClock) {
@@ -461,7 +637,9 @@ void InitializeModels() {
 }
 }
 
-World::World() = default;
+World::World() {
+    entityManager.BindStorage(&characters, &npcs, &enemies, &activeCharacterIndex);
+}
 
 void World::Initialize() {
     static MapManager worldMap;
@@ -483,11 +661,19 @@ void World::Initialize() {
         std::cout << "[AudioCue] " << cue << "\n";
     });
     puzzleManager.SetCompletionCallback([this](CharacterType characterType, int objectiveIndex) {
+        eventBus.Publish(PuzzleCompletedEvent{characterType, objectiveIndex});
+
         if (questSystem) {
             questSystem->AdvanceObjective(characterType, objectiveIndex);
         }
         StoryManager::Instance().AdvanceStep(objectiveIndex);
         interactionSystem.MarkQuestStepSolved(characterType, objectiveIndex);
+
+        const Quest* questForHooks = questSystem ? questSystem->GetCharacterQuest(characterType) : nullptr;
+        const glm::vec3 focusPosition = (activeCharacterIndex >= 0 && activeCharacterIndex < static_cast<int>(characters.size()))
+            ? characters[activeCharacterIndex]->transform.position
+            : glm::vec3(0.0f);
+        TriggerQuestlineNarrativeHooks(characterType, objectiveIndex, questForHooks, focusPosition);
 
         // Ensure any story flags on nodes for this objective are set so subsequent nodes unlock
         if (questSystem) {
@@ -548,15 +734,17 @@ void World::Initialize() {
         interactionSystem.AddNode(checkpoint);
         std::cout << "[World] Spawned checkpoint: " << checkpoint.id << " at " << checkpoint.position.x << "," << checkpoint.position.y << "," << checkpoint.position.z << "\n";
         lastInteractionFeedback = feedbackMsg;
-        lastInteractionFeedbackTime = 5.0f;
+        lastInteractionFeedbackTimer.Start(5.0f);
 
         const Quest* quest = questSystem ? questSystem->GetCharacterQuest(characterType) : nullptr;
         if (quest && quest->IsComplete()) {
             hasActiveQuest = false;
             lastInteractionFeedback = "Final clue solved. The conspiracy unravels.";
-            lastInteractionFeedbackTime = 3.0f;
+            lastInteractionFeedbackTimer.Start(3.0f);
         }
     });
+
+    SeedNarrativeSystems();
     
     // Convert character pointers for quest system
     std::array<Character*, 5> charPtrs = {
@@ -581,22 +769,15 @@ void World::Initialize() {
     }
 
     // Wire collision system to all characters
-    for (auto& character : characters) {
-        character->SetCollisionWorld(&collisionWorld);
-    }
-
-    for (NPC& npc : npcs) {
-        npc.SetCollisionWorld(&collisionWorld);
-    }
-
-    for (Enemy& enemy : enemies) {
-        enemy.SetCollisionWorld(&collisionWorld);
-    }
+    entityManager.BindCollisionWorld(&collisionWorld);
     
     // Activate the first character (Boyd)
     if (!characters.empty()) {
         characters[activeCharacterIndex]->OnSwitchedTo();
     }
+
+    initialSpawnState = CaptureSaveState();
+    hasInitialSpawnState = true;
 }
 
 
@@ -605,7 +786,7 @@ void World::Update(const Camera& camera, float dt) {
         return;
     }
 
-    StoryManager::Instance().Update(dt);
+    UpdateWorldSystemsPhase(dt);
 
     if (puzzleManager.IsActive()) {
         if (questSystem) {
@@ -614,120 +795,11 @@ void World::Update(const Camera& camera, float dt) {
         return;
     }
 
-    static std::array<float, 5> characterReactionCooldowns = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-    EnsureNpcDialogueCooldowns();
-
-    for (float& cooldown : characterReactionCooldowns) {
-        cooldown = std::max(0.0f, cooldown - dt);
-    }
-    for (auto& npcCooldowns : npcTalkCooldowns) {
-        for (float& cooldown : npcCooldowns) {
-            cooldown = std::max(0.0f, cooldown - dt);
-        }
-    }
-    for (float& cooldown : npcPanicCooldowns) {
-        cooldown = std::max(0.0f, cooldown - dt);
-    }
-    for (float& cooldown : npcNeighborTalkCooldowns) {
-        cooldown = std::max(0.0f, cooldown - dt);
-    }
-    
-    // Update character damage cooldowns
-    for (float& cooldown : characterDamageCooldowns) {
-        cooldown = std::max(0.0f, cooldown - dt);
-    }
-    for (float& cooldown : characterMonsterInteractionCooldowns) {
-        cooldown = std::max(0.0f, cooldown - dt);
-    }
-    
-    // Update interaction feedback display timer
-    lastInteractionFeedbackTime = std::max(0.0f, lastInteractionFeedbackTime - dt);
+    UpdateTimersAndCooldownsPhase(dt);
 
     UpdateTimeOfDay(dt);
 
-    // Update quest system (tracks story progression and consequences)
-    if (questSystem) {
-        questSystem->Update(dt);
-        
-        // Print any pending story consequences to console
-        while (questSystem->HasPendingConsequences()) {
-            const std::string& consequence = questSystem->GetNextConsequence();
-            std::cout << "[Story Consequence] " << consequence << "\n";
-        }
-
-        interactionSystem.Update(dt, *questSystem);
-
-        if (hasActiveQuest && !characters.empty()) {
-            Quest* activeQuest = questSystem->GetCharacterQuest(activeQuestCharacter);
-            if (activeQuest && !activeQuest->IsComplete() && !activeQuest->IsFailed()) {
-                const int nextObjectiveIndex = activeQuest->GetNextIncompleteObjectiveIndex();
-                const auto& objectives = activeQuest->GetObjectives();
-                if (nextObjectiveIndex >= 0 && nextObjectiveIndex < static_cast<int>(objectives.size())) {
-                    const QuestObjective& currentObjective = objectives[nextObjectiveIndex];
-                    if (currentObjective.type == ObjectiveType::Combat) {
-                        const std::string requiredCharacter = CharacterTypeToName(activeQuestCharacter);
-                        const Character* activeCharForSpawn = GetActiveCharacter();
-                        if (activeCharForSpawn) {
-                            float closestMatchingNodeDistance = std::numeric_limits<float>::max();
-                            bool hasMatchingNode = false;
-                            for (const InteractionNode& node : interactionSystem.GetNodes()) {
-                                if (node.questObjectiveIndex != nextObjectiveIndex || node.requiredCharacter != requiredCharacter) {
-                                    continue;
-                                }
-                                if (!node.active && node.type != InteractionType::Door) {
-                                    continue;
-                                }
-                                if (!node.requiredFlag.empty() && !questSystem->HasStoryFlag(node.requiredFlag)) {
-                                    continue;
-                                }
-                                const float distance = HorizontalDistance(activeCharForSpawn->transform.position, node.position);
-                                hasMatchingNode = true;
-                                closestMatchingNodeDistance = std::min(closestMatchingNodeDistance, distance);
-                            }
-
-                            if (!hasMatchingNode || closestMatchingNodeDistance > 5.0f) {
-                                const std::string runtimeNodeId = "runtime_combat_" + requiredCharacter + "_" + std::to_string(nextObjectiveIndex);
-                                bool nodeAlreadySpawned = false;
-                                for (const InteractionNode& node : interactionSystem.GetNodes()) {
-                                    if (node.id == runtimeNodeId) {
-                                        nodeAlreadySpawned = true;
-                                        break;
-                                    }
-                                }
-
-                                if (!nodeAlreadySpawned) {
-                                    InteractionNode runtimeNode;
-                                    runtimeNode.id = runtimeNodeId;
-                                    runtimeNode.type = InteractionType::Trigger;
-                                    runtimeNode.name = currentObjective.description;
-                                    runtimeNode.position = activeCharForSpawn->transform.position + glm::vec3(2.0f, 0.0f, 0.0f);
-                                    runtimeNode.radius = 3.0f;
-                                    runtimeNode.prompt = "Confront";
-                                    runtimeNode.successMessage = "The cult leader appears. Press E to confront him.";
-                                    runtimeNode.questFlag = "runtime_combat_start_" + requiredCharacter;
-                                    runtimeNode.requiredFlag = "";
-                                    runtimeNode.questObjectiveIndex = nextObjectiveIndex;
-                                    runtimeNode.requiredCharacter = requiredCharacter;
-                                    interactionSystem.AddNode(runtimeNode);
-                                    std::cout << "[World] Spawned runtime combat encounter: " << runtimeNode.id << " at "
-                                              << runtimeNode.position.x << "," << runtimeNode.position.y << "," << runtimeNode.position.z << "\n";
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if (hasActiveQuest) {
-            const Quest* activeQuest = questSystem->GetCharacterQuest(activeQuestCharacter);
-            if (activeQuest && activeQuest->IsComplete()) {
-                hasActiveQuest = false;
-                lastInteractionFeedback = "Quest complete! You can start another one.";
-                lastInteractionFeedbackTime = 2.5f;
-            }
-        }
-    }
+    UpdateQuestAndInteractionPhase(dt);
 
     // Update active character
     Character* activeChar = GetActiveCharacter();
@@ -755,13 +827,12 @@ void World::Update(const Camera& camera, float dt) {
     UpdateOffscreenCharacters(dt);
     
     // Debug: Print active character position every 120 frames
-    static int frameCounter = 0;
-    frameCounter++;
-    if (frameCounter >= 120 && activeChar) {
+    debugFrameCounter++;
+    if (debugFrameCounter >= 120 && activeChar) {
         const auto& pos = activeChar->transform.position;
         std::cout << "[" << activeChar->GetName() << "] Pos: x=" << pos.x << " y=" << pos.y << " z=" << pos.z 
                   << " | Health: " << activeChar->GetHealth() << "\n";
-        frameCounter = 0;
+        debugFrameCounter = 0;
     }
 
     std::vector<bool> npcThreatened(npcs.size(), false);
@@ -875,12 +946,12 @@ void World::Update(const Camera& camera, float dt) {
                     // Update HUD feedback if this is the active character
                     if (static_cast<int>(charIdx) == activeCharacterIndex) {
                         lastDamageAmount = damageAmount;
-                        lastDamageTime = kDamageDisplayDuration;
+                        lastDamageDisplayTimer.Start(kDamageDisplayDuration);
                         
                         // Trigger monster scream
                         const float distance = HorizontalDistance(character.transform.position, enemy.transform.position);
                         lastMonsterScream = GetMonsterScreamLine(static_cast<int>(enemies.size()), distance);
-                        monsterScreamDisplayTime = kScreamDisplayDuration;
+                        monsterScreamDisplayTimer.Start(kScreamDisplayDuration);
                     }
                     
                     std::cout << "[Damage] " << character.GetName() << " takes " << damageAmount << " damage! HP: " << character.GetHealth() << "\n";
@@ -893,9 +964,9 @@ void World::Update(const Camera& camera, float dt) {
     }
     
     // Update monster scream and damage display timers
-    monsterScreamDisplayTime = std::max(0.0f, monsterScreamDisplayTime - dt);
-    lastDamageTime = std::max(0.0f, lastDamageTime - dt);
-    npcDialogueDisplayTime = std::max(0.0f, npcDialogueDisplayTime - dt);
+    monsterScreamDisplayTimer.Tick(dt);
+    lastDamageDisplayTimer.Tick(dt);
+    npcDialogueDisplayTimer.Tick(dt);
 
     if (activeChar) {
         previousActivePosition = activeChar->transform.position;
@@ -923,7 +994,7 @@ void World::Update(const Camera& camera, float dt) {
                 std::ostringstream dialogue;
                 dialogue << npc.GetName() << ": " << npcLine << " | " << activeChar->GetName() << ": " << characterReply;
                 lastNpcDialogue = dialogue.str();
-                npcDialogueDisplayTime = kNpcDialogueDisplayDuration;
+                npcDialogueDisplayTimer.Start(kNpcDialogueDisplayDuration);
                 
                 std::cout << "[Talk] " << activeChar->GetName() << " and " << lastNpcDialogue << "\n";
                 npcTalkCooldowns[npcIndex][activeIndex] = 5.0f;
@@ -934,7 +1005,7 @@ void World::Update(const Camera& camera, float dt) {
                 std::ostringstream panic;
                 panic << npc.GetName() << ": " << panicLine;
                 lastNpcDialogue = panic.str();
-                npcDialogueDisplayTime = kNpcDialogueDisplayDuration;
+                npcDialogueDisplayTimer.Start(kNpcDialogueDisplayDuration);
                 
                 std::cout << "[Panic] " << lastNpcDialogue << "\n";
                 npcPanicCooldowns[npcIndex] = 4.5f;
@@ -950,7 +1021,7 @@ void World::Update(const Camera& camera, float dt) {
             const float distance = HorizontalDistance(activeChar->transform.position, otherCharacter.transform.position);
             if (distance < 2.2f && characterReactionCooldowns[characterIndex] <= 0.0f) {
                 lastNpcDialogue = GetCharacterPairLine(*activeChar, otherCharacter, worldClock);
-                npcDialogueDisplayTime = kNpcDialogueDisplayDuration;
+                npcDialogueDisplayTimer.Start(kNpcDialogueDisplayDuration);
                 std::cout << "[Conversation] " << lastNpcDialogue << "\n";
                 characterReactionCooldowns[characterIndex] = 6.0f;
             }
@@ -960,9 +1031,9 @@ void World::Update(const Camera& camera, float dt) {
             const float distance = HorizontalDistance(activeChar->transform.position, enemy.transform.position);
             if (distance < 8.0f && characterMonsterInteractionCooldowns[activeIndex] <= 0.0f) {
                 lastMonsterScream = GetMonsterTauntLine(*activeChar, distance, worldClock);
-                monsterScreamDisplayTime = kScreamDisplayDuration;
+                monsterScreamDisplayTimer.Start(kScreamDisplayDuration);
                 lastNpcDialogue = GetCharacterMonsterResponseLine(*activeChar, worldClock);
-                npcDialogueDisplayTime = kNpcDialogueDisplayDuration;
+                npcDialogueDisplayTimer.Start(kNpcDialogueDisplayDuration);
                 std::cout << lastMonsterScream << "\n";
                 std::cout << "[Monster Response] " << lastNpcDialogue << "\n";
                 characterMonsterInteractionCooldowns[activeIndex] = 7.5f;
@@ -971,7 +1042,7 @@ void World::Update(const Camera& camera, float dt) {
 
             if (distance < 6.5f && characterReactionCooldowns[activeCharacterIndex] <= 0.0f) {
                 lastNpcDialogue = activeChar->GetName() + ": " + GetPanicLine(*activeChar);
-                npcDialogueDisplayTime = kNpcDialogueDisplayDuration;
+                npcDialogueDisplayTimer.Start(kNpcDialogueDisplayDuration);
                 std::cout << "[Panic] " << lastNpcDialogue << "\n";
                 characterReactionCooldowns[activeCharacterIndex] = 4.0f;
                 break;
@@ -987,7 +1058,7 @@ void World::Update(const Camera& camera, float dt) {
         for (std::size_t otherNpcIndex = npcIndex + 1; otherNpcIndex < npcs.size(); ++otherNpcIndex) {
             if (HorizontalDistance(npcs[npcIndex].transform.position, npcs[otherNpcIndex].transform.position) < 3.25f) {
                 lastNpcDialogue = GetNpcNeighborLine(npcs[npcIndex], npcs[otherNpcIndex], worldClock);
-                npcDialogueDisplayTime = kNpcDialogueDisplayDuration;
+                npcDialogueDisplayTimer.Start(kNpcDialogueDisplayDuration);
                 npcNeighborTalkCooldowns[npcIndex] = 9.0f;
                 npcNeighborTalkCooldowns[otherNpcIndex] = 9.0f;
                 std::cout << "[NPC Chat] " << lastNpcDialogue << "\n";
@@ -1000,15 +1071,129 @@ void World::Update(const Camera& camera, float dt) {
     terrain->Update(*mapManager);
 }
 
+void World::UpdateWorldSystemsPhase(float dt) {
+    worldManager.UpdateWorldSimulation(dt);
+}
+
+void World::UpdateTimersAndCooldownsPhase(float dt) {
+    EnsureNpcDialogueCooldowns();
+
+    for (float& cooldown : characterReactionCooldowns) {
+        cooldown = std::max(0.0f, cooldown - dt);
+    }
+    for (auto& npcCooldowns : npcTalkCooldowns) {
+        for (float& cooldown : npcCooldowns) {
+            cooldown = std::max(0.0f, cooldown - dt);
+        }
+    }
+    for (float& cooldown : npcPanicCooldowns) {
+        cooldown = std::max(0.0f, cooldown - dt);
+    }
+    for (float& cooldown : npcNeighborTalkCooldowns) {
+        cooldown = std::max(0.0f, cooldown - dt);
+    }
+    for (float& cooldown : characterDamageCooldowns) {
+        cooldown = std::max(0.0f, cooldown - dt);
+    }
+    for (float& cooldown : characterMonsterInteractionCooldowns) {
+        cooldown = std::max(0.0f, cooldown - dt);
+    }
+
+    lastInteractionFeedbackTimer.Tick(dt);
+}
+
+void World::UpdateQuestAndInteractionPhase(float dt) {
+    if (!questSystem) {
+        return;
+    }
+
+    questSystem->Update(dt);
+
+    while (questSystem->HasPendingConsequences()) {
+        const std::string& consequence = questSystem->GetNextConsequence();
+        std::cout << "[Story Consequence] " << consequence << "\n";
+    }
+
+    interactionSystem.Update(dt, *questSystem);
+
+    if (hasActiveQuest && !characters.empty()) {
+        Quest* activeQuest = questSystem->GetCharacterQuest(activeQuestCharacter);
+        if (activeQuest && !activeQuest->IsComplete() && !activeQuest->IsFailed()) {
+            const int nextObjectiveIndex = activeQuest->GetNextIncompleteObjectiveIndex();
+            const auto& objectives = activeQuest->GetObjectives();
+            if (nextObjectiveIndex >= 0 && nextObjectiveIndex < static_cast<int>(objectives.size())) {
+                const QuestObjective& currentObjective = objectives[nextObjectiveIndex];
+                if (currentObjective.type == ObjectiveType::Combat) {
+                    const std::string requiredCharacter = CharacterTypeToName(activeQuestCharacter);
+                    const Character* activeCharForSpawn = GetActiveCharacter();
+                    if (activeCharForSpawn) {
+                        float closestMatchingNodeDistance = std::numeric_limits<float>::max();
+                        bool hasMatchingNode = false;
+                        for (const InteractionNode& node : interactionSystem.GetNodes()) {
+                            if (node.questObjectiveIndex != nextObjectiveIndex || node.requiredCharacter != requiredCharacter) {
+                                continue;
+                            }
+                            if (!node.active && node.type != InteractionType::Door) {
+                                continue;
+                            }
+                            if (!node.requiredFlag.empty() && !questSystem->HasStoryFlag(node.requiredFlag)) {
+                                continue;
+                            }
+                            const float distance = HorizontalDistance(activeCharForSpawn->transform.position, node.position);
+                            hasMatchingNode = true;
+                            closestMatchingNodeDistance = std::min(closestMatchingNodeDistance, distance);
+                        }
+
+                        if (!hasMatchingNode || closestMatchingNodeDistance > 5.0f) {
+                            const std::string runtimeNodeId = "runtime_combat_" + requiredCharacter + "_" + std::to_string(nextObjectiveIndex);
+                            bool nodeAlreadySpawned = false;
+                            for (const InteractionNode& node : interactionSystem.GetNodes()) {
+                                if (node.id == runtimeNodeId) {
+                                    nodeAlreadySpawned = true;
+                                    break;
+                                }
+                            }
+
+                            if (!nodeAlreadySpawned) {
+                                InteractionNode runtimeNode;
+                                runtimeNode.id = runtimeNodeId;
+                                runtimeNode.type = InteractionType::Trigger;
+                                runtimeNode.name = currentObjective.description;
+                                runtimeNode.position = activeCharForSpawn->transform.position + glm::vec3(2.0f, 0.0f, 0.0f);
+                                runtimeNode.radius = 3.0f;
+                                runtimeNode.prompt = "Confront";
+                                runtimeNode.successMessage = "The cult leader appears. Press E to confront him.";
+                                runtimeNode.questFlag = "runtime_combat_start_" + requiredCharacter;
+                                runtimeNode.requiredFlag = "";
+                                runtimeNode.questObjectiveIndex = nextObjectiveIndex;
+                                runtimeNode.requiredCharacter = requiredCharacter;
+                                interactionSystem.AddNode(runtimeNode);
+                                std::cout << "[World] Spawned runtime combat encounter: " << runtimeNode.id << " at "
+                                          << runtimeNode.position.x << "," << runtimeNode.position.y << "," << runtimeNode.position.z << "\n";
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (hasActiveQuest) {
+        const Quest* activeQuest = questSystem->GetCharacterQuest(activeQuestCharacter);
+        if (activeQuest && activeQuest->IsComplete()) {
+            hasActiveQuest = false;
+            lastInteractionFeedback = "Quest complete! You can start another one.";
+            lastInteractionFeedbackTimer.Start(2.5f);
+        }
+    }
+}
+
 void World::Render(const Camera& camera, float aspectRatio) {
     if (!terrain) {
         return;
     }
 
     terrain->Render(camera, aspectRatio);
-
-    const glm::mat4 projection = camera.GetProjectionMatrix(aspectRatio);
-    const glm::mat4 view = camera.GetViewMatrix();
 
     if (gCharacterReady) {
         // Render all 5 characters (active in bright color, off-screen in muted color)
@@ -1165,32 +1350,6 @@ void World::Render(const Camera& camera, float aspectRatio) {
     RenderInteriorZoneBounds(camera, aspectRatio);
 }
 
-void World::InitializeCharacters() {
-    if (!characters.empty()) {
-        return;
-    }
-
-    // Create all 5 playable characters spread across the full map (±12 units)
-    characters.emplace_back(std::make_unique<Boyd>(glm::vec3(-8.0f, 0.1f, 9.0f)));      // NW quadrant
-    characters.emplace_back(std::make_unique<Jade>(glm::vec3(7.0f, 0.1f, 10.0f)));       // NE quadrant
-    characters.emplace_back(std::make_unique<Tabitha>(glm::vec3(-9.5f, 0.1f, -8.0f)));   // SW quadrant
-    characters.emplace_back(std::make_unique<Victor>(glm::vec3(8.5f, 0.1f, -9.5f)));     // SE quadrant
-    characters.emplace_back(std::make_unique<Sara>(glm::vec3(0.0f, 0.1f, 0.0f)));        // Center
-
-    // Create NPCs spread across the map
-    if (npcs.empty()) {
-        npcs.emplace_back("Mara", glm::vec3(-10.0f, 0.0f, 0.0f));      // West
-        npcs.emplace_back("Elena", glm::vec3(10.0f, 0.0f, 2.0f));      // East
-        npcs.emplace_back("Tom", glm::vec3(2.0f, 0.0f, -10.5f));       // South
-    }
-    EnsureNpcDialogueCooldowns();
-
-    // Create enemies spread across the map perimeter
-    if (enemies.empty()) {
-        enemies.emplace_back(glm::vec3(10.5f, 0.0f, 8.0f));   // NE corner
-        enemies.emplace_back(glm::vec3(-10.5f, 0.0f, -9.0f)); // SW corner
-    }
-}
 
 void World::InitializePlaceholderWorldRules() {
     if (storyLocations.empty()) {
@@ -1252,11 +1411,75 @@ bool World::TryNpcDialogue(Character& character, bool explicitInteraction) {
     std::ostringstream dialogue;
     dialogue << npc.GetName() << ": " << npcLine << " | " << character.GetName() << ": " << characterReply;
     lastNpcDialogue = dialogue.str();
-    npcDialogueDisplayTime = kNpcDialogueDisplayDuration;
+    npcDialogueDisplayTimer.Start(kNpcDialogueDisplayDuration);
+
+    if (explicitInteraction) {
+        TriggerDialogueNarrativeHooks(character, npc, npcLine, characterReply);
+    }
 
     std::cout << "[Talk] " << character.GetName() << " and " << lastNpcDialogue << "\n";
     npcTalkCooldowns[bestNpcIndex][characterIndex] = explicitInteraction ? 1.0f : 5.0f;
     return true;
+}
+
+bool World::HandleInteractionOutcome(Character& activeChar, bool didInteract, const char* noTargetLog) {
+    if (didInteract) {
+        eventBus.Publish(InteractionTriggeredEvent{activeChar.GetType(), "world_interaction"});
+
+        if (interactionSystem.HasLastQuestObjective()) {
+            SetActiveQuest(interactionSystem.GetLastInteractionQuestCharacter());
+
+            Quest* quest = questSystem->GetCharacterQuest(interactionSystem.GetLastInteractionQuestCharacter());
+            const int objectiveIndex = interactionSystem.GetLastInteractionQuestObjectiveIndex();
+            if (quest && objectiveIndex >= 0) {
+                const auto& objectives = quest->GetObjectives();
+                if (objectiveIndex < static_cast<int>(objectives.size())) {
+                    const QuestObjective& objective = objectives[objectiveIndex];
+                    const int subObjectiveIndex = interactionSystem.GetLastInteractionQuestSubObjectiveIndex();
+                    if (objective.type != ObjectiveType::Collect || (objectiveIndex == 1 && subObjectiveIndex == 1)) {
+                        if (puzzleManager.StartPuzzle(interactionSystem.GetLastInteractionQuestCharacter(), objectiveIndex, subObjectiveIndex, objective, quest->GetTitle())) {
+                            lastInteractionFeedback = "Puzzle opened: " + objective.description;
+                            lastInteractionFeedbackTimer.Start(2.5f);
+                            std::cout << "[Quest] Puzzle opened for objective " << objectiveIndex << "\n";
+                        }
+                    } else {
+                        bool allCollected = true;
+                        const std::string requiredCharacter = CharacterTypeToName(interactionSystem.GetLastInteractionQuestCharacter());
+                        bool foundCollectNode = false;
+                        for (const InteractionNode& node : interactionSystem.GetNodes()) {
+                            if (node.questObjectiveIndex != objectiveIndex || node.requiredCharacter != requiredCharacter) {
+                                continue;
+                            }
+                            if (node.questFlag.empty()) {
+                                continue;
+                            }
+                            foundCollectNode = true;
+                            if (!questSystem->HasStoryFlag(node.questFlag)) {
+                                allCollected = false;
+                                break;
+                            }
+                        }
+
+                        if (foundCollectNode && allCollected) {
+                            questSystem->AdvanceObjective(interactionSystem.GetLastInteractionQuestCharacter(), objectiveIndex);
+                            interactionSystem.MarkQuestStepSolved(interactionSystem.GetLastInteractionQuestCharacter(), objectiveIndex);
+                            lastInteractionFeedback = "Evidence complete. Go to the Evidence Board and press E.";
+                            lastInteractionFeedbackTimer.Start(3.5f);
+                            std::cout << "[Quest] Collect objective complete via evidence flags for objective " << objectiveIndex << "\n";
+                        }
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    if (TryNpcDialogue(activeChar, true)) {
+        return true;
+    }
+
+    std::cout << noTargetLog << "\n";
+    return false;
 }
 
 bool World::TryActiveCharacterInteraction() {
@@ -1270,63 +1493,7 @@ bool World::TryActiveCharacterInteraction() {
     }
 
     const bool didInteract = interactionSystem.TryInteract(*activeChar, *questSystem, hasActiveQuest, activeQuestCharacter);
-    if (didInteract) {
-        if (interactionSystem.HasLastQuestObjective()) {
-            SetActiveQuest(interactionSystem.GetLastInteractionQuestCharacter());
-
-            Quest* quest = questSystem->GetCharacterQuest(interactionSystem.GetLastInteractionQuestCharacter());
-            const int objectiveIndex = interactionSystem.GetLastInteractionQuestObjectiveIndex();
-            if (quest && objectiveIndex >= 0) {
-                const auto& objectives = quest->GetObjectives();
-                if (objectiveIndex < static_cast<int>(objectives.size())) {
-                    const QuestObjective& objective = objectives[objectiveIndex];
-                    const int subObjectiveIndex = interactionSystem.GetLastInteractionQuestSubObjectiveIndex();
-                    if (objective.type != ObjectiveType::Collect || (objectiveIndex == 1 && subObjectiveIndex == 1)) {
-                        if (puzzleManager.StartPuzzle(interactionSystem.GetLastInteractionQuestCharacter(), objectiveIndex, subObjectiveIndex, objective, quest->GetTitle())) {
-                            lastInteractionFeedback = "Puzzle opened: " + objective.description;
-                            lastInteractionFeedbackTime = 2.5f;
-                            std::cout << "[Quest] Puzzle opened for objective " << objectiveIndex << "\n";
-                        }
-                    } else if (objective.type == ObjectiveType::Collect) {
-                        bool allCollected = true;
-                        const std::string requiredCharacter = CharacterTypeToName(interactionSystem.GetLastInteractionQuestCharacter());
-                        bool foundCollectNode = false;
-                        for (const InteractionNode& node : interactionSystem.GetNodes()) {
-                            if (node.questObjectiveIndex != objectiveIndex || node.requiredCharacter != requiredCharacter) {
-                                continue;
-                            }
-                            if (node.questFlag.empty()) {
-                                continue;
-                            }
-                            foundCollectNode = true;
-                            if (!questSystem->HasStoryFlag(node.questFlag)) {
-                                allCollected = false;
-                                break;
-                            }
-                        }
-
-                        if (foundCollectNode && allCollected) {
-                            questSystem->AdvanceObjective(interactionSystem.GetLastInteractionQuestCharacter(), objectiveIndex);
-                            interactionSystem.MarkQuestStepSolved(interactionSystem.GetLastInteractionQuestCharacter(), objectiveIndex);
-                            lastInteractionFeedback = "Evidence complete. Go to the Evidence Board and press E.";
-                            lastInteractionFeedbackTime = 3.5f;
-                            std::cout << "[Quest] Collect objective complete via evidence flags for objective " << objectiveIndex << "\n";
-                        }
-                    }
-                }
-            }
-        }
-        return true;
-    }
-
-    if (TryNpcDialogue(*activeChar, true)) {
-        return true;
-    }
-
-    if (!didInteract) {
-        std::cout << "[Interaction] Nothing nearby to interact with.\n";
-    }
-    return didInteract;
+    return HandleInteractionOutcome(*activeChar, didInteract, "[Interaction] Nothing nearby to interact with.");
 }
 
 bool World::TryActiveCharacterPickup() {
@@ -1340,63 +1507,7 @@ bool World::TryActiveCharacterPickup() {
     }
 
     const bool didInteract = interactionSystem.TryPickup(*activeChar, *questSystem, hasActiveQuest, activeQuestCharacter);
-    if (didInteract) {
-        if (interactionSystem.HasLastQuestObjective()) {
-            SetActiveQuest(interactionSystem.GetLastInteractionQuestCharacter());
-
-            Quest* quest = questSystem->GetCharacterQuest(interactionSystem.GetLastInteractionQuestCharacter());
-            const int objectiveIndex = interactionSystem.GetLastInteractionQuestObjectiveIndex();
-            if (quest && objectiveIndex >= 0) {
-                const auto& objectives = quest->GetObjectives();
-                if (objectiveIndex < static_cast<int>(objectives.size())) {
-                    const QuestObjective& objective = objectives[objectiveIndex];
-                    const int subObjectiveIndex = interactionSystem.GetLastInteractionQuestSubObjectiveIndex();
-                    if (objective.type != ObjectiveType::Collect || (objectiveIndex == 1 && subObjectiveIndex == 1)) {
-                        if (puzzleManager.StartPuzzle(interactionSystem.GetLastInteractionQuestCharacter(), objectiveIndex, subObjectiveIndex, objective, quest->GetTitle())) {
-                            lastInteractionFeedback = "Puzzle opened: " + objective.description;
-                            lastInteractionFeedbackTime = 2.5f;
-                            std::cout << "[Quest] Puzzle opened for objective " << objectiveIndex << "\n";
-                        }
-                    } else if (objective.type == ObjectiveType::Collect) {
-                        bool allCollected = true;
-                        const std::string requiredCharacter = CharacterTypeToName(interactionSystem.GetLastInteractionQuestCharacter());
-                        bool foundCollectNode = false;
-                        for (const InteractionNode& node : interactionSystem.GetNodes()) {
-                            if (node.questObjectiveIndex != objectiveIndex || node.requiredCharacter != requiredCharacter) {
-                                continue;
-                            }
-                            if (node.questFlag.empty()) {
-                                continue;
-                            }
-                            foundCollectNode = true;
-                            if (!questSystem->HasStoryFlag(node.questFlag)) {
-                                allCollected = false;
-                                break;
-                            }
-                        }
-
-                        if (foundCollectNode && allCollected) {
-                            questSystem->AdvanceObjective(interactionSystem.GetLastInteractionQuestCharacter(), objectiveIndex);
-                            interactionSystem.MarkQuestStepSolved(interactionSystem.GetLastInteractionQuestCharacter(), objectiveIndex);
-                            lastInteractionFeedback = "Evidence complete. Go to the Evidence Board and press E.";
-                            lastInteractionFeedbackTime = 3.5f;
-                            std::cout << "[Quest] Collect objective complete via evidence flags for objective " << objectiveIndex << "\n";
-                        }
-                    }
-                }
-            }
-        }
-        return true;
-    }
-
-    if (TryNpcDialogue(*activeChar, true)) {
-        return true;
-    }
-
-    if (!didInteract) {
-        std::cout << "[Interaction] Nothing nearby to pick up." << std::endl;
-    }
-    return didInteract;
+    return HandleInteractionOutcome(*activeChar, didInteract, "[Interaction] Nothing nearby to pick up.");
 }
 
 std::string World::GetInteractionPrompt() const {
@@ -1404,10 +1515,7 @@ std::string World::GetInteractionPrompt() const {
         return "Puzzle Active";
     }
 
-    const Character* activeChar = nullptr;
-    if (activeCharacterIndex >= 0 && activeCharacterIndex < static_cast<int>(characters.size())) {
-        activeChar = characters[activeCharacterIndex].get();
-    }
+    const Character* activeChar = GetActiveCharacter();
 
     if (!activeChar || !questSystem) {
         return "";
@@ -1436,28 +1544,13 @@ std::string World::GetInteractionPrompt() const {
 }
 
 bool World::NearestInteractionIsPickup() const {
-    const Character* activeChar = nullptr;
-    if (activeCharacterIndex >= 0 && activeCharacterIndex < static_cast<int>(characters.size())) {
-        activeChar = characters[activeCharacterIndex].get();
-    }
+    const Character* activeChar = GetActiveCharacter();
 
     if (!activeChar || !questSystem) {
         return false;
     }
 
-    const auto& nodes = interactionSystem.GetNodes();
-    float bestDistance = 9999.0f;
-    const InteractionNode* bestNode = nullptr;
-    for (const InteractionNode& node : nodes) {
-        if (!node.active && node.type != InteractionType::Door) continue;
-        if (!node.requiredFlag.empty() && !questSystem->HasStoryFlag(node.requiredFlag)) continue;
-        if (!node.requiredCharacter.empty() && node.requiredCharacter != CharacterTypeToName(activeChar->GetType())) continue;
-        const float distance = HorizontalDistance(activeChar->transform.position, node.position);
-        if (distance <= node.radius && distance < bestDistance) {
-            bestDistance = distance;
-            bestNode = &node;
-        }
-    }
+    const InteractionNode* bestNode = FindNearestInteractionNode(interactionSystem.GetNodes(), *activeChar, *questSystem);
 
     return bestNode && bestNode->type == InteractionType::ItemPickup;
 }
@@ -1566,7 +1659,7 @@ void World::SetActiveQuest(CharacterType characterType) {
     if (quest && quest->IsComplete()) {
         hasActiveQuest = false;
         lastInteractionFeedback = "That quest is already complete.";
-        lastInteractionFeedbackTime = 2.0f;
+        lastInteractionFeedbackTimer.Start(2.0f);
         return;
     }
 
@@ -1576,7 +1669,7 @@ void World::SetActiveQuest(CharacterType characterType) {
     // Provide explicit instruction when a quest is chosen
     if (quest) {
         lastInteractionFeedback = std::string("Quest started: ") + quest->GetTitle() + ". Follow the helper and collect glyphs with F to progress.";
-        lastInteractionFeedbackTime = 4.0f;
+        lastInteractionFeedbackTimer.Start(4.0f);
     }
 }
 
@@ -1619,35 +1712,18 @@ std::string World::GetQuestHelperText() const {
     const QuestObjective& currentObjective = objectives[nextObjectiveIndex];
     const std::string objective = currentObjective.description;
 
-    const auto& nodes = interactionSystem.GetNodes();
-    const std::string requiredCharacter = CharacterTypeToName(questCharacter);
     const Character* playerChar = nullptr;
     if (activeCharacterIndex >= 0 && activeCharacterIndex < static_cast<int>(characters.size())) {
         playerChar = characters[activeCharacterIndex].get();
     }
 
-    const InteractionNode* activeNode = nullptr;
-    float bestDistance = std::numeric_limits<float>::max();
-    for (const InteractionNode& node : nodes) {
-        if (node.questObjectiveIndex != nextObjectiveIndex || node.requiredCharacter != requiredCharacter) {
-            continue;
-        }
-        if (!node.active && node.type != InteractionType::Door) {
-            continue;
-        }
-        if (!node.requiredFlag.empty() && !questSystem->HasStoryFlag(node.requiredFlag)) {
-            continue;
-        }
-        if (currentObjective.type == ObjectiveType::Collect && !node.questFlag.empty() && questSystem->HasStoryFlag(node.questFlag)) {
-            continue;
-        }
-
-        const float distance = playerChar ? HorizontalDistance(playerChar->transform.position, node.position) : 0.0f;
-        if (!activeNode || distance < bestDistance) {
-            activeNode = &node;
-            bestDistance = distance;
-        }
-    }
+    const InteractionNode* activeNode = FindQuestInteractionNode(
+        interactionSystem.GetNodes(),
+        playerChar,
+        *questSystem,
+        questCharacter,
+        nextObjectiveIndex,
+        currentObjective);
 
     if (activeNode) {
         const float distance = playerChar ? HorizontalDistance(playerChar->transform.position, activeNode->position) : 0.0f;
@@ -1690,31 +1766,14 @@ std::string World::GetQuestWaypointText() const {
 
     const QuestObjective& currentObjective = objectives[nextObjectiveIndex];
 
-    const auto& nodes = interactionSystem.GetNodes();
-    const std::string requiredCharacter = CharacterTypeToName(questCharacter);
-    const InteractionNode* activeNode = nullptr;
-    float bestDistance = std::numeric_limits<float>::max();
-    for (const InteractionNode& node : nodes) {
-        if (node.questObjectiveIndex != nextObjectiveIndex || node.requiredCharacter != requiredCharacter) {
-            continue;
-        }
-        if (!node.active && node.type != InteractionType::Door) {
-            continue;
-        }
-        if (!node.requiredFlag.empty() && !questSystem->HasStoryFlag(node.requiredFlag)) {
-            continue;
-        }
-        if (currentObjective.type == ObjectiveType::Collect && !node.questFlag.empty() && questSystem->HasStoryFlag(node.questFlag)) {
-            continue;
-        }
-
-        const Character* playerChar = characters[activeCharacterIndex].get();
-        const float distance = HorizontalDistance(playerChar->transform.position, node.position);
-        if (!activeNode || distance < bestDistance) {
-            activeNode = &node;
-            bestDistance = distance;
-        }
-    }
+    const Character* playerChar = characters[activeCharacterIndex].get();
+    const InteractionNode* activeNode = FindQuestInteractionNode(
+        interactionSystem.GetNodes(),
+        playerChar,
+        *questSystem,
+        questCharacter,
+        nextObjectiveIndex,
+        currentObjective);
 
     if (activeNode && !characters.empty()) {
         const Character* playerChar = characters[activeCharacterIndex].get();
@@ -1746,7 +1805,7 @@ void World::AbandonActiveQuest() {
         hasActiveQuest = false;
         puzzleManager.CancelActivePuzzle();
         lastInteractionFeedback = "Quest abandoned.";
-        lastInteractionFeedbackTime = 2.0f;
+        lastInteractionFeedbackTimer.Start(2.0f);
         std::cout << "[Quest] Quest abandoned.\n";
     }
 }
@@ -1755,39 +1814,58 @@ bool World::IsPuzzleActive() const {
     return puzzleManager.IsActive();
 }
 
-void World::UpdatePuzzle(float dt, const InputManager& input) {
+void World::UpdatePuzzle(float dt, const InputContext& input) {
     puzzleManager.Update(dt, input);
+    if (puzzleManager.ConsumeSpawnRestartRequest()) {
+        RestartFromSpawn();
+        spawnRestartRequested = true;
+    }
 }
 
 void World::RenderPuzzleOverlay(TextRenderer& textRenderer, int screenWidth, int screenHeight) const {
     puzzleManager.Render(textRenderer, screenWidth, screenHeight);
 }
 
-void World::SwitchCharacter(int index) {
-    if (index < 0 || index >= static_cast<int>(characters.size())) {
-        std::cerr << "[World] Invalid character index: " << index << "\n";
-        return;
+void World::RenderNarrativeOverlays(TextRenderer& textRenderer, int screenWidth, int screenHeight) const {
+    const AtmosphereManager& atmosphere = AtmosphereManager::Instance();
+    const float tension = atmosphere.GetGlobalTension();
+    const float corruption = atmosphere.GetCorruptionLevel();
+    const float symbolProgress = SymbolSystem::Instance().GetDecodingProgress();
+    const float tunnelProgress = TunnelMappingSystem::Instance().GetMappingProgress();
+    const float trauma = MemoryReplaySystem::Instance().GetTraumaLevel();
+    const float mercy = MoralCorruptionSystem::Instance().GetMercyScore();
+    const float vengeance = MoralCorruptionSystem::Instance().GetVengeanceScore();
+
+    std::ostringstream line1;
+    line1 << "TENSION " << static_cast<int>(tension * 100.0f) << "%  CORRUPTION " << static_cast<int>(corruption * 100.0f) << "%";
+    std::ostringstream line2;
+    line2 << "DECODING " << static_cast<int>(symbolProgress * 100.0f) << "%  MAPPING " << static_cast<int>(tunnelProgress * 100.0f) << "%";
+    std::ostringstream line3;
+    line3 << "TRAUMA " << static_cast<int>(trauma * 100.0f) << "%  MERCY " << static_cast<int>(mercy * 100.0f) << "%  REVENGE " << static_cast<int>(vengeance * 100.0f) << "%";
+
+    textRenderer.RenderText(line1.str(), 24.0f, 34.0f, 0.42f, glm::vec3(0.80f, 0.92f, 1.0f), screenWidth, screenHeight);
+    textRenderer.RenderText(line2.str(), 24.0f, 56.0f, 0.42f, glm::vec3(0.86f, 0.78f, 1.0f), screenWidth, screenHeight);
+    textRenderer.RenderText(line3.str(), 24.0f, 78.0f, 0.38f, glm::vec3(1.0f, 0.72f, 0.58f), screenWidth, screenHeight);
+
+    AtmosphereManager::Instance().Render(textRenderer, screenWidth, screenHeight);
+    MemoryReplaySystem::Instance().Render();
+    SymbolSystem::Instance().Render();
+    TunnelMappingSystem::Instance().Render();
+}
+
+void World::RestartFromSpawn() {
+    if (hasInitialSpawnState) {
+        RestoreSaveState(initialSpawnState);
     }
+    hasActiveQuest = false;
+    lastInteractionFeedback = "You wake back at spawn.";
+    lastInteractionFeedbackTimer.Start(2.5f);
+}
 
-    if (index == activeCharacterIndex) {
-        return;  // Already active
-    }
-
-    // Call OnSwitchedFrom on previous character
-    characters[activeCharacterIndex]->OnSwitchedFrom();
-    std::cout << "[World] Switched from " << characters[activeCharacterIndex]->GetName() << "\n";
-
-    // Switch to new character
-    activeCharacterIndex = index;
-    characters[activeCharacterIndex]->OnSwitchedTo();
-    std::cout << "[World] Switched to " << characters[activeCharacterIndex]->GetName() << "\n";
-
-    hasPreviousActivePosition = false;
-    previousActivePosition = characters[activeCharacterIndex]->transform.position;
-    
-    // TODO: Move camera to new character position
-    // TODO: Update HUD for new character stats
-    // TODO: Apply post-processing effects (sepia for Victor memory mode, etc)
+bool World::ConsumeSpawnRestartRequest() {
+    const bool requested = spawnRestartRequested;
+    spawnRestartRequested = false;
+    return requested;
 }
 
 void World::UpdateTimeOfDay(float dt) {
@@ -1812,7 +1890,7 @@ void World::UpdateOffscreenCharacters(float dt) {
         const glm::vec3 goal = nightTime ? GetNearestShelterCenter(character.transform.position)
                                          : GetCharacterStoryGoal(character.GetType());
         const bool moving = MoveCharacterToward(character, goal, dt);
-        TryAdvanceOffscreenStory(character, i, dt, !moving && !nightTime);
+        (void)moving;
         character.Update(dt);
     }
 }
@@ -1893,6 +1971,15 @@ bool World::MoveCharacterToward(Character& character, const glm::vec3& target, f
 }
 
 void World::TryAdvanceOffscreenStory(Character& character, std::size_t index, float dt, bool atGoal) {
+    (void)character;
+    (void)index;
+    (void)dt;
+    (void)atGoal;
+    // Quest progress should only come from the player's active interactions and puzzles.
+    // Offscreen simulation may move characters around the flat test arena, but it must
+    // not silently complete objectives for characters the player has not used yet.
+    return;
+
     if (!questSystem || index >= offscreenStoryTimers.size()) {
         return;
     }

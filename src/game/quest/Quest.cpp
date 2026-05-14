@@ -250,7 +250,7 @@ void Quest::InitializeObjectives() {
             {{SubObjective{"Find the glyph", false, 1, 0}}, {SubObjective{"Photograph it", false, 1, 0}}},
             {},
             {
-                "Hidden in town records - look for old maps",
+                "Hidden in town records - each map fragment hints at one symbol's meaning",
                 "Represents 'Power' - interlocking triangles",
                 "Symbol connects to town founder's diary"
             }

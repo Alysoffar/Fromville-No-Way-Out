@@ -3,7 +3,7 @@
 #include <utility>
 
 Entity::Entity(std::string entityName)
-    : name(std::move(entityName)) {
+    : BaseEntity(std::move(entityName)) {
 }
 
 glm::vec3 Entity::GetDebugColor() const {
@@ -48,10 +48,6 @@ float Entity::GetCoyoteTime() const {
 
 float Entity::GetJumpCutMultiplier() const {
     return 0.55f;
-}
-
-const std::string& Entity::GetName() const {
-    return name;
 }
 
 void Entity::Move(float dirX, float dirZ, float dt) {

@@ -16,6 +16,11 @@ bool Engine::Initialize(int width, int height, const std::string& title) {
     input->SetWindow(window->GetHandle());
     input->SetCursorLocked(true);
 
+    gameplayInput.Attach(input.get());
+    gameplayInput.ConfigureGameplayDefaults();
+    uiInput.Attach(input.get());
+    uiInput.ConfigureUiDefaults();
+
     glEnable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
     glClearColor(0.08f, 0.09f, 0.12f, 1.0f);
@@ -76,4 +81,20 @@ InputManager& Engine::GetInput() {
 
 const InputManager& Engine::GetInput() const {
     return *input;
+}
+
+InputContext& Engine::GetGameplayInput() {
+    return gameplayInput;
+}
+
+const InputContext& Engine::GetGameplayInput() const {
+    return gameplayInput;
+}
+
+InputContext& Engine::GetUiInput() {
+    return uiInput;
+}
+
+const InputContext& Engine::GetUiInput() const {
+    return uiInput;
 }
