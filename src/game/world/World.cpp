@@ -1,18 +1,22 @@
 #include "game/world/World.h"
 
 #include <cmath>
+#include <cctype>
 #include <iomanip>
+#include <filesystem>
 #include <fstream>
 #include <functional>
 #include <iostream>
 #include <limits>
 #include <memory>
 #include <sstream>
+#include <unordered_map>
 #include <vector>
 
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "engine/renderer/Camera.h"
+#include "engine/audio/AudioManager.h"
 #include "engine/renderer/Mesh.h"
 #include "engine/renderer/Shader.h"
 #include "engine/renderer/TextRenderer.h"
@@ -50,6 +54,186 @@ constexpr float kEnemySightRange = 18.0f;
 constexpr float kEnemyHearingRange = 26.0f;
 constexpr float kEnemyLightRange = 22.0f;
 constexpr float kArenaHalfExtent = 12.0f;
+
+struct VoiceCueLibrary {
+    bool initialized = false;
+    std::unordered_map<std::string, std::string> monster;
+    std::unordered_map<std::string, std::string> npcFemale;
+    std::unordered_map<std::string, std::string> npcMale;
+    std::unordered_map<std::string, std::string> responses;
+    std::unordered_map<std::string, std::string> panicFemale;
+    std::unordered_map<std::string, std::string> panicMale;
+};
+
+VoiceCueLibrary& GetVoiceCueLibrary() {
+    static VoiceCueLibrary library;
+    return library;
+}
+
+std::string BuildVoiceSlug(const std::string& line) {
+    std::string cleaned;
+    cleaned.reserve(line.size());
+
+    bool prevUnderscore = false;
+    for (char c : line) {
+        const unsigned char uc = static_cast<unsigned char>(c);
+        if (std::isalnum(uc)) {
+            cleaned.push_back(static_cast<char>(std::tolower(uc)));
+            prevUnderscore = false;
+        } else if (!prevUnderscore) {
+            cleaned.push_back('_');
+            prevUnderscore = true;
+        }
+    }
+
+    while (!cleaned.empty() && cleaned.front() == '_') {
+        cleaned.erase(cleaned.begin());
+    }
+    while (!cleaned.empty() && cleaned.back() == '_') {
+        cleaned.pop_back();
+    }
+
+    if (cleaned.size() > 40) {
+        cleaned = cleaned.substr(0, 40);
+        while (!cleaned.empty() && cleaned.back() == '_') {
+            cleaned.pop_back();
+        }
+    }
+
+    if (cleaned.empty()) {
+        cleaned = "line";
+    }
+    return cleaned;
+}
+
+std::string NormalizeVoiceLine(std::string line) {
+    const std::string monsterPrefix = "[MONSTER]";
+    if (line.rfind(monsterPrefix, 0) == 0) {
+        line = line.substr(monsterPrefix.size());
+        while (!line.empty() && std::isspace(static_cast<unsigned char>(line.front()))) {
+            line.erase(line.begin());
+        }
+    }
+    return line;
+}
+
+std::string StripSpeakerPrefix(const std::string& line) {
+    const std::size_t colon = line.find(':');
+    if (colon == std::string::npos || colon + 1 >= line.size()) {
+        return line;
+    }
+
+    std::string stripped = line.substr(colon + 1);
+    while (!stripped.empty() && std::isspace(static_cast<unsigned char>(stripped.front()))) {
+        stripped.erase(stripped.begin());
+    }
+    return stripped;
+}
+
+bool IsFemaleSpeaker(const std::string& name) {
+    return name == "Elena" || name == "Mara" || name == "Tabitha" || name == "Sara";
+}
+
+std::string GetSpeakerName(const std::string& line) {
+    const std::size_t toPos = line.find(" to ");
+    if (toPos != std::string::npos) {
+        return line.substr(0, toPos);
+    }
+
+    const std::size_t colonPos = line.find(':');
+    if (colonPos != std::string::npos) {
+        return line.substr(0, colonPos);
+    }
+
+    return "";
+}
+
+void RegisterVoiceFolder(
+    AudioManager& audio,
+    const std::filesystem::path& folder,
+    const std::string& cuePrefix,
+    std::unordered_map<std::string, std::string>& outMap) {
+    if (!std::filesystem::exists(folder)) {
+        return;
+    }
+
+    for (const auto& entry : std::filesystem::directory_iterator(folder)) {
+        if (!entry.is_regular_file() || entry.path().extension() != ".wav") {
+            continue;
+        }
+
+        const std::string stem = entry.path().stem().string();
+        const std::size_t underscore = stem.find('_');
+        if (underscore == std::string::npos || underscore + 1 >= stem.size()) {
+            continue;
+        }
+
+        const std::string slug = stem.substr(underscore + 1);
+        const std::string cueName = cuePrefix + "/" + entry.path().filename().string();
+        if (audio.LoadSound(cueName, entry.path().string())) {
+            outMap[slug] = cueName;
+        }
+    }
+}
+
+void InitializeVoiceCueLibrary(AudioManager& audio) {
+    VoiceCueLibrary& library = GetVoiceCueLibrary();
+    if (library.initialized) {
+        return;
+    }
+
+    RegisterVoiceFolder(audio, "assets/audio/voice/monster", "voice/monster", library.monster);
+    RegisterVoiceFolder(audio, "assets/audio/voice/npc_female", "voice/npc_female", library.npcFemale);
+    RegisterVoiceFolder(audio, "assets/audio/voice/npc_male", "voice/npc_male", library.npcMale);
+    RegisterVoiceFolder(audio, "assets/audio/voice/responses", "voice/responses", library.responses);
+    RegisterVoiceFolder(audio, "assets/audio/voice/panic_female", "voice/panic_female", library.panicFemale);
+    RegisterVoiceFolder(audio, "assets/audio/voice/panic_male", "voice/panic_male", library.panicMale);
+
+    library.initialized = true;
+}
+
+bool PlayVoiceLine(AudioManager* audio, const std::string& group, const std::string& rawLine, float gain = 0.85f) {
+    if (!audio || rawLine.empty()) {
+        return false;
+    }
+
+    VoiceCueLibrary& library = GetVoiceCueLibrary();
+    if (!library.initialized) {
+        InitializeVoiceCueLibrary(*audio);
+    }
+
+    std::string line = NormalizeVoiceLine(rawLine);
+    if (group == "npc_female" || group == "npc_male") {
+        line = StripSpeakerPrefix(line);
+    }
+
+    const std::string slug = BuildVoiceSlug(line);
+    const std::unordered_map<std::string, std::string>* table = nullptr;
+    if (group == "monster") {
+        table = &library.monster;
+    } else if (group == "npc_female") {
+        table = &library.npcFemale;
+    } else if (group == "npc_male") {
+        table = &library.npcMale;
+    } else if (group == "responses") {
+        table = &library.responses;
+    } else if (group == "panic_female") {
+        table = &library.panicFemale;
+    } else if (group == "panic_male") {
+        table = &library.panicMale;
+    }
+
+    if (!table) {
+        return false;
+    }
+
+    const auto found = table->find(slug);
+    if (found == table->end()) {
+        return false;
+    }
+
+    return audio->PlaySound(found->second, gain);
+}
 
 float HorizontalDistance(const glm::vec3& a, const glm::vec3& b) {
     glm::vec3 delta = a - b;
@@ -657,8 +841,41 @@ void World::Initialize() {
     questSystem = std::make_unique<QuestSystem>(&worldClock);
     interactionSystem.Initialize();
     puzzleManager.Initialize();
-    puzzleManager.SetSoundHook([](const std::string& cue) {
-        std::cout << "[AudioCue] " << cue << "\n";
+    audioManager = std::make_unique<AudioManager>();
+    if (audioManager->Initialize()) {
+        const std::array<std::pair<const char*, const char*>, 10> cueFiles = {{
+            {"puzzle_tick", "assets/audio/sfx/puzzle_tick.wav"},
+            {"puzzle_complete", "assets/audio/sfx/puzzle_complete.wav"},
+            {"puzzle_fail", "assets/audio/sfx/puzzle_fail.wav"},
+            {"player_hurt", "assets/audio/sfx/characters/player_hurt.wav"},
+            {"footstep_wood", "assets/audio/sfx/footsteps/footstep_wood.wav"},
+            {"footstep_dirt", "assets/audio/sfx/footsteps/footstep_dirt.wav"},
+            {"footstep_stone", "assets/audio/sfx/footsteps/footstep_stone.wav"},
+            {"ambient_tension_low", "assets/audio/music/ambient_tension_low.wav"},
+            {"ambient_tension_high", "assets/audio/music/ambient_tension_high.wav"},
+            {"cinematic_event_sting", "assets/audio/music/cinematic_event_sting.wav"}
+        }};
+
+        for (const auto& [cueName, relativePath] : cueFiles) {
+            if (std::filesystem::exists(relativePath)) {
+                audioManager->LoadSound(cueName, relativePath);
+            } else {
+                std::cout << "[Audio] Missing cue file: " << relativePath << "\n";
+            }
+        }
+
+        InitializeVoiceCueLibrary(*audioManager);
+        audioManager->PlaySound("ambient_tension_low", 0.30f);
+    }
+
+    puzzleManager.SetSoundHook([this](const std::string& cue) {
+        bool played = false;
+        if (audioManager) {
+            played = audioManager->PlaySound(cue);
+        }
+        if (!played) {
+            std::cout << "[AudioCue] " << cue << "\n";
+        }
     });
     puzzleManager.SetConsequenceHook([this](const std::string& consequence) {
         ApplyPuzzleConsequence(consequence);
@@ -950,11 +1167,15 @@ void World::Update(const Camera& camera, float dt) {
                     if (static_cast<int>(charIdx) == activeCharacterIndex) {
                         lastDamageAmount = damageAmount;
                         lastDamageDisplayTimer.Start(kDamageDisplayDuration);
+                        if (audioManager) {
+                            audioManager->PlaySound("player_hurt", 0.90f);
+                        }
                         
                         // Trigger monster scream
                         const float distance = HorizontalDistance(character.transform.position, enemy.transform.position);
                         lastMonsterScream = GetMonsterScreamLine(static_cast<int>(enemies.size()), distance);
                         monsterScreamDisplayTimer.Start(kScreamDisplayDuration);
+                        PlayVoiceLine(audioManager.get(), "monster", lastMonsterScream, 0.95f);
                     }
                     
                     std::cout << "[Damage] " << character.GetName() << " takes " << damageAmount << " damage! HP: " << character.GetHealth() << "\n";
@@ -1000,6 +1221,9 @@ void World::Update(const Camera& camera, float dt) {
                 npcDialogueDisplayTimer.Start(kNpcDialogueDisplayDuration);
                 
                 std::cout << "[Talk] " << activeChar->GetName() << " and " << lastNpcDialogue << "\n";
+                const std::string npcVoiceGroup = IsFemaleSpeaker(npc.GetName()) ? "npc_female" : "npc_male";
+                PlayVoiceLine(audioManager.get(), npcVoiceGroup, npcLine, 0.84f);
+                PlayVoiceLine(audioManager.get(), "responses", activeChar->GetName() + ": " + characterReply, 0.80f);
                 npcTalkCooldowns[npcIndex][activeIndex] = 5.0f;
             }
 
@@ -1011,6 +1235,8 @@ void World::Update(const Camera& camera, float dt) {
                 npcDialogueDisplayTimer.Start(kNpcDialogueDisplayDuration);
                 
                 std::cout << "[Panic] " << lastNpcDialogue << "\n";
+                const std::string panicGroup = IsFemaleSpeaker(npc.GetName()) ? "panic_female" : "panic_male";
+                PlayVoiceLine(audioManager.get(), panicGroup, panicLine, 0.95f);
                 npcPanicCooldowns[npcIndex] = 4.5f;
             }
         }
@@ -1039,6 +1265,8 @@ void World::Update(const Camera& camera, float dt) {
                 npcDialogueDisplayTimer.Start(kNpcDialogueDisplayDuration);
                 std::cout << lastMonsterScream << "\n";
                 std::cout << "[Monster Response] " << lastNpcDialogue << "\n";
+                PlayVoiceLine(audioManager.get(), "monster", lastMonsterScream, 0.95f);
+                PlayVoiceLine(audioManager.get(), "responses", lastNpcDialogue, 0.88f);
                 characterMonsterInteractionCooldowns[activeIndex] = 7.5f;
                 break;
             }
@@ -1047,6 +1275,8 @@ void World::Update(const Camera& camera, float dt) {
                 lastNpcDialogue = activeChar->GetName() + ": " + GetPanicLine(*activeChar);
                 npcDialogueDisplayTimer.Start(kNpcDialogueDisplayDuration);
                 std::cout << "[Panic] " << lastNpcDialogue << "\n";
+                const std::string activePanicGroup = IsFemaleSpeaker(activeChar->GetName()) ? "panic_female" : "panic_male";
+                PlayVoiceLine(audioManager.get(), activePanicGroup, GetPanicLine(*activeChar), 0.95f);
                 characterReactionCooldowns[activeCharacterIndex] = 4.0f;
                 break;
             }
@@ -1065,6 +1295,9 @@ void World::Update(const Camera& camera, float dt) {
                 npcNeighborTalkCooldowns[npcIndex] = 9.0f;
                 npcNeighborTalkCooldowns[otherNpcIndex] = 9.0f;
                 std::cout << "[NPC Chat] " << lastNpcDialogue << "\n";
+                const std::string speaker = GetSpeakerName(lastNpcDialogue);
+                const std::string neighborVoiceGroup = IsFemaleSpeaker(speaker) ? "npc_female" : "npc_male";
+                PlayVoiceLine(audioManager.get(), neighborVoiceGroup, lastNpcDialogue, 0.80f);
                 break;
             }
         }

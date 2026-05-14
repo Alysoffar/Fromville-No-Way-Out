@@ -1,0 +1,851 @@
+{
+  "source": "D:\\college work\\term6\\com_graphics\\Fromville\\src\\game\\world\\World.cpp",
+  "output_root": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice",
+  "entries": [
+    {
+      "group": "monster_taunts",
+      "text": "We can hear your heart.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\monster\\01_we_can_hear_your_heart.wav"
+    },
+    {
+      "group": "monster_taunts",
+      "text": "Come outside. We only want to talk.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\monster\\02_come_outside_we_only_want_to_talk.wav"
+    },
+    {
+      "group": "monster_taunts",
+      "text": "That door will not save you forever.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\monster\\03_that_door_will_not_save_you_forever.wav"
+    },
+    {
+      "group": "monster_taunts",
+      "text": "You look tired.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\monster\\04_you_look_tired.wav"
+    },
+    {
+      "group": "monster_taunts",
+      "text": "We know where the others are.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\monster\\05_we_know_where_the_others_are.wav"
+    },
+    {
+      "group": "monster_taunts",
+      "text": "The town told us your name.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\monster\\06_the_town_told_us_your_name.wav"
+    },
+    {
+      "group": "monster_taunts",
+      "text": "Smile for us.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\monster\\07_smile_for_us.wav"
+    },
+    {
+      "group": "monster_taunts",
+      "text": "You cannot keep everyone safe.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\monster\\08_you_cannot_keep_everyone_safe.wav"
+    },
+    {
+      "group": "monster_taunts",
+      "text": "The dark is already inside.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\monster\\09_the_dark_is_already_inside.wav"
+    },
+    {
+      "group": "monster_taunts",
+      "text": "We remember you.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\monster\\10_we_remember_you.wav"
+    },
+    {
+      "group": "monster_taunts",
+      "text": "Open the window.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\monster\\11_open_the_window.wav"
+    },
+    {
+      "group": "monster_taunts",
+      "text": "Someone is missing.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\monster\\12_someone_is_missing.wav"
+    },
+    {
+      "group": "monster_taunts",
+      "text": "Your friends are calling from the woods.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\monster\\13_your_friends_are_calling_from_the_woods.wav"
+    },
+    {
+      "group": "monster_taunts",
+      "text": "We are closer than you think.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\monster\\14_we_are_closer_than_you_think.wav"
+    },
+    {
+      "group": "monster_screams",
+      "text": "RAAAAAHHHHH!!!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\monster\\01_raaaaahhhhh.wav"
+    },
+    {
+      "group": "monster_screams",
+      "text": "SCREEEEEECH!!!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\monster\\02_screeeeeech.wav"
+    },
+    {
+      "group": "monster_screams",
+      "text": "HOWWWWWW!!!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\monster\\03_howwwwww.wav"
+    },
+    {
+      "group": "monster_screams",
+      "text": "ROOOOOARRR!!!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\monster\\04_roooooarrr.wav"
+    },
+    {
+      "group": "monster_screams",
+      "text": "GRRRRRAAAAHHH!!!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\monster\\05_grrrrraaaahhh.wav"
+    },
+    {
+      "group": "monster_screams",
+      "text": "SHRIIIIEEEEK!!!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\monster\\06_shriiiieeeek.wav"
+    },
+    {
+      "group": "monster_screams",
+      "text": "CRAAAAAASH!!!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\monster\\07_craaaaaash.wav"
+    },
+    {
+      "group": "monster_screams",
+      "text": "WAAAAARGH!!!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\monster\\08_waaaaargh.wav"
+    },
+    {
+      "group": "monster_screams",
+      "text": "KNOCK KNOCK.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\monster\\09_knock_knock.wav"
+    },
+    {
+      "group": "monster_screams",
+      "text": "LET US IN.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\monster\\10_let_us_in.wav"
+    },
+    {
+      "group": "monster_screams",
+      "text": "WE SEE YOU.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\monster\\11_we_see_you.wav"
+    },
+    {
+      "group": "monster_screams",
+      "text": "HIDE AND SEEK.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\monster\\12_hide_and_seek.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "This place is too quiet.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\01_this_place_is_too_quiet.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "Stick close and keep moving.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\02_stick_close_and_keep_moving.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "I heard a scream. Or maybe that was just the wind.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\03_i_heard_a_scream_or_maybe_that_was_just.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "If you find anything strange, tell the others.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\04_if_you_find_anything_strange_tell_the_ot.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "Stay alert. Something doesn't feel right here.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\05_stay_alert_something_doesn_t_feel_right.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "Did you hear that sound?",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\06_did_you_hear_that_sound.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "We should stick together.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\07_we_should_stick_together.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "The air feels cold... wrong.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\08_the_air_feels_cold_wrong.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "I'm not sure which way is safe anymore.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\09_i_m_not_sure_which_way_is_safe_anymore.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "Keep your eyes open.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\10_keep_your_eyes_open.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "This silence is worse than noise.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\11_this_silence_is_worse_than_noise.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "I don't like this place.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\12_i_don_t_like_this_place.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "Maybe we should find shelter.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\13_maybe_we_should_find_shelter.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "Do you feel that? Like we're being watched?",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\14_do_you_feel_that_like_we_re_being_watche.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "Whatever's out here... it's not natural.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\15_whatever_s_out_here_it_s_not_natural.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "Let's not stay in one place too long.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\16_let_s_not_stay_in_one_place_too_long.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "The lights flickered twice near the road.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\17_the_lights_flickered_twice_near_the_road.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "Someone left footprints by the trees again.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\18_someone_left_footprints_by_the_trees_aga.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "I keep hearing my name from empty rooms.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\19_i_keep_hearing_my_name_from_empty_rooms.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "The radio only gives static after sunset.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\20_the_radio_only_gives_static_after_sunset.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "If the houses go dark, run for a talisman.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\21_if_the_houses_go_dark_run_for_a_talisman.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "There was a knock from inside a sealed room.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\22_there_was_a_knock_from_inside_a_sealed_r.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "Nobody goes near the edge of town alone.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\23_nobody_goes_near_the_edge_of_town_alone.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "The monsters smile like they know us.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\24_the_monsters_smile_like_they_know_us.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "I saw something watching from the second floor.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\25_i_saw_something_watching_from_the_second.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "The diner is safer if we move before dark.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\26_the_diner_is_safer_if_we_move_before_dar.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "Somebody needs to check the windows.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\27_somebody_needs_to_check_the_windows.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "The tunnels are whispering again.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\28_the_tunnels_are_whispering_again.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "The town feels like it moved overnight.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\29_the_town_feels_like_it_moved_overnight.wav"
+    },
+    {
+      "group": "npc_female_general",
+      "text": "If you hear music, do not follow it.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\30_if_you_hear_music_do_not_follow_it.wav"
+    },
+    {
+      "group": "npc_female_neighbor",
+      "text": "Did you lock the back door?",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\01_did_you_lock_the_back_door.wav"
+    },
+    {
+      "group": "npc_female_neighbor",
+      "text": "The lamps near the road went out again.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\02_the_lamps_near_the_road_went_out_again.wav"
+    },
+    {
+      "group": "npc_female_neighbor",
+      "text": "I counted three of them before sunrise.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\03_i_counted_three_of_them_before_sunrise.wav"
+    },
+    {
+      "group": "npc_female_neighbor",
+      "text": "Keep everyone away from the tree line.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\04_keep_everyone_away_from_the_tree_line.wav"
+    },
+    {
+      "group": "npc_female_neighbor",
+      "text": "The diner still has supplies if we hurry.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\05_the_diner_still_has_supplies_if_we_hurry.wav"
+    },
+    {
+      "group": "npc_female_neighbor",
+      "text": "I heard knocking from the empty house.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\06_i_heard_knocking_from_the_empty_house.wav"
+    },
+    {
+      "group": "npc_female_neighbor",
+      "text": "Nobody sleeps near a window tonight.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\07_nobody_sleeps_near_a_window_tonight.wav"
+    },
+    {
+      "group": "npc_female_neighbor",
+      "text": "If you see a child outside, call Boyd first.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\08_if_you_see_a_child_outside_call_boyd_fir.wav"
+    },
+    {
+      "group": "npc_female_neighbor",
+      "text": "The church bell rang but nobody was there.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\09_the_church_bell_rang_but_nobody_was_ther.wav"
+    },
+    {
+      "group": "npc_female_neighbor",
+      "text": "Something copied my voice yesterday.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\10_something_copied_my_voice_yesterday.wav"
+    },
+    {
+      "group": "npc_female_neighbor",
+      "text": "We move together when it gets dark.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\11_we_move_together_when_it_gets_dark.wav"
+    },
+    {
+      "group": "npc_female_neighbor",
+      "text": "Tom said the road signs changed again.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_female\\12_tom_said_the_road_signs_changed_again.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "This place is too quiet.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\01_this_place_is_too_quiet.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "Stick close and keep moving.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\02_stick_close_and_keep_moving.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "I heard a scream. Or maybe that was just the wind.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\03_i_heard_a_scream_or_maybe_that_was_just.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "If you find anything strange, tell the others.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\04_if_you_find_anything_strange_tell_the_ot.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "Stay alert. Something doesn't feel right here.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\05_stay_alert_something_doesn_t_feel_right.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "Did you hear that sound?",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\06_did_you_hear_that_sound.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "We should stick together.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\07_we_should_stick_together.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "The air feels cold... wrong.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\08_the_air_feels_cold_wrong.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "I'm not sure which way is safe anymore.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\09_i_m_not_sure_which_way_is_safe_anymore.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "Keep your eyes open.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\10_keep_your_eyes_open.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "This silence is worse than noise.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\11_this_silence_is_worse_than_noise.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "I don't like this place.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\12_i_don_t_like_this_place.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "Maybe we should find shelter.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\13_maybe_we_should_find_shelter.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "Do you feel that? Like we're being watched?",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\14_do_you_feel_that_like_we_re_being_watche.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "Whatever's out here... it's not natural.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\15_whatever_s_out_here_it_s_not_natural.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "Let's not stay in one place too long.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\16_let_s_not_stay_in_one_place_too_long.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "The lights flickered twice near the road.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\17_the_lights_flickered_twice_near_the_road.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "Someone left footprints by the trees again.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\18_someone_left_footprints_by_the_trees_aga.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "I keep hearing my name from empty rooms.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\19_i_keep_hearing_my_name_from_empty_rooms.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "The radio only gives static after sunset.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\20_the_radio_only_gives_static_after_sunset.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "If the houses go dark, run for a talisman.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\21_if_the_houses_go_dark_run_for_a_talisman.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "There was a knock from inside a sealed room.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\22_there_was_a_knock_from_inside_a_sealed_r.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "Nobody goes near the edge of town alone.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\23_nobody_goes_near_the_edge_of_town_alone.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "The monsters smile like they know us.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\24_the_monsters_smile_like_they_know_us.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "I saw something watching from the second floor.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\25_i_saw_something_watching_from_the_second.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "The diner is safer if we move before dark.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\26_the_diner_is_safer_if_we_move_before_dar.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "Somebody needs to check the windows.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\27_somebody_needs_to_check_the_windows.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "The tunnels are whispering again.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\28_the_tunnels_are_whispering_again.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "The town feels like it moved overnight.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\29_the_town_feels_like_it_moved_overnight.wav"
+    },
+    {
+      "group": "npc_male_general",
+      "text": "If you hear music, do not follow it.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\30_if_you_hear_music_do_not_follow_it.wav"
+    },
+    {
+      "group": "npc_male_neighbor",
+      "text": "Did you lock the back door?",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\01_did_you_lock_the_back_door.wav"
+    },
+    {
+      "group": "npc_male_neighbor",
+      "text": "The lamps near the road went out again.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\02_the_lamps_near_the_road_went_out_again.wav"
+    },
+    {
+      "group": "npc_male_neighbor",
+      "text": "I counted three of them before sunrise.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\03_i_counted_three_of_them_before_sunrise.wav"
+    },
+    {
+      "group": "npc_male_neighbor",
+      "text": "Keep everyone away from the tree line.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\04_keep_everyone_away_from_the_tree_line.wav"
+    },
+    {
+      "group": "npc_male_neighbor",
+      "text": "The diner still has supplies if we hurry.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\05_the_diner_still_has_supplies_if_we_hurry.wav"
+    },
+    {
+      "group": "npc_male_neighbor",
+      "text": "I heard knocking from the empty house.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\06_i_heard_knocking_from_the_empty_house.wav"
+    },
+    {
+      "group": "npc_male_neighbor",
+      "text": "Nobody sleeps near a window tonight.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\07_nobody_sleeps_near_a_window_tonight.wav"
+    },
+    {
+      "group": "npc_male_neighbor",
+      "text": "If you see a child outside, call Boyd first.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\08_if_you_see_a_child_outside_call_boyd_fir.wav"
+    },
+    {
+      "group": "npc_male_neighbor",
+      "text": "The church bell rang but nobody was there.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\09_the_church_bell_rang_but_nobody_was_ther.wav"
+    },
+    {
+      "group": "npc_male_neighbor",
+      "text": "Something copied my voice yesterday.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\10_something_copied_my_voice_yesterday.wav"
+    },
+    {
+      "group": "npc_male_neighbor",
+      "text": "We move together when it gets dark.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\11_we_move_together_when_it_gets_dark.wav"
+    },
+    {
+      "group": "npc_male_neighbor",
+      "text": "Tom said the road signs changed again.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\npc_male\\12_tom_said_the_road_signs_changed_again.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "I will check it. Stay where I can see you.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\01_i_will_check_it_stay_where_i_can_see_you.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "Nobody wanders off. Not tonight.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\02_nobody_wanders_off_not_tonight.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "Tell me exactly what you heard.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\03_tell_me_exactly_what_you_heard.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "Get inside if the sky starts to turn.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\04_get_inside_if_the_sky_starts_to_turn.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "We keep calm, then we move.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\05_we_keep_calm_then_we_move.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "I need names, places, anything useful.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\06_i_need_names_places_anything_useful.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "That sounds like a pattern, not a coincidence.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\01_that_sounds_like_a_pattern_not_a_coincid.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "Show me where. I need to compare the symbols.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\02_show_me_where_i_need_to_compare_the_symb.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "Great. The nightmare has rules and nobody wrote them down.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\03_great_the_nightmare_has_rules_and_nobody.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "If it repeats, we can use it.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\04_if_it_repeats_we_can_use_it.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "Static, whispers, lights. It all connects somehow.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\05_static_whispers_lights_it_all_connects_s.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "Do not touch anything strange until I see it.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\06_do_not_touch_anything_strange_until_i_se.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "I have seen those signs underground.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\01_i_have_seen_those_signs_underground.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "If there is a passage, I can find it.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\02_if_there_is_a_passage_i_can_find_it.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "Keep the children away from the doors.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\03_keep_the_children_away_from_the_doors.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "The house sounds different when something is below it.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\04_the_house_sounds_different_when_somethin.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "I know that feeling. The town is hiding spaces.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\05_i_know_that_feeling_the_town_is_hiding_s.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "Mark the place and do not go back alone.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\06_mark_the_place_and_do_not_go_back_alone.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "That happened before. I remember the color of the sky.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\01_that_happened_before_i_remember_the_colo.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "The trees know when people are scared.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\02_the_trees_know_when_people_are_scared.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "Do not follow the music. It lies.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\03_do_not_follow_the_music_it_lies.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "I can draw it if you let me think.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\04_i_can_draw_it_if_you_let_me_think.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "Some places are hungry. You should leave them alone.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\05_some_places_are_hungry_you_should_leave.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "The town keeps the old things close.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\06_the_town_keeps_the_old_things_close.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "The voices get louder near places like that.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\01_the_voices_get_louder_near_places_like_t.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "I am trying to listen without obeying.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\02_i_am_trying_to_listen_without_obeying.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "If I hear a warning, I will tell you.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\03_if_i_hear_a_warning_i_will_tell_you.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "Sometimes the town uses fear like a hook.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\04_sometimes_the_town_uses_fear_like_a_hook.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "Do not trust anything that says it can save us.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\05_do_not_trust_anything_that_says_it_can_s.wav"
+    },
+    {
+      "group": "npc_replies",
+      "text": "I know what it feels like when it calls your name.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\06_i_know_what_it_feels_like_when_it_calls.wav"
+    },
+    {
+      "group": "monster_responses",
+      "text": "Boyd: Back up. I am not giving you anyone.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\01_boyd_back_up_i_am_not_giving_you_anyone.wav"
+    },
+    {
+      "group": "monster_responses",
+      "text": "Jade: You talk too much for something pretending to be human.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\02_jade_you_talk_too_much_for_something_pre.wav"
+    },
+    {
+      "group": "monster_responses",
+      "text": "Tabitha: I know what you are trying to do.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\03_tabitha_i_know_what_you_are_trying_to_do.wav"
+    },
+    {
+      "group": "monster_responses",
+      "text": "Victor: I remember you. I remember what comes next.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\04_victor_i_remember_you_i_remember_what_co.wav"
+    },
+    {
+      "group": "monster_responses",
+      "text": "Sara: No. I am not listening anymore.",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\responses\\05_sara_no_i_am_not_listening_anymore.wav"
+    },
+    {
+      "group": "panic_female",
+      "text": "Monster!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\panic_female\\01_monster.wav"
+    },
+    {
+      "group": "panic_female",
+      "text": "Run!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\panic_female\\02_run.wav"
+    },
+    {
+      "group": "panic_female",
+      "text": "Get away from me!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\panic_female\\03_get_away_from_me.wav"
+    },
+    {
+      "group": "panic_female",
+      "text": "No, no, no!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\panic_female\\04_no_no_no.wav"
+    },
+    {
+      "group": "panic_female",
+      "text": "Someone help!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\panic_female\\05_someone_help.wav"
+    },
+    {
+      "group": "panic_female",
+      "text": "Do not look at its face!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\panic_female\\06_do_not_look_at_its_face.wav"
+    },
+    {
+      "group": "panic_female",
+      "text": "Inside, now!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\panic_female\\07_inside_now.wav"
+    },
+    {
+      "group": "panic_female",
+      "text": "It knows my name!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\panic_female\\08_it_knows_my_name.wav"
+    },
+    {
+      "group": "panic_female",
+      "text": "The talisman, get to the talisman!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\panic_female\\09_the_talisman_get_to_the_talisman.wav"
+    },
+    {
+      "group": "panic_female",
+      "text": "Keep moving!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\panic_female\\10_keep_moving.wav"
+    },
+    {
+      "group": "panic_female",
+      "text": "It is too close!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\panic_female\\11_it_is_too_close.wav"
+    },
+    {
+      "group": "panic_female",
+      "text": "Shut the door!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\panic_female\\12_shut_the_door.wav"
+    },
+    {
+      "group": "panic_male",
+      "text": "Monster!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\panic_male\\01_monster.wav"
+    },
+    {
+      "group": "panic_male",
+      "text": "Run!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\panic_male\\02_run.wav"
+    },
+    {
+      "group": "panic_male",
+      "text": "Get away from me!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\panic_male\\03_get_away_from_me.wav"
+    },
+    {
+      "group": "panic_male",
+      "text": "No, no, no!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\panic_male\\04_no_no_no.wav"
+    },
+    {
+      "group": "panic_male",
+      "text": "Someone help!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\panic_male\\05_someone_help.wav"
+    },
+    {
+      "group": "panic_male",
+      "text": "Do not look at its face!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\panic_male\\06_do_not_look_at_its_face.wav"
+    },
+    {
+      "group": "panic_male",
+      "text": "Inside, now!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\panic_male\\07_inside_now.wav"
+    },
+    {
+      "group": "panic_male",
+      "text": "It knows my name!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\panic_male\\08_it_knows_my_name.wav"
+    },
+    {
+      "group": "panic_male",
+      "text": "The talisman, get to the talisman!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\panic_male\\09_the_talisman_get_to_the_talisman.wav"
+    },
+    {
+      "group": "panic_male",
+      "text": "Keep moving!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\panic_male\\10_keep_moving.wav"
+    },
+    {
+      "group": "panic_male",
+      "text": "It is too close!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\panic_male\\11_it_is_too_close.wav"
+    },
+    {
+      "group": "panic_male",
+      "text": "Shut the door!",
+      "path": "D:\\college work\\term6\\com_graphics\\Fromville\\assets\\audio\\voice\\panic_male\\12_shut_the_door.wav"
+    }
+  ]
+}

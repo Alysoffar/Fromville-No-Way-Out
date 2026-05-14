@@ -24,6 +24,7 @@
 #include "game/runtime/Timers.h"
 #include "game/world/EntityManager.h"
 #include "game/world/WorldManager.h"
+#include "engine/audio/AudioManager.h"
 
 class Shader;
 class Mesh;
@@ -133,6 +134,7 @@ private:
     WorldManager worldManager;
     EventBus eventBus;
     RuntimeProfiler runtimeProfiler;
+    std::unique_ptr<AudioManager> audioManager;
     
     float worldClock = 0.0f;
     bool nightTime = false;
