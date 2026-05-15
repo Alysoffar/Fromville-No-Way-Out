@@ -423,3 +423,106 @@ bool Loader::LoadOBJ(const std::filesystem::path& path,
     }
     return success;
 }
+
+bool Loader::LoadOBJWithShapes(const std::filesystem::path& path, std::vector<OBJShape>& shapes) {
+    shapes.clear();
+
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> t_shapes;
+    std::vector<tinyobj::material_t> materials;
+    std::string warn, err;
+
+    std::string mtlBaseDir = path.parent_path().string();
+    if (!mtlBaseDir.empty() && mtlBaseDir.back() != '/' && mtlBaseDir.back() != '\\') {
+        mtlBaseDir += '/';
+    }
+
+    bool ok = tinyobj::LoadObj(&attrib, &t_shapes, &materials, &warn, &err,
+                               path.string().c_str(), mtlBaseDir.c_str());
+
+    if (!ok) {
+        std::cerr << "[Loader] Failed to load OBJ: " << path << "\n";
+        return false;
+    }
+
+    // Material color helper (reuse from LoadOBJ if possible, but for now just copy)
+    auto getSemanticColor = [](const std::string& name) -> glm::vec3 {
+        std::string lower = name;
+        for (auto& c : lower) c = static_cast<char>(std::tolower(c));
+        if (lower.find("bark") != std::string::npos)      return glm::vec3(0.40f, 0.26f, 0.13f);
+        if (lower.find("trunk") != std::string::npos)     return glm::vec3(0.40f, 0.26f, 0.13f);
+        if (lower.find("leaf") != std::string::npos)      return glm::vec3(0.15f, 0.45f, 0.10f);
+        if (lower.find("roof") != std::string::npos)      return glm::vec3(0.55f, 0.22f, 0.12f);
+        if (lower.find("wood") != std::string::npos)      return glm::vec3(0.55f, 0.40f, 0.25f);
+        if (lower.find("door") != std::string::npos)      return glm::vec3(0.45f, 0.30f, 0.18f);
+        if (lower.find("window") != std::string::npos)    return glm::vec3(0.60f, 0.75f, 0.85f);
+        if (lower.find("concrete") != std::string::npos)  return glm::vec3(0.65f, 0.63f, 0.60f);
+        if (lower.find("slab") != std::string::npos)      return glm::vec3(0.60f, 0.58f, 0.55f);
+        if (lower.find("road") != std::string::npos)      return glm::vec3(0.30f, 0.30f, 0.28f);
+        if (lower.find("asphalt") != std::string::npos)   return glm::vec3(0.25f, 0.25f, 0.25f);
+        if (lower.find("grass") != std::string::npos)     return glm::vec3(0.20f, 0.50f, 0.12f);
+        if (lower.find("metal") != std::string::npos)     return glm::vec3(0.35f, 0.35f, 0.38f);
+        if (lower.find("lamp") != std::string::npos)      return glm::vec3(0.90f, 0.85f, 0.60f);
+        return glm::vec3(0.7f, 0.7f, 0.7f);
+    };
+
+    std::vector<glm::vec3> matColors;
+    matColors.reserve(materials.size());
+    for (const auto& mat : materials) {
+        glm::vec3 kd(mat.diffuse[0], mat.diffuse[1], mat.diffuse[2]);
+        bool isDefaultGrey = (std::abs(kd.r - 0.8f) < 0.01f && std::abs(kd.g - 0.8f) < 0.01f && std::abs(kd.b - 0.8f) < 0.01f);
+        if (isDefaultGrey) matColors.push_back(getSemanticColor(mat.name));
+        else matColors.push_back(kd);
+    }
+
+    for (const auto& shape : t_shapes) {
+        OBJShape outShape;
+        outShape.name = shape.name;
+        
+        const auto& mesh = shape.mesh;
+        const size_t numIndices = mesh.indices.size();
+        outShape.vertices.reserve(numIndices / 2);
+        outShape.indices.reserve(numIndices);
+
+        std::unordered_map<VertexKey, unsigned int, VertexKeyHash, VertexKeyEqual> uniqueVertices;
+
+        for (size_t i = 0; i < numIndices; ++i) {
+            const tinyobj::index_t& idx = mesh.indices[i];
+            size_t faceIndex = i / 3;
+            glm::vec3 faceColor(0.7f);
+            if (faceIndex < mesh.material_ids.size()) {
+                int matId = mesh.material_ids[faceIndex];
+                if (matId >= 0 && static_cast<size_t>(matId) < matColors.size()) {
+                    faceColor = matColors[matId];
+                }
+            }
+
+            VertexKey key;
+            key.v = idx.vertex_index;
+            key.n = idx.normal_index;
+
+            auto [it, inserted] = uniqueVertices.try_emplace(key, static_cast<unsigned int>(outShape.vertices.size()));
+
+            if (inserted) {
+                MeshVertex vertex;
+                if (key.v >= 0) {
+                    vertex.position = glm::vec3(attrib.vertices[3 * key.v + 0], attrib.vertices[3 * key.v + 1], attrib.vertices[3 * key.v + 2]);
+                }
+                if (key.n >= 0) {
+                    vertex.normal = glm::vec3(attrib.normals[3 * key.n + 0], attrib.normals[3 * key.n + 1], attrib.normals[3 * key.n + 2]);
+                } else {
+                    vertex.normal = glm::vec3(0.0f, 1.0f, 0.0f);
+                }
+                vertex.color = faceColor;
+                outShape.vertices.push_back(vertex);
+            }
+            outShape.indices.push_back(it->second);
+        }
+
+        if (!outShape.vertices.empty()) {
+            shapes.push_back(std::move(outShape));
+        }
+    }
+
+    return !shapes.empty();
+}

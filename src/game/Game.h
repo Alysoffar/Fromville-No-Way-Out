@@ -14,6 +14,11 @@ class Engine;
 #include "engine/renderer/TreeRenderer.h"
 #include "engine/renderer/SkydomeRenderer.h"
 #include "game/world/DayNightCycle.h"
+#include "engine/renderer/AnimatedMesh.h"
+#include "engine/renderer/Shader.h"
+#include "game/PlayerController.h"
+#include "engine/renderer/Animation.h"
+#include "engine/renderer/Animator.h"
 
 class Game {
 public:
@@ -36,4 +41,10 @@ private:
 
     glm::vec3 spawnPosition = glm::vec3(0.0f, 1.8f, 3.5f);
     bool cursorLocked = true;
+    
+    std::unique_ptr<AnimatedMesh> characterMesh;
+    std::unique_ptr<Shader> animatedShader;
+    std::unique_ptr<Animation> walkingAnimation;
+    std::unique_ptr<Animator> animator;
+    PlayerController m_Player;
 };

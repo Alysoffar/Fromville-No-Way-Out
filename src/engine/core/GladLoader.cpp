@@ -21,6 +21,7 @@ PFNGLGENBUFFERSPROC glad_glGenBuffers = nullptr;
 PFNGLBINDBUFFERPROC glad_glBindBuffer = nullptr;
 PFNGLBUFFERDATAPROC glad_glBufferData = nullptr;
 PFNGLVERTEXATTRIBPOINTERPROC glad_glVertexAttribPointer = nullptr;
+PFNGLVERTEXATTRIBIPOINTERPROC glad_glVertexAttribIPointer = nullptr;
 PFNGLENABLEVERTEXATTRIBARRAYPROC glad_glEnableVertexAttribArray = nullptr;
 PFNGLDELETEBUFFERSPROC glad_glDeleteBuffers = nullptr;
 PFNGLDRAWARRAYSPROC glad_glDrawArrays = nullptr;
@@ -81,6 +82,7 @@ static void LoadCoreFunctions(GLADloadproc loader) {
 	glad_glBindBuffer = reinterpret_cast<PFNGLBINDBUFFERPROC>(loader("glBindBuffer"));
 	glad_glBufferData = reinterpret_cast<PFNGLBUFFERDATAPROC>(loader("glBufferData"));
 	glad_glVertexAttribPointer = reinterpret_cast<PFNGLVERTEXATTRIBPOINTERPROC>(loader("glVertexAttribPointer"));
+	glad_glVertexAttribIPointer = reinterpret_cast<PFNGLVERTEXATTRIBIPOINTERPROC>(loader("glVertexAttribIPointer"));
 	glad_glEnableVertexAttribArray = reinterpret_cast<PFNGLENABLEVERTEXATTRIBARRAYPROC>(loader("glEnableVertexAttribArray"));
 	glad_glDeleteBuffers = reinterpret_cast<PFNGLDELETEBUFFERSPROC>(loader("glDeleteBuffers"));
 	glad_glDrawArrays = reinterpret_cast<PFNGLDRAWARRAYSPROC>(loader("glDrawArrays"));
