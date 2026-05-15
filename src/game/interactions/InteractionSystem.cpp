@@ -114,6 +114,14 @@ std::string InteractionSystem::GetPromptFor(const Character& character, const Qu
         const bool questComplete = quest && quest->IsComplete();
         const int nextObjectiveIndex = quest ? quest->GetNextIncompleteObjectiveIndex() : -1;
 
+        if (quest && !questSystem.IsProgressAllowed(character.GetType(), questSystem.GetCurrentDayCyclePhase())) {
+            const std::string lockMessage = questSystem.GetProgressLockMessage(character.GetType(), questSystem.GetCurrentDayCyclePhase());
+            if (!lockMessage.empty()) {
+                return lockMessage;
+            }
+            return "Wait for your progression window.";
+        }
+
         if (!questComplete && hasActiveQuest && activeQuestCharacter != character.GetType()) {
             return "Finish your current quest first.";
         }
@@ -154,6 +162,14 @@ bool InteractionSystem::TryInteract(Character& character, QuestSystem& questSyst
         Quest* quest = questSystem.GetCharacterQuest(character.GetType());
         if (!quest) {
             lastInteractionMessage = "This quest cannot be started right now.";
+            return false;
+        }
+
+        if (!questSystem.IsProgressAllowed(character.GetType(), questSystem.GetCurrentDayCyclePhase())) {
+            lastInteractionMessage = questSystem.GetProgressLockMessage(character.GetType(), questSystem.GetCurrentDayCyclePhase());
+            if (lastInteractionMessage.empty()) {
+                lastInteractionMessage = "That progression window is closed right now.";
+            }
             return false;
         }
 

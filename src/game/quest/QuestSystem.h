@@ -7,6 +7,13 @@
 #include <string>
 #include <vector>
 
+enum class DayCyclePhase {
+    Morning,
+    Afternoon,
+    Sunset,
+    Night
+};
+
 // Quest progression stages
 enum class StoryPhase {
     Exploration,      // Days 1-3: All characters gathering information
@@ -36,6 +43,11 @@ public:
     // Get current story phase
     StoryPhase GetCurrentPhase() const { return currentPhase; }
     float GetDayNumber() const { return *worldClockPtr / 120.0f; }  // 120 seconds = 1 day
+    static DayCyclePhase GetDayCyclePhaseFromClock(float worldClock);
+    DayCyclePhase GetCurrentDayCyclePhase() const;
+    bool IsProgressAllowed(CharacterType type, DayCyclePhase phase) const;
+    std::string GetProgressWindowLabel(CharacterType type) const;
+    std::string GetProgressLockMessage(CharacterType type, DayCyclePhase phase) const;
     
     // Check if there are pending consequences to broadcast
     bool HasPendingConsequences() const { return !pendingConsequences.empty(); }

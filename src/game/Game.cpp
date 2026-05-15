@@ -138,6 +138,30 @@ void Game::RenderHud(const Engine& engine) const {
     hudRenderer->RenderText(line1.str(), 24.0f, static_cast<float>(height) - 62.0f, 0.55f, glm::vec3(0.92f, 0.96f, 1.0f), width, height);
     hudRenderer->RenderText(line2.str(), 24.0f, static_cast<float>(height) - 92.0f, 0.50f, glm::vec3(0.74f, 0.88f, 0.78f), width, height);
 
+    if (world) {
+        std::string cycleLabel = "DAY";
+        glm::vec3 cycleColor = glm::vec3(1.0f, 0.95f, 0.55f);
+        switch (world->GetCyclePhase()) {
+            case DayCyclePhase::Morning:
+                cycleLabel = "MORNING";
+                cycleColor = glm::vec3(1.0f, 0.95f, 0.55f);
+                break;
+            case DayCyclePhase::Afternoon:
+                cycleLabel = "AFTERNOON";
+                cycleColor = glm::vec3(0.90f, 0.93f, 0.66f);
+                break;
+            case DayCyclePhase::Sunset:
+                cycleLabel = "SUNSET";
+                cycleColor = glm::vec3(1.0f, 0.72f, 0.40f);
+                break;
+            case DayCyclePhase::Night:
+                cycleLabel = "NIGHT";
+                cycleColor = glm::vec3(0.72f, 0.78f, 1.0f);
+                break;
+        }
+        hudRenderer->RenderText("CYCLE: " + cycleLabel, 24.0f, static_cast<float>(height) - 118.0f, 0.54f, cycleColor, width, height);
+    }
+
     std::ostringstream promptFormatted;
     if (!interactionPrompt.empty()) {
         promptFormatted << "[E] " << interactionPrompt;
@@ -228,7 +252,7 @@ void Game::RenderHud(const Engine& engine) const {
                     for (std::size_t i = 0; i < dialogues.size() && i < 1; ++i) {
                         if (dialogues[i].revealed) {
                             std::ostringstream dialogLine;
-                            dialogLine << "DIALOGUE: " << dialogues[i].speaker << " - " << dialogues[i].text.substr(0, 50) << "...";
+                            dialogLine << dialogues[i].text.substr(0, 70);
                             hudRenderer->RenderText(dialogLine.str(), 20.0f, dialogY, 0.34f, glm::vec3(0.8f, 0.9f, 1.0f), width, height);
                         }
                     }

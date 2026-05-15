@@ -55,6 +55,84 @@ constexpr float kEnemyHearingRange = 26.0f;
 constexpr float kEnemyLightRange = 22.0f;
 constexpr float kArenaHalfExtent = 12.0f;
 
+struct DialogueContext {
+    bool night = false;
+    float tension = 0.0f;
+    float corruption = 0.0f;
+    float fear = 0.0f;
+    std::string location;
+};
+
+std::string ToLowerCopy(std::string value) {
+    for (char& c : value) {
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+    return value;
+}
+
+bool ContainsToken(const std::string& text, const char* token) {
+    return text.find(token) != std::string::npos;
+}
+
+std::string GetDialogueLocationLabel(const std::vector<LocationZone>& locations, const glm::vec3& position) {
+    const LocationZone* bestLocation = nullptr;
+    float bestDistance = std::numeric_limits<float>::max();
+
+    for (const LocationZone& location : locations) {
+        const glm::vec2 delta = glm::vec2(position.x - location.center.x, position.z - location.center.z);
+        const float distance = glm::length(delta);
+        if (distance <= location.radius + 1.5f && distance < bestDistance) {
+            bestDistance = distance;
+            bestLocation = &location;
+        }
+    }
+
+    if (!bestLocation) {
+        return "";
+    }
+
+    const std::string lowered = ToLowerCopy(bestLocation->id);
+    if (ContainsToken(lowered, "sheriff")) return "sheriff_station";
+    if (ContainsToken(lowered, "diner")) return "diner";
+    if (ContainsToken(lowered, "church")) return "church";
+    if (ContainsToken(lowered, "tunnel")) return "tunnel";
+    if (ContainsToken(lowered, "colony")) return "colony_house";
+    if (ContainsToken(lowered, "victor")) return "victor_hideout";
+    return lowered;
+}
+
+DialogueContext BuildDialogueContext(const std::vector<LocationZone>& locations, const glm::vec3& position, bool night, float fear) {
+    const AtmosphereManager& atmosphere = AtmosphereManager::Instance();
+    DialogueContext context;
+    context.night = night;
+    context.tension = atmosphere.GetGlobalTension();
+    context.corruption = atmosphere.GetCorruptionLevel();
+    context.fear = fear;
+    context.location = GetDialogueLocationLabel(locations, position);
+    return context;
+}
+
+std::string FragmentLine(std::string line, float intensity, std::size_t seed) {
+    if (line.empty() || intensity <= 0.35f) {
+        return line;
+    }
+
+    if ((seed % 3) == 0) {
+        const std::size_t cut = line.find_first_of(",;:");
+        if (cut != std::string::npos && cut > 6) {
+            line = line.substr(0, cut);
+        }
+        if (line.empty() || line.back() != '.') {
+            line += "...";
+        } else {
+            line.back() = '.';
+            line += ".";
+        }
+    }
+
+    return line;
+}
+
 struct VoiceCueLibrary {
     bool initialized = false;
     std::unordered_map<std::string, std::string> monster;
@@ -350,161 +428,339 @@ glm::vec3 ClampArenaPosition(const glm::vec3& position) {
     return clamped;
 }
 
-std::string GetNpcLine(const NPC& npc, const Character& character, float worldClock) {
-    // Generate unique dialogue based on NPC, character, and time
-    static const std::array<std::string, 30> generalLines = {
-        "This place is too quiet.",
-        "Stick close and keep moving.",
-        "I heard a scream. Or maybe that was just the wind.",
-        "If you find anything strange, tell the others.",
-        "Stay alert. Something doesn't feel right here.",
-        "Did you hear that sound?",
-        "We should stick together.",
-        "The air feels cold... wrong.",
-        "I'm not sure which way is safe anymore.",
-        "Keep your eyes open.",
-        "This silence is worse than noise.",
-        "I don't like this place.",
-        "Maybe we should find shelter.",
-        "Do you feel that? Like we're being watched?",
-        "Whatever's out here... it's not natural.",
-        "Let's not stay in one place too long.",
-        "The lights flickered twice near the road.",
-        "Someone left footprints by the trees again.",
-        "I keep hearing my name from empty rooms.",
-        "The radio only gives static after sunset.",
-        "If the houses go dark, run for a talisman.",
-        "There was a knock from inside a sealed room.",
-        "Nobody goes near the edge of town alone.",
-        "The monsters smile like they know us.",
-        "I saw something watching from the second floor.",
-        "The diner is safer if we move before dark.",
-        "Somebody needs to check the windows.",
-        "The tunnels are whispering again.",
-        "The town feels like it moved overnight.",
-        "If you hear music, do not follow it."
+std::string GetNpcLine(const NPC& npc, const Character& character, float worldClock, bool nightTime, const std::vector<LocationZone>& locations) {
+    const DialogueContext context = BuildDialogueContext(locations, character.transform.position, nightTime, npc.GetFear());
+
+    static const std::array<std::string, 10> dayGeneral = {
+        "Did you hear the radio again last night?",
+        "Something moved near the trees.",
+        "People keep pretending this place makes sense.",
+        "You ever notice the town changes when nobody's looking?",
+        "The children were singing again.",
+        "I don't think those symbols were there yesterday.",
+        "Nobody talks about the far road anymore.",
+        "You should stop going near the tunnels alone.",
+        "I found mud on the inside of the window frame.",
+        "The silence here feels like someone listening."
     };
-    
-    // Select based on NPC character hash and world time
+
+    static const std::array<std::string, 10> nightGeneral = {
+        "Did you lock the windows?",
+        "Don't answer voices outside.",
+        "Something knocked on the wall.",
+        "I heard a child laughing.",
+        "That thing knew my name.",
+        "They're different tonight.",
+        "Don't look outside after midnight.",
+        "I think the town wants us awake.",
+        "The hallway sounded crowded a minute ago.",
+        "Please, just keep the door shut."
+    };
+
+    static const std::array<std::string, 4> dinerDay = {
+        "The coffee tastes burnt again.",
+        "Everybody gets quieter in the diner.",
+        "You can hear the road from here if you stop talking.",
+        "No one wants to sit by the windows anymore."
+    };
+    static const std::array<std::string, 4> dinerNight = {
+        "Keep the blinds closed.",
+        "The diner stops feeling safe after dark.",
+        "I heard something under the booth seats.",
+        "If the lights flicker, don't look at the door."
+    };
+    static const std::array<std::string, 4> churchDay = {
+        "The candles burned down overnight.",
+        "People come here when they need to think, not when they need answers.",
+        "The bell never rings for a good reason.",
+        "Sometimes prayer is just another way of keeping busy."
+    };
+    static const std::array<std::string, 4> churchNight = {
+        "Don't listen if the bell sounds wrong.",
+        "The church feels different after dark.",
+        "I think something waits under the floorboards.",
+        "Some nights even the prayers sound afraid."
+    };
+    static const std::array<std::string, 4> tunnelDay = {
+        "The air down there makes people hear things.",
+        "Don't go below alone.",
+        "We mark the walls so we can pretend it helps.",
+        "Every tunnel looks older than it should."
+    };
+    static const std::array<std::string, 4> tunnelNight = {
+        "If you hear water, keep moving.",
+        "Don't answer anything that sounds trapped.",
+        "The tunnels feel awake tonight.",
+        "I saw footprints where nobody walked."
+    };
+    static const std::array<std::string, 4> sheriffDay = {
+        "The radio cut out before dawn.",
+        "We need to keep the reports straight.",
+        "If someone panics, we all lose the room.",
+        "The sheriff station feels quieter than it should."
+    };
+    static const std::array<std::string, 4> sheriffNight = {
+        "Lock the station door again.",
+        "Don't trust the radio after dark.",
+        "I can hear the generator from all the way outside.",
+        "If someone knocks twice, wait before opening."
+    };
+    static const std::array<std::string, 4> colonyDay = {
+        "Too many people are sleeping with one eye open.",
+        "The house creaks when nobody moves.",
+        "You can tell who slept and who just pretended.",
+        "Everyone is trying not to be the one who speaks first."
+    };
+    static const std::array<std::string, 4> colonyNight = {
+        "Stay away from the windows.",
+        "The house sounds crowded even when it isn't.",
+        "People keep waking up to the same sound.",
+        "Nobody should be awake this late."
+    };
+    static const std::array<std::string, 4> hideoutDay = {
+        "Victor draws the same places over and over.",
+        "This room feels like a thought someone forgot.",
+        "The quiet here makes it easier to remember things you would rather not.",
+        "Somebody hid here for a long time."
+    };
+    static const std::array<std::string, 4> hideoutNight = {
+        "Victor said this place only looks empty.",
+        "The walls keep their own memories.",
+        "I don't like how the shadows sit in the corners.",
+        "If this room starts humming, leave."
+    };
+
     const std::size_t npcHash = std::hash<std::string>{}(npc.GetName());
     const std::size_t charHash = static_cast<std::size_t>(character.GetType());
-    const std::size_t timeComponent = static_cast<std::size_t>(std::fmod(worldClock, 10.0f));
-    const std::size_t index = (npcHash + charHash * 7 + timeComponent * 13) % generalLines.size();
-    
-    return generalLines[index];
+    const std::size_t timeComponent = static_cast<std::size_t>(std::fmod(worldClock, nightTime ? 6.0f : 10.0f));
+    const std::size_t seed = npcHash + charHash * 7 + timeComponent * 13;
+
+    const auto pick = [seed](const auto& pool) {
+        return pool[seed % pool.size()];
+    };
+
+    std::string line;
+    if (context.location == "diner") {
+        line = nightTime ? pick(dinerNight) : pick(dinerDay);
+    } else if (context.location == "church") {
+        line = nightTime ? pick(churchNight) : pick(churchDay);
+    } else if (context.location == "tunnel") {
+        line = nightTime ? pick(tunnelNight) : pick(tunnelDay);
+    } else if (context.location == "sheriff_station") {
+        line = nightTime ? pick(sheriffNight) : pick(sheriffDay);
+    } else if (context.location == "colony_house") {
+        line = nightTime ? pick(colonyNight) : pick(colonyDay);
+    } else if (context.location == "victor_hideout") {
+        line = nightTime ? pick(hideoutNight) : pick(hideoutDay);
+    } else {
+        line = nightTime ? pick(nightGeneral) : pick(dayGeneral);
+    }
+
+    if (context.night && (context.tension > 0.55f || context.corruption > 0.4f)) {
+        line = FragmentLine(line, context.tension + context.corruption, seed);
+    } else if (!context.night && context.tension > 0.65f) {
+        line = FragmentLine(line, context.tension, seed + 1);
+    }
+
+    return line;
 }
 
-std::string GetCharacterNpcReplyLine(const NPC& npc, const Character& character, float worldClock) {
-    static const std::array<std::string, 6> boydLines = {
-        "I will check it. Stay where I can see you.",
-        "Nobody wanders off. Not tonight.",
-        "Tell me exactly what you heard.",
-        "Get inside if the sky starts to turn.",
-        "We keep calm, then we move.",
-        "I need names, places, anything useful."
+std::string GetCharacterNpcReplyLine(const NPC& npc, const Character& character, float worldClock, bool nightTime, const std::vector<LocationZone>& locations) {
+    const DialogueContext context = BuildDialogueContext(locations, npc.transform.position, nightTime, character.GetHealth() < 50.0f ? 0.6f : 0.2f);
+
+    static const std::array<std::string, 5> boydDay = {
+        "Keep it quiet. Tell me only what matters.",
+        "If something is wrong, say it plainly.",
+        "We stay calm first. Then we move.",
+        "I need the details, not the fear.",
+        "Nobody goes off alone when the town starts acting strange."
     };
-    static const std::array<std::string, 6> jadeLines = {
-        "That sounds like a pattern, not a coincidence.",
-        "Show me where. I need to compare the symbols.",
-        "Great. The nightmare has rules and nobody wrote them down.",
-        "If it repeats, we can use it.",
-        "Static, whispers, lights. It all connects somehow.",
-        "Do not touch anything strange until I see it."
+    static const std::array<std::string, 5> boydNight = {
+        "Check the doors. Then check them again.",
+        "Stay where I can see you.",
+        "Do not answer from the dark.",
+        "If it sounds wrong, treat it like danger.",
+        "We get through the night one room at a time."
     };
-    static const std::array<std::string, 6> tabithaLines = {
-        "I have seen those signs underground.",
-        "If there is a passage, I can find it.",
-        "Keep the children away from the doors.",
-        "The house sounds different when something is below it.",
-        "I know that feeling. The town is hiding spaces.",
-        "Mark the place and do not go back alone."
+    static const std::array<std::string, 5> jadeDay = {
+        "That is not random. Give me a minute.",
+        "If it repeats, it means something.",
+        "The pattern is the part nobody wants to see.",
+        "Do not touch it yet. I need to think.",
+        "Every bad idea in this town thinks it's a clue."
     };
-    static const std::array<std::string, 6> victorLines = {
-        "That happened before. I remember the color of the sky.",
-        "The trees know when people are scared.",
-        "Do not follow the music. It lies.",
-        "I can draw it if you let me think.",
-        "Some places are hungry. You should leave them alone.",
-        "The town keeps the old things close."
+    static const std::array<std::string, 5> jadeNight = {
+        "No. That is not a coincidence.",
+        "Listen. The timing matters.",
+        "I can feel the pattern getting closer.",
+        "If the lights change, tell me immediately.",
+        "I am trying to stay rational. Help me do that."
     };
-    static const std::array<std::string, 6> saraLines = {
-        "The voices get louder near places like that.",
-        "I am trying to listen without obeying.",
-        "If I hear a warning, I will tell you.",
-        "Sometimes the town uses fear like a hook.",
-        "Do not trust anything that says it can save us.",
-        "I know what it feels like when it calls your name."
+    static const std::array<std::string, 5> tabithaDay = {
+        "If the house is changing, it will leave a trace.",
+        "I have seen places like this hide things in plain sight.",
+        "Mark it. Come back when the light is better.",
+        "Do not let the children wander near the openings.",
+        "The town always seems smaller after you notice the walls."
+    };
+    static const std::array<std::string, 5> tabithaNight = {
+        "Stay near the light.",
+        "If the walls shift, do not chase them.",
+        "I can hear the house settling, and I do not like it.",
+        "Keep your voice low. Something might answer.",
+        "We are not going to solve this by panicking."
+    };
+    static const std::array<std::string, 5> victorDay = {
+        "I remember this place. Not all of it, but enough.",
+        "The trees do that when people are afraid.",
+        "Don't ask the music to stay.",
+        "I can draw it if you want.",
+        "Some things are better when they stay where they are."
+    };
+    static const std::array<std::string, 5> victorNight = {
+        "It feels closer at night.",
+        "I know that sound. I just don't know from where.",
+        "Please don't make me remember too fast.",
+        "The dark is full of old things here.",
+        "If I go quiet, wait for me."
+    };
+    static const std::array<std::string, 5> saraDay = {
+        "I heard it too. I just don't know what to do with it.",
+        "Sometimes I think the town is listening through us.",
+        "I am trying not to say the wrong thing.",
+        "If I seem off, it is because I am thinking too hard.",
+        "Please don't ask me to explain everything at once."
+    };
+    static const std::array<std::string, 5> saraNight = {
+        "I can hear it in the walls again.",
+        "Don't let me be alone with my thoughts tonight.",
+        "If I go quiet, that does not mean I am fine.",
+        "The room feels wrong when it gets this dark.",
+        "I think something is trying to sound like us."
     };
 
     const std::size_t npcHash = std::hash<std::string>{}(npc.GetName());
-    const std::size_t index = (npcHash + static_cast<std::size_t>(worldClock)) % boydLines.size();
+    const std::size_t index = (npcHash + static_cast<std::size_t>(worldClock)) % boydDay.size();
+    const auto pick = [index](const auto& pool) { return pool[index % pool.size()]; };
+
+    std::string line;
     switch (character.GetType()) {
-        case CharacterType::Boyd: return boydLines[index];
-        case CharacterType::Jade: return jadeLines[index];
-        case CharacterType::Tabitha: return tabithaLines[index];
-        case CharacterType::Victor: return victorLines[index];
-        case CharacterType::Sara: return saraLines[index];
+        case CharacterType::Boyd: line = nightTime ? pick(boydNight) : pick(boydDay); break;
+        case CharacterType::Jade: line = nightTime ? pick(jadeNight) : pick(jadeDay); break;
+        case CharacterType::Tabitha: line = nightTime ? pick(tabithaNight) : pick(tabithaDay); break;
+        case CharacterType::Victor: line = nightTime ? pick(victorNight) : pick(victorDay); break;
+        case CharacterType::Sara: line = nightTime ? pick(saraNight) : pick(saraDay); break;
     }
 
-    return "Stay close.";
+    if (context.location == "church" && character.GetType() == CharacterType::Tabitha) {
+        line = nightTime ? "The church does not feel like shelter tonight." : "Even the church feels like it is holding its breath.";
+    } else if (context.location == "tunnel" && character.GetType() == CharacterType::Victor) {
+        line = nightTime ? "I do not want to go back under there." : "I remember the tunnels better than I should.";
+    } else if (context.location == "sheriff_station" && character.GetType() == CharacterType::Boyd) {
+        line = nightTime ? "We keep the station quiet and the doors locked." : "We keep the station calm. That is the job.";
+    }
+
+    if (context.night && context.corruption > 0.45f) {
+        line = FragmentLine(line, context.corruption, index + static_cast<std::size_t>(character.GetType()));
+    }
+
+    return line;
 }
 
-std::string GetCharacterPairLine(const Character& activeCharacter, const Character& otherCharacter, float worldClock) {
-    static const std::array<std::string, 10> lines = {
-        "Keep your voice down. Sound carries here.",
-        "If we split up, we meet back at the lights.",
-        "You saw that too, right?",
-        "The town is trying to herd us somewhere.",
-        "Check the windows before dark.",
-        "We need to compare what everyone found.",
-        "If something smiles at you, do not answer.",
-        "Stay close until we know where the monsters are.",
-        "There is always a rule. We just have to find it.",
-        "This place changes when nobody is looking."
+std::string GetCharacterPairLine(const Character& activeCharacter, const Character& otherCharacter, float worldClock, bool nightTime, const std::vector<LocationZone>& locations) {
+    const DialogueContext context = BuildDialogueContext(locations, activeCharacter.transform.position, nightTime, 0.25f);
+
+    static const std::array<std::string, 8> dayLines = {
+        "Did you notice the way everyone stopped talking when the radio came on?",
+        "Let's not make this a bigger problem than it already is.",
+        "You heard it too. Good. I thought I was losing the thread.",
+        "We should compare notes before somebody changes the subject.",
+        "The town feels different when nobody says the obvious part out loud.",
+        "If you saw something, tell me while it is still fresh.",
+        "I keep thinking the answer is in the thing nobody wants to mention.",
+        "Let's stay with what we know for now."
+    };
+    static const std::array<std::string, 8> nightLines = {
+        "Keep your voice down.",
+        "Do you hear that, or is it just me?",
+        "We should stop talking and listen.",
+        "If the room goes quiet, do not fill it.",
+        "I do not like how close the walls sound tonight.",
+        "If you need to leave, say it now.",
+        "Nothing outside should know our names.",
+        "Stay here until the noise passes."
     };
 
     const std::size_t index = (static_cast<std::size_t>(activeCharacter.GetType()) * 5 +
                                static_cast<std::size_t>(otherCharacter.GetType()) * 3 +
-                               static_cast<std::size_t>(worldClock)) % lines.size();
-    return activeCharacter.GetName() + " to " + otherCharacter.GetName() + ": " + lines[index];
+                               static_cast<std::size_t>(worldClock)) % dayLines.size();
+    std::string line = nightTime ? nightLines[index % nightLines.size()] : dayLines[index % dayLines.size()];
+
+    if (context.location == "tunnel") {
+        line = nightTime ? "Not here. Not with the walls listening." : "Let's talk once we are back upstairs.";
+    } else if (context.location == "church") {
+        line = nightTime ? "Lower your voice. Even this place feels awake." : "There is nothing comforting about how quiet it is in here.";
+    }
+
+    if (nightTime && (context.tension > 0.5f || context.corruption > 0.35f)) {
+        line = FragmentLine(line, context.tension + context.corruption, index + 2);
+    }
+
+    return activeCharacter.GetName() + " to " + otherCharacter.GetName() + ": " + line;
 }
 
-std::string GetNpcNeighborLine(const NPC& speaker, const NPC& listener, float worldClock) {
-    static const std::array<std::string, 12> lines = {
-        "Did you lock the back door?",
-        "The lamps near the road went out again.",
-        "I counted three of them before sunrise.",
-        "Keep everyone away from the tree line.",
-        "The diner still has supplies if we hurry.",
-        "I heard knocking from the empty house.",
-        "Nobody sleeps near a window tonight.",
-        "If you see a child outside, call Boyd first.",
-        "The church bell rang but nobody was there.",
-        "Something copied my voice yesterday.",
-        "We move together when it gets dark.",
-        "Tom said the road signs changed again."
+std::string GetNpcNeighborLine(const NPC& speaker, const NPC& listener, float worldClock, bool nightTime, const std::vector<LocationZone>& locations) {
+    const DialogueContext context = BuildDialogueContext(locations, speaker.transform.position, nightTime, speaker.GetFear());
+
+    static const std::array<std::string, 8> dayLines = {
+        "Did you get any sleep?",
+        "Keep your voice down until we know who is listening.",
+        "The diner still has a little coffee left.",
+        "Have you noticed how people avoid the road after dark?",
+        "I am trying not to think too hard about last night.",
+        "If you see Boyd, tell him the radio is acting strange again.",
+        "I don't think everyone is telling the same story.",
+        "We should stop pretending this is normal."
+    };
+    static const std::array<std::string, 8> nightLines = {
+        "Are you awake?",
+        "Don't say that name too loudly.",
+        "I heard knocking from the empty room again.",
+        "If the child laughs, don't answer.",
+        "Something moved by the trees a second ago.",
+        "We stay inside until the light comes back.",
+        "I think the house knows we are scared.",
+        "Please tell me you locked the back door."
     };
 
     const std::size_t speakerHash = std::hash<std::string>{}(speaker.GetName());
     const std::size_t listenerHash = std::hash<std::string>{}(listener.GetName());
-    const std::size_t index = (speakerHash + listenerHash * 3 + static_cast<std::size_t>(worldClock)) % lines.size();
-    return speaker.GetName() + " to " + listener.GetName() + ": " + lines[index];
+    const std::size_t index = (speakerHash + listenerHash * 3 + static_cast<std::size_t>(worldClock)) % dayLines.size();
+    std::string line = nightTime ? nightLines[index % nightLines.size()] : dayLines[index % dayLines.size()];
+
+    if (context.location == "diner") {
+        line = nightTime ? "The diner feels wrong this late." : "The diner is quiet enough to hear your own thoughts.";
+    } else if (context.location == "colony_house") {
+        line = nightTime ? "Nobody should be talking this loudly in the house." : "Everyone keeps trying to act normal in here.";
+    }
+
+    return speaker.GetName() + " to " + listener.GetName() + ": " + line;
 }
 
 std::string GetPanicLine(const Character& character) {
     static const std::array<std::string, 12> lines = {
-        "Monster!",
-        "Run!",
-        "Get away from me!",
-        "No, no, no!",
-        "Someone help!",
-        "Do not look at its face!",
-        "Inside, now!",
-        "It knows my name!",
-        "The talisman, get to the talisman!",
-        "Keep moving!",
-        "It is too close!",
-        "Shut the door!"
+        "Wait.",
+        "Don't.",
+        "Stay back.",
+        "No, no...",
+        "Please, don't leave me here.",
+        "Don't look at it.",
+        "Inside. Now.",
+        "It knows.",
+        "Get to the door.",
+        "Keep moving.",
+        "Too close.",
+        "Shut it."
     };
 
     return lines[static_cast<std::size_t>(character.GetType()) % lines.size()];
@@ -620,20 +876,20 @@ void TriggerDialogueNarrativeHooks(Character& character, const NPC& npc, const s
 
 std::string GetMonsterTauntLine(const Character& character, float distance, float worldClock) {
     static const std::array<std::string, 14> taunts = {
-        "[MONSTER] We can hear your heart.",
-        "[MONSTER] Come outside. We only want to talk.",
-        "[MONSTER] That door will not save you forever.",
-        "[MONSTER] You look tired.",
-        "[MONSTER] We know where the others are.",
-        "[MONSTER] The town told us your name.",
-        "[MONSTER] Smile for us.",
-        "[MONSTER] You cannot keep everyone safe.",
-        "[MONSTER] The dark is already inside.",
-        "[MONSTER] We remember you.",
-        "[MONSTER] Open the window.",
-        "[MONSTER] Someone is missing.",
-        "[MONSTER] Your friends are calling from the woods.",
-        "[MONSTER] We are closer than you think."
+        "We can hear your heart.",
+        "Keep hiding. It only changes the sound.",
+        "That door was never enough.",
+        "You look tired.",
+        "We know where the others are.",
+        "The town told us your name.",
+        "You do not have to answer that.",
+        "You cannot keep everyone safe.",
+        "The dark is already inside.",
+        "We remember you.",
+        "Open the window.",
+        "Someone is missing.",
+        "Your friends are calling from the woods.",
+        "We are closer than you think."
     };
 
     const std::size_t index = (static_cast<std::size_t>(character.GetType()) * 7 +
@@ -644,10 +900,10 @@ std::string GetMonsterTauntLine(const Character& character, float distance, floa
 
 std::string GetCharacterMonsterResponseLine(const Character& character, float worldClock) {
     static const std::array<std::string, 5> lines = {
-        "Boyd: Back up. I am not giving you anyone.",
-        "Jade: You talk too much for something pretending to be human.",
-        "Tabitha: I know what you are trying to do.",
-        "Victor: I remember you. I remember what comes next.",
+        "Boyd: Hold the line. Nobody moves.",
+        "Jade: I am not helping you make this worse.",
+        "Tabitha: I know what you want. It is not happening.",
+        "Victor: I remember enough to know this is bad.",
         "Sara: No. I am not listening anymore."
     };
 
@@ -658,18 +914,18 @@ std::string GetCharacterMonsterResponseLine(const Character& character, float wo
 
 std::string GetMonsterScreamLine(int enemyCount, float distance) {
     static const std::array<std::string, 12> screams = {
-        "[MONSTER] RAAAAAHHHHH!!!",
-        "[MONSTER] SCREEEEEECH!!!",
-        "[MONSTER] HOWWWWWW!!!",
-        "[MONSTER] ROOOOOARRR!!!",
-        "[MONSTER] GRRRRRAAAAHHH!!!",
-        "[MONSTER] SHRIIIIEEEEK!!!",
-        "[MONSTER] CRAAAAAASH!!!",
-        "[MONSTER] WAAAAARGH!!!",
-        "[MONSTER] KNOCK KNOCK.",
-        "[MONSTER] LET US IN.",
-        "[MONSTER] WE SEE YOU.",
-        "[MONSTER] HIDE AND SEEK."
+        "Something is moving too close.",
+        "The dark outside is not empty.",
+        "Listen. It is still there.",
+        "Do not open the door.",
+        "That sound is inside the house.",
+        "Something is scratching at the wall.",
+        "The hallway just changed.",
+        "It is standing right there.",
+        "Do not answer the knock.",
+        "The room went cold.",
+        "You are not alone in here.",
+        "Someone else is breathing."
     };
     
     // Vary by enemy count and distance for some variety
@@ -1062,24 +1318,31 @@ void World::Update(const Camera& camera, float dt) {
     for (std::size_t i = 0; i < npcs.size(); ++i) {
         NPC& npc = npcs[i];
         npc.SetNight(nightTime);
+
         bool enemyVisible = false;
-        const glm::vec3 threatPosition = FindNearestEnemyPosition(enemies, npc.transform.position, kNpcSightRange, enemyVisible);
-        npc.SetThreatPosition(threatPosition, enemyVisible);
-        npcThreatened[i] = enemyVisible || npc.IsInDanger();
-        if (npcThreatened[i] && !hasRescueTarget) {
-            rescueTarget = npc.transform.position;
-            hasRescueTarget = true;
+        if (nightTime) {
+            const glm::vec3 threatPosition = FindNearestEnemyPosition(enemies, npc.transform.position, kNpcSightRange, enemyVisible);
+            npc.SetThreatPosition(threatPosition, enemyVisible);
+            npcThreatened[i] = enemyVisible || npc.IsInDanger();
+            if (npcThreatened[i] && !hasRescueTarget) {
+                rescueTarget = npc.transform.position;
+                hasRescueTarget = true;
+            }
+        } else {
+            npc.SetThreatPosition(npc.transform.position, false);
+            npc.SetRescueTarget(npc.transform.position, false);
+            npcThreatened[i] = false;
         }
     }
 
     for (std::size_t i = 0; i < npcs.size(); ++i) {
         NPC& npc = npcs[i];
-        const bool canRescue = hasRescueTarget && !npcThreatened[i] && HorizontalDistance(npc.transform.position, rescueTarget) <= 12.0f;
+        const bool canRescue = nightTime && hasRescueTarget && !npcThreatened[i] && HorizontalDistance(npc.transform.position, rescueTarget) <= 12.0f;
         npc.SetRescueTarget(rescueTarget, canRescue);
         npc.Update(dt);
     }
 
-    if (!playerKilled && activeChar) {
+    if (nightTime && !playerKilled && activeChar) {
         for (Enemy& enemy : enemies) {
             EnemyPerception bestPerception = EvaluateTargetStimulus(
                 enemy.transform.position,
@@ -1170,17 +1433,23 @@ void World::Update(const Camera& camera, float dt) {
                         if (audioManager) {
                             audioManager->PlaySound("player_hurt", 0.90f);
                         }
-                        
-                        // Trigger monster scream
-                        const float distance = HorizontalDistance(character.transform.position, enemy.transform.position);
-                        lastMonsterScream = GetMonsterScreamLine(static_cast<int>(enemies.size()), distance);
-                        monsterScreamDisplayTimer.Start(kScreamDisplayDuration);
-                        PlayVoiceLine(audioManager.get(), "monster", lastMonsterScream, 0.95f);
+                        if (nightTime) {
+                            // Trigger monster scream only at night.
+                            const float distance = HorizontalDistance(character.transform.position, enemy.transform.position);
+                            lastMonsterScream = GetMonsterScreamLine(static_cast<int>(enemies.size()), distance);
+                            monsterScreamDisplayTimer.Start(kScreamDisplayDuration);
+                            PlayVoiceLine(audioManager.get(), "monster", lastMonsterScream, 0.95f);
+                        } else {
+                            lastMonsterScream.clear();
+                            monsterScreamDisplayTimer.Stop();
+                        }
                     }
                     
                     std::cout << "[Damage] " << character.GetName() << " takes " << damageAmount << " damage! HP: " << character.GetHealth() << "\n";
                     if (static_cast<int>(charIdx) == activeCharacterIndex) {
-                        std::cout << lastMonsterScream << "\n";
+                        if (nightTime && !lastMonsterScream.empty()) {
+                            std::cout << lastMonsterScream << "\n";
+                        }
                     }
                 }
             }
@@ -1213,8 +1482,8 @@ void World::Update(const Camera& camera, float dt) {
             NPC& npc = npcs[npcIndex];
             const float distance = HorizontalDistance(activeChar->transform.position, npc.transform.position);
             if (distance < 2.75f && npcTalkCooldowns[npcIndex][activeIndex] <= 0.0f) {
-                const std::string npcLine = GetNpcLine(npc, *activeChar, worldClock);
-                const std::string characterReply = GetCharacterNpcReplyLine(npc, *activeChar, worldClock);
+                const std::string npcLine = GetNpcLine(npc, *activeChar, worldClock, nightTime, storyLocations);
+                const std::string characterReply = GetCharacterNpcReplyLine(npc, *activeChar, worldClock, nightTime, storyLocations);
                 std::ostringstream dialogue;
                 dialogue << npc.GetName() << ": " << npcLine << " | " << activeChar->GetName() << ": " << characterReply;
                 lastNpcDialogue = dialogue.str();
@@ -1249,7 +1518,7 @@ void World::Update(const Camera& camera, float dt) {
             Character& otherCharacter = *characters[characterIndex];
             const float distance = HorizontalDistance(activeChar->transform.position, otherCharacter.transform.position);
             if (distance < 2.2f && characterReactionCooldowns[characterIndex] <= 0.0f) {
-                lastNpcDialogue = GetCharacterPairLine(*activeChar, otherCharacter, worldClock);
+                lastNpcDialogue = GetCharacterPairLine(*activeChar, otherCharacter, worldClock, nightTime, storyLocations);
                 npcDialogueDisplayTimer.Start(kNpcDialogueDisplayDuration);
                 std::cout << "[Conversation] " << lastNpcDialogue << "\n";
                 characterReactionCooldowns[characterIndex] = 6.0f;
@@ -1259,13 +1528,22 @@ void World::Update(const Camera& camera, float dt) {
         for (const Enemy& enemy : enemies) {
             const float distance = HorizontalDistance(activeChar->transform.position, enemy.transform.position);
             if (distance < 8.0f && characterMonsterInteractionCooldowns[activeIndex] <= 0.0f) {
-                lastMonsterScream = GetMonsterTauntLine(*activeChar, distance, worldClock);
-                monsterScreamDisplayTimer.Start(kScreamDisplayDuration);
-                lastNpcDialogue = GetCharacterMonsterResponseLine(*activeChar, worldClock);
-                npcDialogueDisplayTimer.Start(kNpcDialogueDisplayDuration);
-                std::cout << lastMonsterScream << "\n";
-                std::cout << "[Monster Response] " << lastNpcDialogue << "\n";
-                PlayVoiceLine(audioManager.get(), "monster", lastMonsterScream, 0.95f);
+                if (nightTime) {
+                    lastMonsterScream = GetMonsterTauntLine(*activeChar, distance, worldClock);
+                    monsterScreamDisplayTimer.Start(kScreamDisplayDuration);
+                    lastNpcDialogue = GetCharacterMonsterResponseLine(*activeChar, worldClock);
+                    npcDialogueDisplayTimer.Start(kNpcDialogueDisplayDuration);
+                    std::cout << lastMonsterScream << "\n";
+                    std::cout << "[Monster Response] " << lastNpcDialogue << "\n";
+                    PlayVoiceLine(audioManager.get(), "monster", lastMonsterScream, 0.95f);
+                }
+                else {
+                    lastMonsterScream.clear();
+                    monsterScreamDisplayTimer.Stop();
+                    lastNpcDialogue = GetCharacterMonsterResponseLine(*activeChar, worldClock);
+                    npcDialogueDisplayTimer.Start(kNpcDialogueDisplayDuration);
+                    std::cout << "[Day Response] " << lastNpcDialogue << "\n";
+                }
                 PlayVoiceLine(audioManager.get(), "responses", lastNpcDialogue, 0.88f);
                 characterMonsterInteractionCooldowns[activeIndex] = 7.5f;
                 break;
@@ -1290,7 +1568,7 @@ void World::Update(const Camera& camera, float dt) {
 
         for (std::size_t otherNpcIndex = npcIndex + 1; otherNpcIndex < npcs.size(); ++otherNpcIndex) {
             if (HorizontalDistance(npcs[npcIndex].transform.position, npcs[otherNpcIndex].transform.position) < 3.25f) {
-                lastNpcDialogue = GetNpcNeighborLine(npcs[npcIndex], npcs[otherNpcIndex], worldClock);
+                lastNpcDialogue = GetNpcNeighborLine(npcs[npcIndex], npcs[otherNpcIndex], worldClock, nightTime, storyLocations);
                 npcDialogueDisplayTimer.Start(kNpcDialogueDisplayDuration);
                 npcNeighborTalkCooldowns[npcIndex] = 9.0f;
                 npcNeighborTalkCooldowns[otherNpcIndex] = 9.0f;
@@ -1478,9 +1756,11 @@ void World::Render(const Camera& camera, float aspectRatio) {
             RenderCharacterCube(gCharacterShader, gNpcMesh, camera, aspectRatio, npc.transform.position, glm::vec3(0.25f, 0.45f, 0.25f), npc.GetDebugColor());
         }
 
-        // Render Enemies
-        for (const Enemy& enemy : enemies) {
-            RenderCharacterCube(gCharacterShader, gEnemyMesh, camera, aspectRatio, enemy.transform.position, glm::vec3(0.30f, 0.55f, 0.30f), enemy.GetDebugColor());
+        // Render Enemies only at night
+        if (nightTime) {
+            for (const Enemy& enemy : enemies) {
+                RenderCharacterCube(gCharacterShader, gEnemyMesh, camera, aspectRatio, enemy.transform.position, glm::vec3(0.30f, 0.55f, 0.30f), enemy.GetDebugColor());
+            }
         }
 
         const Quest* activeQuest = nullptr;
@@ -1660,8 +1940,8 @@ bool World::TryNpcDialogue(Character& character, bool explicitInteraction) {
     }
 
     NPC& npc = npcs[bestNpcIndex];
-    const std::string npcLine = GetNpcLine(npc, character, worldClock);
-    const std::string characterReply = GetCharacterNpcReplyLine(npc, character, worldClock);
+    const std::string npcLine = GetNpcLine(npc, character, worldClock, nightTime, storyLocations);
+    const std::string characterReply = GetCharacterNpcReplyLine(npc, character, worldClock, nightTime, storyLocations);
     std::ostringstream dialogue;
     dialogue << npc.GetName() << ": " << npcLine << " | " << character.GetName() << ": " << characterReply;
     lastNpcDialogue = dialogue.str();
@@ -1681,9 +1961,20 @@ bool World::HandleInteractionOutcome(Character& activeChar, bool didInteract, co
         eventBus.Publish(InteractionTriggeredEvent{activeChar.GetType(), "world_interaction"});
 
         if (interactionSystem.HasLastQuestObjective()) {
-            SetActiveQuest(interactionSystem.GetLastInteractionQuestCharacter());
+            const CharacterType questCharacter = interactionSystem.GetLastInteractionQuestCharacter();
+            SetActiveQuest(questCharacter);
 
-            Quest* quest = questSystem->GetCharacterQuest(interactionSystem.GetLastInteractionQuestCharacter());
+            if (questSystem && !questSystem->IsProgressAllowed(questCharacter, cyclePhase)) {
+                lastInteractionFeedback = questSystem->GetProgressLockMessage(questCharacter, cyclePhase);
+                if (lastInteractionFeedback.empty()) {
+                    lastInteractionFeedback = "That progression window is closed right now.";
+                }
+                lastInteractionFeedbackTimer.Start(3.5f);
+                std::cout << "[Quest] Progress blocked by cycle phase.\n";
+                return true;
+            }
+
+            Quest* quest = questSystem->GetCharacterQuest(questCharacter);
             const int objectiveIndex = interactionSystem.GetLastInteractionQuestObjectiveIndex();
             if (quest && objectiveIndex >= 0) {
                 const auto& objectives = quest->GetObjectives();
@@ -1691,7 +1982,7 @@ bool World::HandleInteractionOutcome(Character& activeChar, bool didInteract, co
                     const QuestObjective& objective = objectives[objectiveIndex];
                     const int subObjectiveIndex = interactionSystem.GetLastInteractionQuestSubObjectiveIndex();
                     if (objective.type != ObjectiveType::Collect || (objectiveIndex == 1 && subObjectiveIndex == 1)) {
-                        if (puzzleManager.StartPuzzle(interactionSystem.GetLastInteractionQuestCharacter(), objectiveIndex, subObjectiveIndex, objective, quest->GetTitle())) {
+                        if (puzzleManager.StartPuzzle(questCharacter, objectiveIndex, subObjectiveIndex, objective, quest->GetTitle())) {
                             lastInteractionFeedback = "Puzzle opened: " + objective.description;
                             lastInteractionFeedbackTimer.Start(2.5f);
                             std::cout << "[Quest] Puzzle opened for objective " << objectiveIndex << "\n";
@@ -1715,8 +2006,8 @@ bool World::HandleInteractionOutcome(Character& activeChar, bool didInteract, co
                         }
 
                         if (foundCollectNode && allCollected) {
-                            questSystem->AdvanceObjective(interactionSystem.GetLastInteractionQuestCharacter(), objectiveIndex);
-                            interactionSystem.MarkQuestStepSolved(interactionSystem.GetLastInteractionQuestCharacter(), objectiveIndex);
+                            questSystem->AdvanceObjective(questCharacter, objectiveIndex);
+                            interactionSystem.MarkQuestStepSolved(questCharacter, objectiveIndex);
                             lastInteractionFeedback = "Evidence complete. Go to the Evidence Board and press E.";
                             lastInteractionFeedbackTimer.Start(3.5f);
                             std::cout << "[Quest] Collect objective complete via evidence flags for objective " << objectiveIndex << "\n";
@@ -2029,7 +2320,8 @@ void World::SetActiveQuest(CharacterType characterType) {
     std::cout << "[Quest] Active quest set for character type " << static_cast<int>(characterType) << "\n";
     // Provide explicit instruction when a quest is chosen
     if (quest) {
-        lastInteractionFeedback = std::string("Quest started: ") + quest->GetTitle() + ". Follow the helper and collect glyphs with F to progress.";
+        const std::string progressWindow = questSystem ? questSystem->GetProgressWindowLabel(characterType) : std::string("DAY");
+        lastInteractionFeedback = std::string("Quest started: ") + quest->GetTitle() + ". Progress window: " + progressWindow + ".";
         lastInteractionFeedbackTimer.Start(4.0f);
     }
 }
@@ -2062,6 +2354,15 @@ std::string World::GetQuestHelperText() const {
     const Quest* quest = questSystem->GetCharacterQuest(questCharacter);
     if (!quest || quest->IsComplete()) {
         return "";
+    }
+
+    const DayCyclePhase phase = questSystem->GetCurrentDayCyclePhase();
+    if (!questSystem->IsProgressAllowed(questCharacter, phase)) {
+        std::string lockMessage = questSystem->GetProgressLockMessage(questCharacter, phase);
+        if (lockMessage.empty()) {
+            lockMessage = std::string("WAIT UNTIL ") + questSystem->GetProgressWindowLabel(questCharacter);
+        }
+        return lockMessage;
     }
 
     const int nextObjectiveIndex = quest->GetNextIncompleteObjectiveIndex();
@@ -2116,6 +2417,11 @@ std::string World::GetQuestWaypointText() const {
 
     const Quest* quest = questSystem->GetCharacterQuest(questCharacter);
     if (!quest || quest->IsComplete()) {
+        return "";
+    }
+
+    const DayCyclePhase phase = questSystem->GetCurrentDayCyclePhase();
+    if (!questSystem->IsProgressAllowed(questCharacter, phase)) {
         return "";
     }
 
@@ -2231,13 +2537,24 @@ bool World::ConsumeSpawnRestartRequest() {
 
 void World::UpdateTimeOfDay(float dt) {
     worldClock += dt;
-    constexpr float dayNightCycle = 120.0f;
-    const float cyclePosition = std::fmod(worldClock, dayNightCycle);
-    const bool wasNight = nightTime;
-    nightTime = cyclePosition >= 72.0f;
-    if (nightTime != wasNight) {
-        std::cout << (nightTime ? "[World] Night has fallen. Talisman shelters are active.\n"
-                                : "[World] Morning breaks. Town routines resume.\n");
+    const DayCyclePhase previousPhase = cyclePhase;
+    cyclePhase = QuestSystem::GetDayCyclePhaseFromClock(worldClock);
+    nightTime = cyclePhase == DayCyclePhase::Night;
+    if (cyclePhase != previousPhase) {
+        switch (cyclePhase) {
+            case DayCyclePhase::Morning:
+                std::cout << "[World] Morning breaks. Town routines resume.\n";
+                break;
+            case DayCyclePhase::Afternoon:
+                std::cout << "[World] Afternoon settles over the town.\n";
+                break;
+            case DayCyclePhase::Sunset:
+                std::cout << "[World] Sunset begins. Everyone heads inside.\n";
+                break;
+            case DayCyclePhase::Night:
+                std::cout << "[World] Night has fallen. Talisman shelters are active.\n";
+                break;
+        }
     }
 }
 

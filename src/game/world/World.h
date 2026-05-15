@@ -82,6 +82,10 @@ public:
     void SetActiveQuest(CharacterType characterType);
     void AbandonActiveQuest();
     bool IsPuzzleActive() const;
+    DayCyclePhase GetCyclePhase() const { return cyclePhase; }
+    bool IsDayTime() const { return cyclePhase == DayCyclePhase::Morning || cyclePhase == DayCyclePhase::Afternoon; }
+    bool IsSunsetTime() const { return cyclePhase == DayCyclePhase::Sunset; }
+    bool IsNightTime() const { return nightTime; }
     void UpdatePuzzle(float dt, const InputContext& input);
     void RenderPuzzleOverlay(TextRenderer& textRenderer, int screenWidth, int screenHeight) const;
     void RenderNarrativeOverlays(TextRenderer& textRenderer, int screenWidth, int screenHeight) const;
@@ -137,6 +141,7 @@ private:
     std::unique_ptr<AudioManager> audioManager;
     
     float worldClock = 0.0f;
+    DayCyclePhase cyclePhase = DayCyclePhase::Morning;
     bool nightTime = false;
     bool playerKilled = false;
     bool hasPreviousActivePosition = false;

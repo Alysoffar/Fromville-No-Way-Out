@@ -1,11 +1,24 @@
 #include "game/quest/QuestSystem.h"
 
 #include <algorithm>
+#include <cmath>
 #include <iostream>
 
 #include <nlohmann/json.hpp>
 #include "game/entities/Boyd.h"
 #include "game/entities/Victor.h"
+
+namespace {
+std::string DayCyclePhaseToString(DayCyclePhase phase) {
+    switch (phase) {
+        case DayCyclePhase::Morning: return "MORNING";
+        case DayCyclePhase::Afternoon: return "AFTERNOON";
+        case DayCyclePhase::Sunset: return "SUNSET";
+        case DayCyclePhase::Night: return "NIGHT";
+    }
+    return "DAY";
+}
+}
 
 QuestSystem::QuestSystem(float* worldClockPtr)
     : worldClockPtr(worldClockPtr) {
@@ -15,6 +28,70 @@ QuestSystem::QuestSystem(float* worldClockPtr)
     characterQuests[2] = std::make_unique<Quest>(QuestType::Tabitha_MapTunnels, "Tabitha's Quest");
     characterQuests[3] = std::make_unique<Quest>(QuestType::Victor_RecallPast, "Victor's Quest");
     // Sara's quest removed per user request; leave slot empty
+}
+
+DayCyclePhase QuestSystem::GetDayCyclePhaseFromClock(float worldClock) {
+    const float cyclePosition = std::fmod(worldClock, 120.0f);
+    if (cyclePosition < 40.0f) {
+        return DayCyclePhase::Morning;
+    }
+    if (cyclePosition < 64.0f) {
+        return DayCyclePhase::Afternoon;
+    }
+    if (cyclePosition < 72.0f) {
+        return DayCyclePhase::Sunset;
+    }
+    return DayCyclePhase::Night;
+}
+
+DayCyclePhase QuestSystem::GetCurrentDayCyclePhase() const {
+    return GetDayCyclePhaseFromClock(worldClockPtr ? *worldClockPtr : 0.0f);
+}
+
+bool QuestSystem::IsProgressAllowed(CharacterType type, DayCyclePhase phase) const {
+    switch (type) {
+        case CharacterType::Boyd:
+            return phase == DayCyclePhase::Morning || phase == DayCyclePhase::Afternoon || phase == DayCyclePhase::Sunset;
+        case CharacterType::Jade:
+            return phase == DayCyclePhase::Night;
+        case CharacterType::Tabitha:
+            return phase == DayCyclePhase::Night;
+        case CharacterType::Victor:
+            return phase == DayCyclePhase::Morning || phase == DayCyclePhase::Afternoon;
+        case CharacterType::Sara:
+            return phase == DayCyclePhase::Morning || phase == DayCyclePhase::Afternoon || phase == DayCyclePhase::Sunset;
+    }
+
+    return false;
+}
+
+std::string QuestSystem::GetProgressWindowLabel(CharacterType type) const {
+    switch (type) {
+        case CharacterType::Boyd: return "DAY / SUNSET";
+        case CharacterType::Jade: return "NIGHT";
+        case CharacterType::Tabitha: return "NIGHT";
+        case CharacterType::Victor: return "DAY";
+        case CharacterType::Sara: return "DAY / SUNSET";
+    }
+
+    return "DAY";
+}
+
+std::string QuestSystem::GetProgressLockMessage(CharacterType type, DayCyclePhase phase) const {
+    switch (type) {
+        case CharacterType::Boyd:
+            return phase == DayCyclePhase::Night ? "Boyd works before dark. Use the daylight or sunset window." : "";
+        case CharacterType::Jade:
+            return phase == DayCyclePhase::Night ? "The symbols are dormant. This changes after dark." : "The town hides it during the day.";
+        case CharacterType::Tabitha:
+            return phase == DayCyclePhase::Night ? "The tunnels are waiting for night. The echoes are gone during daylight." : "The tunnels have not changed yet.";
+        case CharacterType::Victor:
+            return phase == DayCyclePhase::Night ? "Victor sleeps through the night. The memories come in daylight." : "";
+        case CharacterType::Sara:
+            return phase == DayCyclePhase::Night ? "Sara's investigation calms down during the day. Night is for fear, not progress." : "";
+    }
+
+    return "";
 }
 
 void QuestSystem::Initialize(const std::array<Character*, 5>& characters) {
@@ -113,6 +190,13 @@ const Quest* QuestSystem::GetCharacterQuest(CharacterType type) const {
 void QuestSystem::AdvanceObjective(CharacterType type, int objectiveIndex) {
     Quest* quest = GetCharacterQuest(type);
     if (quest) {
+        const DayCyclePhase phase = GetCurrentDayCyclePhase();
+        if (!IsProgressAllowed(type, phase)) {
+            std::cout << "[Objective] Blocked by cycle phase " << DayCyclePhaseToString(phase)
+                      << " for " << static_cast<int>(type) << "\n";
+            return;
+        }
+
         const int nextObjectiveIndex = quest->GetNextIncompleteObjectiveIndex();
         if (nextObjectiveIndex != objectiveIndex) {
             std::cout << "[Objective] Ignored out-of-order step for " << static_cast<int>(type)

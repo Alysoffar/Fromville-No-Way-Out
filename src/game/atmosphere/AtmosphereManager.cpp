@@ -55,14 +55,16 @@ void AtmosphereManager::UpdateWhispers(float dt) {
 
     ambientWhisperTimer -= dt;
     if (ambientWhisperTimer <= 0.0f) {
-        const float nextInterval = 3.0f + (globalTension * 3.0f);
+        const float nextInterval = 12.0f + (globalTension * 10.0f);
         ambientWhisperTimer = nextInterval;
 
-        if (corruptionLevel > 0.2f) {
+        if (corruptionLevel > 0.38f && globalTension > 0.45f) {
             static std::mt19937 rng(std::random_device{}());
             std::uniform_int_distribution<> dist(0, static_cast<int>(kChildPhrases.size() - 1));
-            const char* phrase = kChildPhrases[dist(rng)];
-            TriggerChildWhisper(phrase, glm::vec3(0.0f));
+            if ((dist(rng) % 3) == 0) {
+                const char* phrase = kChildPhrases[dist(rng)];
+                TriggerChildWhisper(phrase, glm::vec3(0.0f));
+            }
         }
     }
 }
@@ -130,10 +132,10 @@ void AtmosphereManager::RenderHallucinations(TextRenderer& textRenderer, int scr
         const float yPos = static_cast<float>(screenHeight) * 0.3f + std::sin(w.timer * 4.0f) * 20.0f;
 
         textRenderer.RenderText(
-            "▼ " + w.phrase + " ▼",
+            "... " + w.phrase + " ...",
             edge,
             yPos,
-            0.5f,
+            0.42f,
             whisperColor * (0.4f + 0.6f * w.intensity),
             screenWidth,
             screenHeight

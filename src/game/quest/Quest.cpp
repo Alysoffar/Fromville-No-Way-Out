@@ -160,10 +160,10 @@ void Quest::InitializeObjectives() {
             ObjectiveType::Dialogue,
             {{SubObjective{"Talk to Mara", false, 1, 0}}},
             {
-                {DialogueEntry{"Mara", "I saw strange symbols on the church wall last week...", "Listen for clues about cult activity"}},
-                {DialogueEntry{"Mara", "Three people have vanished in the last month. The sheriff won't investigate.", "People are disappearing"}}
+                {DialogueEntry{"Mara", "I saw strange symbols on the church wall last week. They were not there before.", "The wall changed when nobody was looking"}},
+                {DialogueEntry{"Mara", "Three people have vanished in the last month. Nobody wants to say it out loud.", "People keep going missing"}}
             },
-            {"Mara saw someone leaving the cult site at midnight"}
+            {"Mara saw someone leaving the church grounds after midnight"}
         ));
         
         // 2. Collect + Multi-part objective
@@ -360,8 +360,8 @@ void Quest::InitializeObjectives() {
             ObjectiveType::Dialogue,
             {{SubObjective{"Listen to the memory", false, 1, 0}}, {SubObjective{"Verify the details", false, 1, 0}}},
             {
-                {DialogueEntry{"Victor's memory", "A girl from school... Sarah... the cult took her for the ritual...", "This trauma is deep"}},
-                {DialogueEntry{"Victor's subconscious", "I should have told someone. I was too afraid.", "Victor blames himself"}}
+                {DialogueEntry{"Victor's memory", "A girl from school... Sarah... I think I watched something happen and did nothing.", "The memory is broken"}},
+                {DialogueEntry{"Victor's subconscious", "I should have told someone. I was too afraid to say her name.", "Victor blames himself"}}
             },
             {"First cult victim was Victor's classmate. Cult leader was his mentor."},
             "Victor"
@@ -372,7 +372,7 @@ void Quest::InitializeObjectives() {
             ObjectiveType::Dialogue,
             {{SubObjective{"Face the memory", false, 1, 0}}, {SubObjective{"Accept the guilt", false, 1, 0}}},
             {
-                {DialogueEntry{"Victor's memory", "Another girl. I saw the leader recruiting her. And I... I said nothing.", "Guilt consumes him"}}
+                {DialogueEntry{"Victor's memory", "Another girl. I saw her talking to him in the road. Then I walked away.", "Guilt consumes him"}}
             },
             {"Victor witnessed the recruitment but was too afraid to warn anyone"},
             "Victor",
@@ -385,7 +385,7 @@ void Quest::InitializeObjectives() {
             ObjectiveType::Puzzle,
             {{SubObjective{"Recall the location", false, 1, 0}}, {SubObjective{"Remember the ritual", false, 1, 0}}},
             {
-                {DialogueEntry{"Victor's memory", "The ceremony happened in the cemetery chapel. I heard chanting. I was outside... watching. Paralyzed with fear.", "This is the key moment"}}
+                {DialogueEntry{"Victor's memory", "The ceremony happened in the cemetery chapel. I heard chanting. I stayed outside until it was too late.", "This is the key moment"}}
             },
             {"Victor discovered the cult's gathering place but never reported it"},
             "Victor"
@@ -396,9 +396,9 @@ void Quest::InitializeObjectives() {
             ObjectiveType::Dialogue,
             {{SubObjective{"Identify the betrayer by name", false, 1, 0}}, {SubObjective{"Locate evidence of motive (letter or token)", false, 1, 0}}},
             {
-                {DialogueEntry{"Victor's memory", "The leader... told me I was chosen. That together we would unlock the prophecy. For a moment, I believed him.", "He was almost tempted"}}
+                {DialogueEntry{"Victor's memory", "The leader told me I was chosen. For a moment I wanted to believe him.", "He was almost tempted"}}
             },
-            {"Search the mentor's study for a hidden letter or token that explains the motive."},
+            {"Search the mentor's study for a hidden letter or token that explains why Victor stayed silent."},
             "Victor"
         ));
         
@@ -407,9 +407,9 @@ void Quest::InitializeObjectives() {
             ObjectiveType::Puzzle,
             {{SubObjective{"Confirm the survivor's identity (find ID or photo)", false, 1, 0}}, {SubObjective{"Locate the survivor in town (ask NPCs or check boardinghouse)", false, 1, 0}}},
             {
-                {DialogueEntry{"Victor", "Wait... the young woman who came to town last month... she looks familiar... it's Sarah. She survived.", "Could it be?"}}
+                {DialogueEntry{"Victor", "Wait... the young woman who came to town last month... I know that face. I think it's Sarah.", "Could it be?"}}
             },
-            {"Check the inn, hospital, and boardinghouse; ask townsfolk and look for a photograph or identification confirming her name."},
+            {"Check the inn, hospital, and boardinghouse; ask townsfolk and look for a photograph or ID that confirms who she is."},
             "Victor"
         ));
         
