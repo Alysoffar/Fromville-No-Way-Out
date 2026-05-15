@@ -31,6 +31,7 @@
 #include "game/runtime/GameplayEvents.h"
 #include "game/world/map_manager.h"
 #include "game/story/StoryManager.h"
+#include "game/dialogue/DialogueManager.h"
 
 namespace {
 Mesh gPlayerMesh;
@@ -270,7 +271,7 @@ void InitializeVoiceCueLibrary(AudioManager& audio) {
     library.initialized = true;
 }
 
-bool PlayVoiceLine(AudioManager* audio, const std::string& group, const std::string& rawLine, float gain = 0.85f) {
+bool PlayVoiceLineInternal(AudioManager* audio, const std::string& group, const std::string& rawLine, float gain = 0.85f) {
     if (!audio || rawLine.empty()) {
         return false;
     }
@@ -312,6 +313,8 @@ bool PlayVoiceLine(AudioManager* audio, const std::string& group, const std::str
 
     return audio->PlaySound(found->second, gain);
 }
+
+
 
 float HorizontalDistance(const glm::vec3& a, const glm::vec3& b) {
     glm::vec3 delta = a - b;
@@ -1074,7 +1077,12 @@ void InitializeModels() {
         gCharacterReady = gNpcMesh.IsValid() && gEnemyMesh.IsValid();
         gQuestMarkerReady = gQuestMarkerMesh.IsValid();
     }
+    }
 }
+
+// exported wrapper so other translation units can call into this file's voice matching logic
+bool PlayVoiceLine(AudioManager* audio, const std::string& group, const std::string& rawLine, float gain) {
+    return PlayVoiceLineInternal(audio, group, rawLine, gain);
 }
 
 World::World() {
@@ -1123,6 +1131,48 @@ void World::Initialize() {
         InitializeVoiceCueLibrary(*audioManager);
         audioManager->PlaySound("ambient_tension_low", 0.30f);
     }
+
+    // Provide DialogueManager with audio manager for voice/feedback
+    DialogueManager::Instance().SetAudioManager(audioManager.get());
+
+    // Subscribe dialogue reactions to gameplay events
+    eventBus.Subscribe<PuzzleCompletedEvent>([](const PuzzleCompletedEvent& ev) {
+        const std::string name = CharacterTypeToName(ev.character);
+        if (!name.empty()) {
+            DialogueManager::Instance().ModifyTrust(name, +5);
+            DialogueManager::Instance().AddMemoryFlag(name, std::string("objective:") + std::to_string(ev.objectiveIndex));
+        }
+    });
+
+    eventBus.Subscribe<InteractionTriggeredEvent>([](const InteractionTriggeredEvent& ev) {
+        // small recognition boost when interacting with a node
+        const std::string name = CharacterTypeToName(ev.character);
+        if (!name.empty()) {
+            DialogueManager::Instance().ModifyTrust(name, +1);
+        }
+    });
+
+    eventBus.Subscribe<PromiseMadeEvent>([](const PromiseMadeEvent& ev) {
+        const std::string name = CharacterTypeToName(ev.character);
+        if (!name.empty()) {
+            DialogueManager::Instance().MarkPromise(name, ev.promiseId);
+            DialogueManager::Instance().ModifyTrust(name, +3);
+        }
+    });
+
+    eventBus.Subscribe<PromiseBrokenEvent>([](const PromiseBrokenEvent& ev) {
+        const std::string name = CharacterTypeToName(ev.character);
+        if (!name.empty()) {
+            DialogueManager::Instance().BreakPromise(name, ev.promiseId);
+        }
+    });
+
+    eventBus.Subscribe<AccusationEvent>([](const AccusationEvent& ev) {
+        const std::string name = CharacterTypeToName(ev.character);
+        if (!name.empty()) {
+            DialogueManager::Instance().MarkAccusation(name, ev.accusationId);
+        }
+    });
 
     puzzleManager.SetSoundHook([this](const std::string& cue) {
         bool played = false;
@@ -2218,6 +2268,7 @@ WorldSaveState World::CaptureSaveState() const {
     state.playerKilled = playerKilled;
     state.questState = questSystem ? questSystem->SerializeState() : std::string();
     state.puzzleState = puzzleManager.SerializeState();
+    state.dialogueRelationships = DialogueManager::Instance().SerializeState();
 
     for (std::size_t i = 0; i < characters.size() && i < state.characters.size(); ++i) {
         state.characters[i].position = characters[i]->transform.position;
@@ -2258,6 +2309,7 @@ bool World::SaveToFile(const std::string& path) const {
     file << state.worldClock << ' ' << state.activeCharacterIndex << ' ' << state.playerKilled << '\n';
     file << std::quoted(state.questState) << '\n';
     file << std::quoted(state.puzzleState) << '\n';
+    file << std::quoted(state.dialogueRelationships) << '\n';
     for (const CharacterSimState& characterState : state.characters) {
         file << characterState.position.x << ' '
              << characterState.position.y << ' '
@@ -2288,6 +2340,7 @@ bool World::LoadFromFile(const std::string& path) {
     if (header == "fromville_save_v2") {
         file >> std::quoted(state.questState);
         file >> std::quoted(state.puzzleState);
+        file >> std::quoted(state.dialogueRelationships);
     }
     for (CharacterSimState& characterState : state.characters) {
         file >> characterState.position.x
@@ -2302,6 +2355,8 @@ bool World::LoadFromFile(const std::string& path) {
     }
 
     RestoreSaveState(state);
+    // restore dialogue relationships
+    DialogueManager::Instance().DeserializeState(state.dialogueRelationships);
     std::cout << "[Save] Loaded " << path << "\n";
     return true;
 }

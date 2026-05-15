@@ -14,7 +14,7 @@ public:
 	~TextRenderer();
 
 	bool Initialize(const std::string& fontPath, unsigned int pixelSize = 30);
-	void RenderText(const std::string& text, float x, float y, float scale, glm::vec3 color, int screenWidth, int screenHeight);
+	void RenderText(const std::string& text, float x, float y, float scale, glm::vec3 color, int screenWidth, int screenHeight, bool uppercase = true);
 	void SetScaleMultiplier(float multiplier) { scaleMultiplier = multiplier; }
 	float GetScaleMultiplier() const { return scaleMultiplier; }
 	void SetMinimumScale(float minimum) { minimumScale = minimum; }

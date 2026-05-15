@@ -7,6 +7,7 @@
 #include <nlohmann/json.hpp>
 #include "game/entities/Boyd.h"
 #include "game/entities/Victor.h"
+#include "game/dialogue/DialogueManager.h"
 
 namespace {
 std::string DayCyclePhaseToString(DayCyclePhase phase) {
@@ -208,6 +209,24 @@ void QuestSystem::AdvanceObjective(CharacterType type, int objectiveIndex) {
         
         // Log objective completion
         std::cout << "[Objective] Completed for " << static_cast<int>(type) << "\n";
+
+        // Reward: small trust increase for the character whose objective completed
+        auto CharacterTypeToName = [](CharacterType t) -> std::string {
+            switch (t) {
+                case CharacterType::Boyd: return "Boyd";
+                case CharacterType::Jade: return "Jade";
+                case CharacterType::Tabitha: return "Tabitha";
+                case CharacterType::Victor: return "Victor";
+                case CharacterType::Sara: return "Sara";
+            }
+            return "";
+        };
+
+        const std::string charName = CharacterTypeToName(type);
+        if (!charName.empty()) {
+            DialogueManager::Instance().ModifyTrust(charName, +6);
+            DialogueManager::Instance().AddMemoryFlag(charName, std::string("objective:") + std::to_string(objectiveIndex));
+        }
         
         // Add consequence based on objective
         auto objectives = quest->GetObjectives();

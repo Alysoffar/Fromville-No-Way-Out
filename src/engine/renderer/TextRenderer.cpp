@@ -142,13 +142,13 @@ bool TextRenderer::Initialize(const std::string& fontPath, unsigned int pixelSiz
 	return ready;
 }
 
-void TextRenderer::RenderText(const std::string& inputText, float x, float y, float scale, glm::vec3 color, int screenWidth, int screenHeight) {
+void TextRenderer::RenderText(const std::string& inputText, float x, float y, float scale, glm::vec3 color, int screenWidth, int screenHeight, bool uppercase) {
 	if (!ready || inputText.empty()) {
 		return;
 	}
 
 	scale = std::max(scale, minimumScale) * scaleMultiplier;
-	std::string text = ToUpperAscii(inputText);
+	std::string text = uppercase ? ToUpperAscii(inputText) : inputText;
 	const glm::mat4 projection = glm::ortho(0.0f, static_cast<float>(screenWidth), 0.0f, static_cast<float>(screenHeight));
 
 	glEnable(GL_BLEND);

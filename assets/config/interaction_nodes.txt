@@ -1,5 +1,9 @@
 # id|type|name|x|y|z|radius|prompt|successMessage|questFlag|requiredFlag|questObjectiveIndex|requiredCharacter
 mara_conversation|Conversation|Mara Witness Lead|0.0|0.0|4.0|2.5|Talk|Mara gives Boyd a suspect name and points him toward the sheriff station board.|mara_talked||0|Boyd
+boyd_conversation|Conversation|Boyd|0.0|0.0|2.5|2.4|Talk|Boyd keeps his voice low and asks what you heard.|boyd_talked||-1|Boyd
+jade_conversation|Conversation|Jade|2.0|0.0|4.0|2.3|Talk|Jade is tracing symbols and tries not to look rattled by the pattern.|jade_talked||-1|Jade
+tabitha_conversation|Conversation|Tabitha|-4.0|0.0|4.0|2.3|Talk|Tabitha keeps watch and speaks in careful, measured fragments.|tabitha_talked||-1|Tabitha
+victor_conversation|Conversation|Victor|-2.0|0.0|-4.0|2.3|Talk|Victor remembers something he does not want to say out loud.|victor_talked||-1|Victor
 boyd_evidence_knife|ItemPickup|Bloody Knife|2.0|0.0|6.0|2.0|Pick up|Boyd finds a bloody knife hidden behind the warehouse.|boyd_knife_taken|mara_talked|1|Boyd|0
 boyd_evidence_ledger|Trigger|Cult Ledger|4.5|0.0|6.5|2.0|Inspect|Boyd deciphers a ledger listing the cult's meeting dates.|boyd_ledger_found|boyd_knife_taken|1|Boyd|1
 boyd_evidence_idol|Trigger|Strange Idol|6.5|0.0|4.0|2.0|Inspect|Boyd recovers a strange idol that points to the ritual circle.|boyd_idol_found|boyd_ledger_found|1|Boyd|2

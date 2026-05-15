@@ -57,11 +57,25 @@ void InputContext::ConfigureGameplayDefaults() {
     SetBinding(InputAction::SwitchCharacter3, {GLFW_KEY_3});
     SetBinding(InputAction::SwitchCharacter4, {GLFW_KEY_4});
     SetBinding(InputAction::SwitchCharacter5, {GLFW_KEY_5});
+    SetBinding(InputAction::DebugDump, {GLFW_KEY_F12});
+    SetBinding(InputAction::DebugToggleUI, {GLFW_KEY_F11});
+    SetBinding(InputAction::DebugNext, {GLFW_KEY_PAGE_UP});
+    SetBinding(InputAction::DebugPrev, {GLFW_KEY_PAGE_DOWN});
+    SetBinding(InputAction::DebugInc, {GLFW_KEY_LEFT_BRACKET});
+    SetBinding(InputAction::DebugDec, {GLFW_KEY_RIGHT_BRACKET});
 }
 
 void InputContext::ConfigureUiDefaults() {
     SetBinding(InputAction::Confirm, {GLFW_KEY_ENTER, GLFW_KEY_SPACE});
     SetBinding(InputAction::Cancel, {GLFW_KEY_ESCAPE, GLFW_KEY_BACKSPACE});
+    SetBinding(InputAction::DialogueChoicePrev, {GLFW_KEY_UP, GLFW_KEY_W});
+    SetBinding(InputAction::DialogueChoiceNext, {GLFW_KEY_DOWN, GLFW_KEY_S});
+    SetBinding(InputAction::DialogueChoice1, {GLFW_KEY_1});
+    SetBinding(InputAction::DialogueChoice2, {GLFW_KEY_2});
+    SetBinding(InputAction::DialogueChoice3, {GLFW_KEY_3});
+    SetBinding(InputAction::DialogueChoice4, {GLFW_KEY_4});
+    SetBinding(InputAction::DialogueAdvance, {GLFW_KEY_ENTER, GLFW_KEY_SPACE});
+    SetBinding(InputAction::DialogueCancel, {GLFW_KEY_ESCAPE, GLFW_KEY_BACKSPACE});
     SetBinding(InputAction::OpenJournal, {GLFW_KEY_J});
     SetBinding(InputAction::ToggleHint, {GLFW_KEY_LEFT_CONTROL, GLFW_KEY_RIGHT_CONTROL});
     SetBinding(InputAction::PuzzleReset, {GLFW_KEY_R});

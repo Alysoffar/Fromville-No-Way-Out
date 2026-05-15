@@ -181,3 +181,18 @@ bool AudioManager::PlaySound(const std::string& cueName, float gain) {
     alSourcePlay(source);
     return true;
 }
+
+bool AudioManager::SetCueGain(const std::string& cueName, float gain) {
+    if (!initialized) return false;
+    const auto found = sounds.find(cueName);
+    if (found == sounds.end()) return false;
+    const float clampedGain = std::clamp(gain, 0.0f, 1.0f);
+    ALuint source = found->second.source;
+    alSourcef(source, AL_GAIN, clampedGain);
+    return true;
+}
+
+bool AudioManager::PlayOneShot(const std::string& cueName, float gain) {
+    // For now, same as PlaySound (source is rewound and played)
+    return PlaySound(cueName, gain);
+}

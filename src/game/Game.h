@@ -30,6 +30,9 @@ private:
     bool cursorLocked = true;
     bool sprintToggled = false;
     std::string lastInteractionPrompt;
+    // debug overlay
+    bool debugOverlayEnabled = false;
+    int debugSelectedRelationshipIndex = 0;
 
     void HandleGlobalInput(Engine& engine);
     void HandleGameplayInput(float dt, Engine& engine);

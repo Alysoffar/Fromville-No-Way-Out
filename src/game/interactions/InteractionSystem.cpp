@@ -9,6 +9,7 @@
 
 #include "game/entities/Character.h"
 #include "game/quest/QuestSystem.h"
+#include "game/dialogue/DialogueManager.h"
 
 namespace {
 float HorizontalDistance(const glm::vec3& a, const glm::vec3& b) {
@@ -209,6 +210,10 @@ bool InteractionSystem::TryInteract(Character& character, QuestSystem& questSyst
             lastInteractionMessage = node->successMessage;
             if (node->type == InteractionType::Conversation) {
                 std::cout << "[Conversation] " << node->successMessage << "\n";
+                // Start cinematic conversation if available (DialogueManager already initialized in Game)
+                if (!DialogueManager::Instance().StartConversation(node->id)) {
+                    DialogueManager::Instance().StartConversation(node->name);
+                }
             } else if (node->type == InteractionType::ItemPickup) {
                 std::cout << "[Pickup] " << node->successMessage << "\n";
             } else {
@@ -353,6 +358,10 @@ bool InteractionSystem::TryPickup(Character& character, QuestSystem& questSystem
 void InteractionSystem::LoadFallbackNodes() {
     nodes = {
         {"mara_conversation", InteractionType::Conversation, "Mara", glm::vec3(-4.0f, 0.0f, 2.5f), 2.5f, true, false, false, "Talk", "Mara remembers the town meetings and points Boyd toward the cult.", "mara_talked", "", 0, 0, "Boyd"},
+        {"boyd_conversation", InteractionType::Conversation, "Boyd", glm::vec3(0.0f, 0.0f, 2.5f), 2.4f, true, false, false, "Talk", "Boyd keeps his voice low and asks what you heard.", "boyd_talked", "", -1, -1, "Boyd"},
+        {"jade_conversation", InteractionType::Conversation, "Jade", glm::vec3(2.0f, 0.0f, 4.0f), 2.3f, true, false, false, "Talk", "Jade is tracing symbols and tries not to look rattled by the pattern.", "jade_talked", "", -1, -1, "Jade"},
+        {"tabitha_conversation", InteractionType::Conversation, "Tabitha", glm::vec3(-4.0f, 0.0f, 4.0f), 2.3f, true, false, false, "Talk", "Tabitha keeps watch and speaks in careful, measured fragments.", "tabitha_talked", "", -1, -1, "Tabitha"},
+        {"victor_conversation", InteractionType::Conversation, "Victor", glm::vec3(-2.0f, 0.0f, -4.0f), 2.3f, true, false, false, "Talk", "Victor remembers something he does not want to say out loud.", "victor_talked", "", -1, -1, "Victor"},
         {"library_key", InteractionType::ItemPickup, "Library Key", glm::vec3(1.5f, 0.0f, 7.0f), 2.0f, true, false, false, "Pick up", "Jade picks up a key with a glyph etched into it.", "library_key_taken", "", 1, 0, "Jade"},
         {"cabin_door", InteractionType::Door, "Cabin Door", glm::vec3(7.0f, 0.0f, 3.0f), 2.2f, true, false, false, "Open/Close", "The cabin door unlocks and reveals a safe space.", "cabin_door_opened", "library_key_taken", -1, -1, ""},
         {"tunnel_trigger", InteractionType::Trigger, "Collapsed Tunnel", glm::vec3(-8.0f, 0.0f, -6.0f), 3.0f, true, false, false, "Inspect", "Tabitha notices a hidden passage and marks it on the map.", "tunnel_found", "", 2, 0, "Tabitha"},

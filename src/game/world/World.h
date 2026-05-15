@@ -61,6 +61,7 @@ struct WorldSaveState {
     std::string questState;
     std::string puzzleState;
     std::array<CharacterSimState, 5> characters;
+    std::string dialogueRelationships; // JSON blob for relationships/memory
 };
 
 class World {
@@ -107,6 +108,9 @@ public:
     bool ConsumeSpawnRestartRequest();
     bool SaveToFile(const std::string& path) const;
     bool LoadFromFile(const std::string& path);
+
+    // Access to audio manager for global systems (transitions, UI)
+    AudioManager* GetAudioManager() { return audioManager.get(); }
 
 private:
     MapManager* mapManager = nullptr;

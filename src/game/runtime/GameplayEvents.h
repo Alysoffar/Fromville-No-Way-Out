@@ -35,3 +35,27 @@ struct ActiveCharacterSwitchedEvent final : public GameplayEvent {
     CharacterType fromCharacter = CharacterType::Boyd;
     CharacterType toCharacter = CharacterType::Boyd;
 };
+
+struct PromiseMadeEvent final : public GameplayEvent {
+    PromiseMadeEvent() = default;
+    PromiseMadeEvent(CharacterType characterIn, std::string promiseIdIn)
+        : character(characterIn), promiseId(std::move(promiseIdIn)) {}
+    CharacterType character = CharacterType::Boyd;
+    std::string promiseId;
+};
+
+struct PromiseBrokenEvent final : public GameplayEvent {
+    PromiseBrokenEvent() = default;
+    PromiseBrokenEvent(CharacterType characterIn, std::string promiseIdIn)
+        : character(characterIn), promiseId(std::move(promiseIdIn)) {}
+    CharacterType character = CharacterType::Boyd;
+    std::string promiseId;
+};
+
+struct AccusationEvent final : public GameplayEvent {
+    AccusationEvent() = default;
+    AccusationEvent(CharacterType characterIn, std::string accusationIdIn)
+        : character(characterIn), accusationId(std::move(accusationIdIn)) {}
+    CharacterType character = CharacterType::Boyd;
+    std::string accusationId;
+};

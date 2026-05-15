@@ -14,6 +14,10 @@
 #include "game/quest/Quest.h"
 #include "game/quest/QuestSystem.h"
 #include "game/world/World.h"
+#include "game/dialogue/DialogueManager.h"
+#include "engine/ui/UIManager.h"
+#include "engine/ui/MainMenuScreen.h"
+#include "engine/ui/TransitionManager.h"
 
 Game::Game() = default;
 
@@ -23,11 +27,37 @@ bool Game::Initialize(Engine& engine) {
 
     world = std::make_unique<World>();
     world->Initialize();
+    // Hook audio manager into transitions for cinematic fades/stingers
+    TransitionManager::Instance().SetAudioManager(world->GetAudioManager());
+    DialogueManager::Instance().Initialize();
 
     hudRenderer = std::make_unique<TextRenderer>();
     if (!hudRenderer->Initialize("", 24)) {
         std::cerr << "[HUD] Falling back to no on-screen text overlay.\n";
         hudRenderer.reset();
+    }
+
+    // initialize UI manager and push main menu as a proof-of-concept
+    UIManager::Instance().Initialize(hudRenderer.get());
+    UIManager::Instance().PushScreen(std::make_unique<MainMenuScreen>());
+    // wire main menu callbacks
+    if (auto* top = dynamic_cast<MainMenuScreen*>(UIManager::Instance().GetTopScreen())) {
+        top->SetQuitCallback([&engine]() {
+            engine.GetWindow().Close();
+        });
+        top->SetContinueCallback([this]() {
+            if (world) world->LoadFromFile("savegame.txt");
+        });
+        top->SetNewGameCallback([this]() {
+            // reset world to initial spawn
+            if (world) {
+                // If available, restore initial spawn save state
+                world->LoadFromFile("savegame.txt");
+            }
+        });
+        top->SetLoadCallback([this]() {
+            // TODO: open save slot UI
+        });
     }
 
     engine.GetInput().SetCursorLocked(true);
@@ -83,6 +113,10 @@ void Game::UpdateHudTitle(Engine& engine) const {
 
 void Game::RenderHud(const Engine& engine) const {
     if (!hudRenderer || !world) {
+        return;
+    }
+
+    if (DialogueManager::Instance().IsActive()) {
         return;
     }
 
@@ -289,9 +323,10 @@ void Game::RenderHud(const Engine& engine) const {
         const std::string key = isPickup ? "[F] " : "[E] ";
         const std::string centerPrompt = key + interactionPrompt;
         hudRenderer->RenderText(centerPrompt, static_cast<float>(width) * 0.12f, 120.0f, 1.0f, glm::vec3(1.0f, 0.9f, 0.6f), width, height);
-    }
+    
 }
 
+    }
 void Game::HandleGlobalInput(Engine& engine) {
     const InputContext& input = engine.GetGameplayInput();
 
@@ -311,10 +346,45 @@ void Game::HandleGlobalInput(Engine& engine) {
     if (input.IsActionPressed(InputAction::LoadGame)) {
         world->LoadFromFile("savegame.txt");
     }
+    if (input.IsActionPressed(InputAction::DebugDump)) {
+        DialogueManager::Instance().DumpStateToFile();
+    }
+    if (input.IsActionPressed(InputAction::DebugToggleUI)) {
+        debugOverlayEnabled = !debugOverlayEnabled;
+    }
+
+    if (debugOverlayEnabled) {
+        if (input.IsActionPressed(InputAction::DebugNext)) {
+            ++debugSelectedRelationshipIndex;
+        }
+        if (input.IsActionPressed(InputAction::DebugPrev)) {
+            --debugSelectedRelationshipIndex;
+        }
+        if (input.IsActionPressed(InputAction::DebugInc)) {
+            const auto ptr = DialogueManager::Instance().GetRelationshipStateIndex(debugSelectedRelationshipIndex);
+            if (ptr.second) DialogueManager::Instance().ModifyTrust(ptr.first, +1);
+        }
+        if (input.IsActionPressed(InputAction::DebugDec)) {
+            const auto ptr = DialogueManager::Instance().GetRelationshipStateIndex(debugSelectedRelationshipIndex);
+            if (ptr.second) DialogueManager::Instance().ModifyTrust(ptr.first, -1);
+        }
+        if (engine.GetUiInput().IsActionPressed(InputAction::Confirm)) {
+            const auto ptr = DialogueManager::Instance().GetRelationshipStateIndex(debugSelectedRelationshipIndex);
+            if (ptr.second) {
+                const std::string name = ptr.first;
+                DialogueManager::Instance().MarkPromise(name, "debug_promise");
+            }
+        }
+    }
+
 }
 
 void Game::HandleGameplayInput(float dt, Engine& engine) {
     const InputContext& input = engine.GetGameplayInput();
+
+    if (DialogueManager::Instance().IsActive()) {
+        return;
+    }
 
     if (input.IsActionPressed(InputAction::Sprint)) {
         sprintToggled = !sprintToggled;
@@ -377,6 +447,10 @@ void Game::HandleGameplayInput(float dt, Engine& engine) {
 }
 
 void Game::HandleCharacterInput(float dt, Engine& engine) {
+    if (DialogueManager::Instance().IsActive()) {
+        return;
+    }
+
     if (world->IsPuzzleActive()) {
         world->UpdatePuzzle(dt, engine.GetUiInput());
         if (world->ConsumeSpawnRestartRequest()) {
@@ -395,6 +469,21 @@ void Game::Update(float dt, Engine& engine) {
     }
 
     HandleGlobalInput(engine);
+
+    // UI system update
+    UIManager::Instance().Update(dt, engine.GetUiInput());
+
+    // If a modal UI screen is active, pause gameplay and skip further updates
+    if (UIManager::Instance().GetTopScreen() && UIManager::Instance().GetTopScreen()->IsModal()) {
+        return;
+    }
+
+    if (DialogueManager::Instance().IsActive()) {
+        DialogueManager::Instance().HandleInput(engine.GetUiInput());
+        DialogueManager::Instance().Update(dt);
+        world->Update(*camera, dt);
+        return;
+    }
 
     const InputContext& input = engine.GetGameplayInput();
     if (input.IsActionPressed(InputAction::SwitchCharacter1) ||
@@ -419,6 +508,8 @@ void Game::Update(float dt, Engine& engine) {
     }
 
     world->Update(*camera, dt);
+    // Dialogue manager update
+    DialogueManager::Instance().Update(dt);
 }
 
 void Game::Render(Engine& engine) const {
@@ -426,13 +517,21 @@ void Game::Render(Engine& engine) const {
         return;
     }
 
+    const bool dialogueActive = DialogueManager::Instance().IsActive();
+
     world->Render(*camera, engine.GetAspectRatio());
     if (hudRenderer) {
-        if (!world->IsPuzzleActive()) {
+        if (!world->IsPuzzleActive() && !dialogueActive) {
             world->RenderNarrativeOverlays(*hudRenderer, engine.GetWindow().GetWidth(), engine.GetWindow().GetHeight());
         }
-        world->RenderPuzzleOverlay(*hudRenderer, engine.GetWindow().GetWidth(), engine.GetWindow().GetHeight());
+        if (!dialogueActive) {
+            world->RenderPuzzleOverlay(*hudRenderer, engine.GetWindow().GetWidth(), engine.GetWindow().GetHeight());
+        }
+        // Dialogue UI render
+        DialogueManager::Instance().Render(hudRenderer.get(), engine.GetWindow().GetWidth(), engine.GetWindow().GetHeight());
     }
+    // UI render (menus, overlays)
+    UIManager::Instance().Render(engine.GetWindow().GetWidth(), engine.GetWindow().GetHeight());
     RenderHud(engine);
 }
 

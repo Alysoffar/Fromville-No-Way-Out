@@ -1,0 +1,26 @@
+{
+  "id": "boyd_conversation",
+  "title": "Boyd",
+  "startNode": "start",
+  "nodes": [
+    {
+      "id": "start",
+      "speaker": "Boyd",
+      "voiceGroup": "npc_male",
+      "text": "You hear the radio again?",
+      "emotion": 1,
+      "timing": 1,
+      "postDelaySeconds": 0.8,
+      "revealCharactersPerSecond": 26.0,
+      "choices": [
+        {"id": "static", "text": "Only static.", "nextNodeId": "static_reply", "trustDelta": 1},
+        {"id": "scared", "text": "People are scared.", "nextNodeId": "scared_reply", "trustDelta": 1},
+        {"id": "worried", "text": "You're asking because you're worried.", "nextNodeId": "worried_reply", "trustDelta": 2}
+      ]
+    },
+    {"id": "static_reply", "speaker": "Boyd", "voiceGroup": "npc_male", "text": "Static doesn't usually make people stop talking.", "nextNodeId": "end", "autoAdvance": true},
+    {"id": "scared_reply", "speaker": "Boyd", "voiceGroup": "npc_male", "text": "Keep them calm if you can. Don't promise what we can't hold.", "nextNodeId": "end", "autoAdvance": true},
+    {"id": "worried_reply", "speaker": "Boyd", "voiceGroup": "npc_male", "text": "Maybe. Or maybe I'm counting who tells the truth when it matters.", "nextNodeId": "end", "autoAdvance": true},
+    {"id": "end", "speaker": "Boyd", "voiceGroup": "npc_male", "text": "If you hear anyone panicking, bring it to me quiet. We do not need a crowd around it.", "emotion": 3, "timing": 2, "preDelaySeconds": 0.9, "postDelaySeconds": 1.0}
+  ]
+}
