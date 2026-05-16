@@ -13,7 +13,6 @@ _deps/
 # Object files and libraries
 *.o
 *.a
-*.lib
 *.obj
 
 # IDE and editor
