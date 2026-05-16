@@ -28,7 +28,13 @@ void Camera::Update(InputManager& input, float dt, const glm::vec3& playerPositi
     const glm::vec3 lookAtTarget = playerPosition + glm::vec3(0.0f, targetHeightOffset, 0.0f);
     const glm::vec3 desiredPosition = lookAtTarget - (forward * targetDistance);
 
-    position = desiredPosition;
+    // 3. Move the camera backwards from the player based on the forward vector
+    position = lookAtTarget - (GetForward() * targetDistance);
+
+    // 4. Prevent camera from going under the ground
+    if (position.y < 0.2f) {
+        position.y = 0.2f;
+    }
 }
 
 void Camera::ProcessMouseMovement(float xoffset, float yoffset) {

@@ -11,7 +11,10 @@
 #include <memory>
 #include <sstream>
 #include <unordered_map>
+#include <cfloat>
+#include <iostream>
 #include <vector>
+#include <map>
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -32,10 +35,26 @@
 #include "game/world/map_manager.h"
 #include "game/story/StoryManager.h"
 #include "game/dialogue/DialogueManager.h"
+#include "engine/resources/loader.h"
+#include "game/world/DayNightCycle.h"
+
+// =============================================================================
+// Player Mesh
+// =============================================================================
 
 namespace {
-Mesh gPlayerMesh;
-Shader gPlayerShader("PlayerModel");
+
+struct WorldMesh {
+    Mesh mesh;
+    float minY = 0.0f;
+    bool valid = false;
+};
+
+WorldMesh gPlayerMesh;
+WorldMesh gHouseMesh;
+WorldMesh gDinnerMesh;
+WorldMesh gPoliceMesh;
+Shader gPlayerShader("Player");
 bool gPlayerReady = false;
 
 Mesh gVillageMesh;
@@ -1064,37 +1083,181 @@ void InitializeModels() {
             gPlayerShader.Load("assets/shaders/model_lit.vert", "assets/shaders/model_lit.frag");
             gPlayerReady = gPlayerMesh.IsValid();
         }
+float CalculateMinY(const std::vector<MeshVertex>& vertices) {
+    float minY = FLT_MAX;
+    for (const auto& v : vertices) {
+        minY = std::min(minY, v.position.y);
     }
-
-    // ---- Map (Resident evil model, load synchronously for immediate display) ----
-    gVillageReady = false;
-
-    if (!gCharacterReady) {
-        CreateColoredCubeMesh(gNpcMesh, glm::vec3(0.25f, 0.90f, 0.65f));
-        CreateColoredCubeMesh(gEnemyMesh, glm::vec3(0.95f, 0.22f, 0.18f));
-        CreateQuestTriangleMesh(gQuestMarkerMesh, glm::vec3(1.0f, 0.1f, 0.1f));
-        gCharacterShader.Load("assets/shaders/model_lit.vert", "assets/shaders/model_lit.frag");
-        gCharacterReady = gNpcMesh.IsValid() && gEnemyMesh.IsValid();
-        gQuestMarkerReady = gQuestMarkerMesh.IsValid();
-    }
-    }
+    return minY;
 }
 
-// exported wrapper so other translation units can call into this file's voice matching logic
-bool PlayVoiceLine(AudioManager* audio, const std::string& group, const std::string& rawLine, float gain) {
-    return PlayVoiceLineInternal(audio, group, rawLine, gain);
+void LoadMeshes(CollisionWorld* cw, std::vector<Door>& doors) {
+    if (gPlayerReady) return;
+
+    std::cout << "[World] Loading meshes...\n";
+
+    std::vector<MeshVertex> vertices;
+    std::vector<unsigned int> indices;
+
+    if (Loader::LoadOBJ("assets/models/boyd.obj", vertices, indices)) {
+        gPlayerMesh.mesh.Create(vertices, indices);
+        gPlayerMesh.minY = CalculateMinY(vertices);
+        gPlayerMesh.valid = gPlayerMesh.mesh.IsValid();
+        std::cout << "  [OK] Player mesh loaded (minY=" << gPlayerMesh.minY << ")\n";
+    } else {
+        std::cerr << "  [FAIL] Could not load player mesh.\n";
+        gPlayerMesh.valid = false;
+    }
+
+    auto LoadBuilding = [&](const std::string& path, WorldMesh& outMesh, glm::vec3 pos, float rot, float scale, const std::string& doorKeyword, float doorOpenAngle) {
+        std::vector<OBJShape> shapes;
+        if (!Loader::LoadOBJWithShapes(path, shapes)) return;
+
+        std::vector<MeshVertex> mainVertices;
+        std::vector<unsigned int> mainIndices;
+
+        // First pass: Find global minY to correctly position everything, and compute local bounds
+        float globalMinY = FLT_MAX;
+        glm::vec3 localMin(FLT_MAX);
+        glm::vec3 localMax(-FLT_MAX);
+        for (const auto& s : shapes) {
+            for (const auto& v : s.vertices) {
+                globalMinY = std::min(globalMinY, v.position.y);
+                localMin = glm::min(localMin, v.position * scale);
+                localMax = glm::max(localMax, v.position * scale);
+            }
+        }
+        float adjustedY = -globalMinY * scale + 0.05f;
+        glm::vec3 buildingPos = glm::vec3(pos.x, adjustedY, pos.z);
+
+        // Compute true world center of the building geometry
+        glm::vec3 localCenter = (localMin + localMax) * 0.5f;
+        glm::mat4 localToWorld = glm::translate(glm::mat4(1.0f), buildingPos);
+        localToWorld = glm::rotate(localToWorld, glm::radians(rot), glm::vec3(0.0f, 1.0f, 0.0f));
+        glm::vec3 buildingWorldCenter = glm::vec3(localToWorld * glm::vec4(localCenter, 1.0f));
+        buildingWorldCenter.y = buildingPos.y + 0.5f; // place slightly above floor
+
+        std::map<std::string, std::pair<std::vector<MeshVertex>, std::vector<unsigned int>>> doorGroups;
+
+        for (auto& s : shapes) {
+            if (s.name.find(doorKeyword) != std::string::npos &&
+                s.name.find("Frame") == std::string::npos &&
+                s.name.find("Sill") == std::string::npos) {
+                
+                std::string groupName = s.name;
+                if (s.name.find("Knob") != std::string::npos) {
+                    groupName = "Door_Main_Mesh"; // Merge knob with main door
+                }
+                
+                auto& group = doorGroups[groupName];
+                unsigned int offset = static_cast<unsigned int>(group.first.size());
+                for (auto v : s.vertices) {
+                    if (scale != 1.0f) v.position *= scale;
+                    group.first.push_back(v);
+                }
+                for (auto i : s.indices) group.second.push_back(i + offset);
+            } else {
+                unsigned int offset = static_cast<unsigned int>(mainVertices.size());
+                for (auto v : s.vertices) {
+                    if (scale != 1.0f) v.position *= scale;
+                    mainVertices.push_back(v);
+                }
+                for (auto i : s.indices) mainIndices.push_back(i + offset);
+            }
+        }
+        
+        for (auto& [dName, dData] : doorGroups) {
+            if (dData.first.empty()) continue;
+            
+            glm::vec3 minP(FLT_MAX), maxP(-FLT_MAX);
+            for (const auto& v : dData.first) {
+                minP = glm::min(minP, v.position);
+                maxP = glm::max(maxP, v.position);
+            }
+            
+            // If it's a right door, hinge is on the right (max X). Otherwise left (min X).
+            float hingeX = (dName.find("_R") != std::string::npos) ? maxP.x : minP.x;
+            glm::vec3 hingePos = glm::vec3(hingeX, 0.0f, minP.z);
+            
+            // Fix double doors so they swing outward correctly (reverse angle for right doors)
+            float angle = doorOpenAngle;
+            if (dName.find("_R") != std::string::npos) {
+                angle = -doorOpenAngle;
+            }
+            
+            // Calculate door center in world space
+            glm::mat4 localToWorld = glm::translate(glm::mat4(1.0f), buildingPos);
+            localToWorld = glm::rotate(localToWorld, glm::radians(rot), glm::vec3(0.0f, 1.0f, 0.0f));
+            glm::vec3 doorWorldCenter = glm::vec3(localToWorld * glm::vec4(hingePos, 1.0f));
+            
+            Door d;
+            // Store buildingPos as the position for rendering transform
+            d.Initialize(dName, dData.first, dData.second, buildingPos, rot, angle, hingePos, doorWorldCenter);
+            
+            // We teleport the player exactly to the building's physical center
+            d.SetInsidePosition(buildingWorldCenter);
+            doors.push_back(std::move(d));
+        }
+
+        // If no doors were extracted (like Diner or Police), create a virtual door at the entrance
+        if (doorGroups.empty()) {
+            glm::vec3 entranceLocalPos(0.0f);
+            int stepVertCount = 0;
+            for (const auto& s : shapes) {
+                if (s.name.find("Step") != std::string::npos) {
+                    for (const auto& v : s.vertices) {
+                        entranceLocalPos += v.position * scale;
+                        stepVertCount++;
+                    }
+                }
+            }
+            
+            if (stepVertCount > 0) {
+                entranceLocalPos /= static_cast<float>(stepVertCount);
+            }
+
+            glm::mat4 localToWorld = glm::translate(glm::mat4(1.0f), buildingPos);
+            localToWorld = glm::rotate(localToWorld, glm::radians(rot), glm::vec3(0.0f, 1.0f, 0.0f));
+            glm::vec3 entranceWorldPos = glm::vec3(localToWorld * glm::vec4(entranceLocalPos, 1.0f));
+
+            Door virtualDoor;
+            virtualDoor.Initialize(path + "_Entrance", {}, {}, buildingPos, rot, 0.0f, glm::vec3(0.0f), entranceWorldPos);
+            
+            // Teleport point inside: center of building
+            glm::vec3 insidePos = buildingPos;
+            insidePos.y += 0.5f; // safely above floor
+            virtualDoor.SetInsidePosition(insidePos);
+            
+            doors.push_back(std::move(virtualDoor));
+        }
+        
+        outMesh.mesh.Create(mainVertices, mainIndices);
+        outMesh.minY = CalculateMinY(mainVertices);
+        outMesh.valid = outMesh.mesh.IsValid();
+
+        glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(pos.x, adjustedY, pos.z));
+        model = glm::rotate(model, glm::radians(rot), glm::vec3(0.0f, 1.0f, 0.0f));
+        // We already scaled the vertices, so we don't scale the model matrix anymore!
+        if (cw) cw->AddTrianglesFromMesh(mainVertices, mainIndices, model, true);
+    };
+
+    // House 1 & 2
+    LoadBuilding("assets/models/House.obj", gHouseMesh, glm::vec3(-25.0f, 0, 0.0f), 90.0f, 1.0f, "Door_Main", 90.0f);
+    LoadBuilding("assets/models/House.obj", gHouseMesh, glm::vec3(25.0f, 0, 0.0f), -90.0f, 1.0f, "Door_Main", 90.0f);
+
+    LoadBuilding("assets/models/Dinner.obj", gDinnerMesh, glm::vec3(0.0f, 0, -40.0f), 0.0f, 2.0f, "DoorGlass", -90.0f);
+    LoadBuilding("assets/models/Police.obj", gPoliceMesh, glm::vec3(0.0f, 0, 40.0f), 180.0f, 2.0f, "Door", 90.0f);
+
+    gPlayerShader.Load("assets/shaders/model_lit.vert", "assets/shaders/model_lit.frag");
+    gPlayerReady = true;
 }
 
-World::World() {
-    entityManager.BindStorage(&characters, &npcs, &enemies, &activeCharacterIndex);
-}
 
-void World::Initialize() {
-    static MapManager worldMap;
-    static TerrainRenderer terrainRenderer;
+} // anonymous namespace
 
-    mapManager = &worldMap;
-    terrain = &terrainRenderer;
+// =============================================================================
+// World class implementation
+// =============================================================================
 
     terrain->Initialize();
     InitializeModels();

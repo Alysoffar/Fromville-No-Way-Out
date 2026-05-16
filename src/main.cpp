@@ -1,7 +1,21 @@
 #include "engine/core/Engine.h"
 #include "game/Game.h"
 
-int main() {
+#include <filesystem>
+
+int main(int argc, char** argv) {
+    try {
+        if (argc > 0 && argv && argv[0]) {
+            const std::filesystem::path exePath = std::filesystem::absolute(argv[0]);
+            const std::filesystem::path exeDir = exePath.parent_path();
+            if (!exeDir.empty()) {
+                std::filesystem::current_path(exeDir);
+            }
+        }
+    } catch (...) {
+        // If working dir adjustment fails, keep default behavior.
+    }
+
     Engine engine;
     if (!engine.Initialize(1280, 720, "Fromville: Engine/Game Split")) {
         return 1;

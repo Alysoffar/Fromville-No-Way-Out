@@ -6,6 +6,9 @@
 #include <cmath>
 #include <iostream>
 #include <sstream>
+#include <glad/glad.h>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include "engine/core/Engine.h"
 #include "engine/input/InputAction.h"
@@ -57,8 +60,23 @@ bool Game::Initialize(Engine& engine) {
         });
     }
 
-    cursorLocked = false;
-    engine.GetInput().SetCursorLocked(false);
+    // Initialize new terrain rendering subsystems
+    groundRenderer.init();
+    grassRenderer.init();
+    treeRenderer.init(world->GetCollisionWorld());
+    world->GetCollisionWorld()->BuildBVH();
+    skydomeRenderer.init();
+
+    characterMesh = std::make_unique<AnimatedMesh>("assets/models/Character 1/character.fbx");
+    animatedShader = std::make_unique<Shader>("animated");
+    animatedShader->Load("shaders/animated.vert", "shaders/animated.frag");
+
+    walkingAnimation = std::make_unique<Animation>("assets/models/Character 1/Standing Idle.fbx", characterMesh.get());
+    animator = std::make_unique<Animator>(walkingAnimation.get());
+
+    m_Player.init(engine.GetWindow().GetHandle());
+
+    engine.GetInput().SetCursorLocked(true);
     return true;
 }
 
@@ -464,7 +482,23 @@ void Game::Update(float dt, Engine& engine) {
         }
     }
 
+    if (engine.GetInput().IsKeyPressed(GLFW_KEY_E)) {
+        world->TryInteract();
+    }
+
+    camera->Update(engine.GetInput(), dt, world->GetPlayer().transform.position);
     world->Update(*camera, dt);
+
+    // Advance day/night cycle
+    dayNightCycle.update(dt);
+
+    if (animator) {
+        animator->UpdateAnimation(dt);
+    }
+
+    // Set clear color to current fog color so BeginFrame clears with the right color
+    glm::vec3 fogColor = dayNightCycle.getFogColor();
+    glClearColor(fogColor.r, fogColor.g, fogColor.b, 1.0f);
 }
 
 void Game::Render(Engine& engine) const {
@@ -472,20 +506,82 @@ void Game::Render(Engine& engine) const {
         return;
     }
 
-    world->Render(*camera, engine.GetAspectRatio());
-    if (hudRenderer) {
-        if (!world->IsPuzzleActive()) {
-            world->RenderNarrativeOverlays(*hudRenderer, engine.GetWindow().GetWidth(), engine.GetWindow().GetHeight());
+    const float aspectRatio = engine.GetAspectRatio();
+    const glm::mat4 view = camera->GetViewMatrix();
+    const glm::mat4 projection = camera->GetProjectionMatrix(aspectRatio);
+    const glm::vec3 cameraPos = camera->GetPosition();
+    const float currentTime = static_cast<float>(glfwGetTime());
+
+    const float fogDensity = 0.018f;
+
+    // 1. Skydome (drawn first, behind everything)
+    skydomeRenderer.render(view, projection,
+                           dayNightCycle.getSunDirection(),
+                           dayNightCycle.getDayFactor(),
+                           dayNightCycle.getDayTime());
+
+    // 2. Textured ground quad
+    groundRenderer.render(view, projection, cameraPos,
+                          dayNightCycle.getActiveLightDir(),
+                          dayNightCycle.getLightColor(),
+                          dayNightCycle.getAmbientColor(),
+                          dayNightCycle.getDiffuseStrength(),
+                          dayNightCycle.getFogColor(), fogDensity);
+
+    // 3. Instanced grass billboards
+    grassRenderer.render(view, projection, cameraPos, currentTime,
+                         dayNightCycle.getActiveLightDir(),
+                         dayNightCycle.getLightColor(),
+                         dayNightCycle.getAmbientColor(),
+                         dayNightCycle.getDiffuseStrength(),
+                         dayNightCycle.getFogColor(), fogDensity);
+
+    // 3.5 Instanced trees
+    treeRenderer.render(view, projection, cameraPos,
+                        dayNightCycle.getActiveLightDir(),
+                        dayNightCycle.getLightColor(),
+                        dayNightCycle.getAmbientColor(),
+                        dayNightCycle.getDiffuseStrength(),
+                        dayNightCycle.getFogColor(), fogDensity);
+
+    // 4. World objects and player (using dynamic day/night lighting)
+    world->RenderObjects(*camera, aspectRatio, dayNightCycle, fogDensity);
+
+    // 5. Render animated character
+    if (characterMesh && animatedShader) {
+        animatedShader->Bind();
+        animatedShader->SetMat4("view", view);
+        animatedShader->SetMat4("projection", projection);
+        animatedShader->SetVec3("lightDir", dayNightCycle.getActiveLightDir());
+        animatedShader->SetVec3("lightColor", dayNightCycle.getLightColor());
+        animatedShader->SetVec3("viewPos", cameraPos);
+        animatedShader->SetFloat("fogDensity", fogDensity);
+        animatedShader->SetVec3("fogColor", dayNightCycle.getFogColor());
+
+        glm::vec3 playerPos = world->GetPlayer().transform.position;
+        float playerRot = world->GetPlayer().transform.rotation.y;
+
+        glm::mat4 model = glm::translate(glm::mat4(1.0f), playerPos);
+        model = glm::rotate(model, glm::radians(playerRot), glm::vec3(0.0f, 1.0f, 0.0f));
+        model = glm::scale(model, glm::vec3(0.01f)); // Mixamo FBX usually requires scaling down
+        animatedShader->SetMat4("model", model);
+
+        if (animator) {
+            animatedShader->SetMat4Array("finalBonesMatrices", animator->GetFinalBoneMatrices());
         }
-        world->RenderPuzzleOverlay(*hudRenderer, engine.GetWindow().GetWidth(), engine.GetWindow().GetHeight());
+
+        characterMesh->draw(animatedShader->GetID());
     }
-    // UI render (menus, overlays)
-    UIManager::Instance().Render(engine.GetWindow().GetWidth(), engine.GetWindow().GetHeight());
-    RenderHud(engine);
 }
 
 void Game::Shutdown() {
-    hudRenderer.reset();
+    groundRenderer.cleanup();
+    grassRenderer.cleanup();
+    treeRenderer.cleanup();
+    skydomeRenderer.cleanup();
+
     world.reset();
     camera.reset();
+    characterMesh.reset();
+    animatedShader.reset();
 }
