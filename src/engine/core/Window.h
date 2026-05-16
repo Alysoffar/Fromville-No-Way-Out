@@ -19,6 +19,7 @@ public:
 	int GetWidth() const;
 	int GetHeight() const;
 	GLFWwindow* GetHandle() const;
+	void SetTitle(const std::string& newTitle);
 
 private:
 	static void FramebufferSizeCallback(GLFWwindow* window, int w, int h);

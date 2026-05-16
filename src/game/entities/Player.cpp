@@ -1,9 +1,9 @@
 #include "game/entities/Player.h"
 
 Player::Player()
-    : Entity("Player") {
+    : Character(CharacterType::Boyd, "Player") {
 }
 
 void Player::Update(float dt) {
-    ApplyPhysics(dt);
+    Character::Update(dt);
 }

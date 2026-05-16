@@ -6,9 +6,12 @@
 #include <glad/glad.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <sstream>
 
 #include "engine/core/Engine.h"
 #include "game/world/World.h"
+#include "game/world/DayNightCycle.h"
+#include "game/dialogue/DialogueManager.h"
 #include "engine/renderer/Camera.h"
 
 Game::Game() = default;
@@ -35,68 +38,87 @@ bool Game::Initialize(Engine& engine) {
     animator = std::make_unique<Animator>(walkingAnimation.get());
 
     m_Player.init(engine.GetWindow().GetHandle());
+    textRenderer.Initialize("C:/Windows/Fonts/arial.ttf", 24);
+    
+    // Configure Input
+    engine.GetGameplayInput().Attach(&engine.GetInput());
+    engine.GetGameplayInput().ConfigureGameplayDefaults();
+    engine.GetUiInput().Attach(&engine.GetInput());
+    engine.GetUiInput().ConfigureUiDefaults();
+
+    DialogueManager::Instance().SetAudioManager(world->GetAudioManager());
+    DialogueManager::Instance().Initialize();
+    DialogueManager::Instance().LoadConversationsFromFolder("assets/dialogue");
+
+    // Load initial sounds
+    if (auto* audio = world->GetAudioManager()) {
+        audio->LoadSound("ambient_loop", "assets/audio/music/ambient_tension_low.wav");
+        audio->PlaySound("ambient_loop", 0.3f);
+    }
 
     engine.GetInput().SetCursorLocked(true);
     return true;
 }
 
 void Game::Update(float dt, Engine& engine) {
-    if (!camera || !world) {
-        return;
-    }
+    if (!camera || !world) return;
 
-    if (engine.GetInput().IsKeyPressed(GLFW_KEY_ESCAPE)) {
+    const auto& input = engine.GetGameplayInput();
+
+    if (input.IsActionPressed(InputAction::Pause)) {
         cursorLocked = !cursorLocked;
         engine.GetInput().SetCursorLocked(cursorLocked);
     }
 
-    if (engine.GetInput().IsKeyPressed(GLFW_KEY_R)) {
+    if (input.IsActionPressed(InputAction::ResetView)) {
         camera->Reset(spawnPosition);
     }
 
-    // Get camera's forward and right vectors, flattened to the XZ plane
-    glm::vec3 camForward = camera->GetForward();
-    camForward.y = 0.0f;
-    if (glm::length(camForward) > 0.001f) camForward = glm::normalize(camForward);
+    // Character Switching
+    if (input.IsActionPressed(InputAction::SwitchCharacter1)) world->SwitchCharacter(0);
+    if (input.IsActionPressed(InputAction::SwitchCharacter2)) world->SwitchCharacter(1);
+    if (input.IsActionPressed(InputAction::SwitchCharacter3)) world->SwitchCharacter(2);
+    if (input.IsActionPressed(InputAction::SwitchCharacter4)) world->SwitchCharacter(3);
+    if (input.IsActionPressed(InputAction::SwitchCharacter5)) world->SwitchCharacter(4);
 
-    glm::vec3 camRight = camera->GetRight();
-    camRight.y = 0.0f;
-    if (glm::length(camRight) > 0.001f) camRight = glm::normalize(camRight);
-
-    // Build a movement direction relative to the camera
-    glm::vec3 moveDir(0.0f);
-    if (engine.GetInput().IsKeyDown(GLFW_KEY_W)) moveDir += camForward;
-    if (engine.GetInput().IsKeyDown(GLFW_KEY_S)) moveDir -= camForward;
-    if (engine.GetInput().IsKeyDown(GLFW_KEY_D)) moveDir += camRight;
-    if (engine.GetInput().IsKeyDown(GLFW_KEY_A)) moveDir -= camRight;
-
-    if (glm::length(moveDir) > 0.001f) {
-        moveDir = glm::normalize(moveDir);
+    // Ability Trigger
+    if (input.IsActionPressed(InputAction::Ability)) {
+        world->GetPlayer().ActivateAbility();
     }
 
-    world->GetPlayer().Move(moveDir.x, moveDir.z, dt);
+    // Update camera
+    camera->Update(engine.GetInput(), dt, world->GetPlayer().transform.position);
 
-    if (engine.GetInput().IsKeyPressed(GLFW_KEY_SPACE)) {
+    const bool canMovePlayer = (camera->GetState() == Camera::CameraState::FIRST_PERSON);
+
+    if (canMovePlayer) {
+        glm::vec2 moveVec = input.GetMovementVector();
+        glm::vec3 camForward = camera->GetForward();
+        camForward.y = 0.0f;
+        if (glm::length(camForward) > 0.001f) camForward = glm::normalize(camForward);
+
+        glm::vec3 camRight = camera->GetRight();
+        camRight.y = 0.0f;
+        if (glm::length(camRight) > 0.001f) camRight = glm::normalize(camRight);
+
+        glm::vec3 moveDir = camForward * moveVec.y + camRight * moveVec.x;
+        world->GetPlayer().Move(moveDir.x, moveDir.z, dt);
+    }
+
+    if (input.IsActionPressed(InputAction::Jump)) {
         world->GetPlayer().Jump();
     }
-    world->GetPlayer().Crouch(engine.GetInput().IsKeyDown(GLFW_KEY_C));
-    world->GetPlayer().Sprint(engine.GetInput().IsKeyDown(GLFW_KEY_LEFT_SHIFT));
+    world->GetPlayer().Crouch(input.IsActionDown(InputAction::Crouch));
+    world->GetPlayer().Sprint(input.IsActionDown(InputAction::Sprint));
 
-    if (engine.GetInput().IsKeyPressed(GLFW_KEY_E)) {
+    if (input.IsActionPressed(InputAction::Interact)) {
         world->TryInteract();
     }
 
-    camera->Update(engine.GetInput(), dt, world->GetPlayer().transform.position);
-    world->Update(*camera, dt);
-
-    // Advance day/night cycle
+    world->Update(*camera, dt, engine.GetInput());
     dayNightCycle.update(dt);
+    UpdateHudTitle(engine);
 
-    if (animator) {
-        animator->UpdateAnimation(dt);
-    }
-
-    // Set clear color to current fog color so BeginFrame clears with the right color
     glm::vec3 fogColor = dayNightCycle.getFogColor();
     glClearColor(fogColor.r, fogColor.g, fogColor.b, 1.0f);
 }
@@ -147,7 +169,7 @@ void Game::Render(Engine& engine) const {
     // 4. World objects and player (using dynamic day/night lighting)
     world->RenderObjects(*camera, aspectRatio, dayNightCycle, fogDensity);
 
-    // 5. Render animated character
+    // 5. Render characters
     if (characterMesh && animatedShader) {
         animatedShader->Bind();
         animatedShader->SetMat4("view", view);
@@ -158,19 +180,74 @@ void Game::Render(Engine& engine) const {
         animatedShader->SetFloat("fogDensity", fogDensity);
         animatedShader->SetVec3("fogColor", dayNightCycle.getFogColor());
 
-        glm::vec3 playerPos = world->GetPlayer().transform.position;
-        float playerRot = world->GetPlayer().transform.rotation.y;
+        const uint32_t characterLayer = static_cast<uint32_t>(Camera::RenderLayer::LAYER_PLAYER);
 
-        glm::mat4 model = glm::translate(glm::mat4(1.0f), playerPos);
-        model = glm::rotate(model, glm::radians(playerRot), glm::vec3(0.0f, 1.0f, 0.0f));
-        model = glm::scale(model, glm::vec3(0.01f)); // Mixamo FBX usually requires scaling down
-        animatedShader->SetMat4("model", model);
+        // Render all characters
+        for (auto& character : world->GetCharacters()) {
+            // If it's the active character and we are in first-person, we might want to hide it
+            if (character.get() == &world->GetPlayer()) {
+                if ((characterLayer & camera->cullingMask) == 0u) continue;
+            }
 
-        if (animator) {
-            animatedShader->SetMat4Array("finalBonesMatrices", animator->GetFinalBoneMatrices());
+            glm::vec3 pos = character->transform.position;
+            float rot = character->transform.rotation.y;
+
+            glm::mat4 model = glm::translate(glm::mat4(1.0f), pos);
+            model = glm::rotate(model, glm::radians(rot), glm::vec3(0.0f, 1.0f, 0.0f));
+            model = glm::scale(model, glm::vec3(0.01f));
+            animatedShader->SetMat4("model", model);
+
+            if (animator) {
+                animatedShader->SetMat4Array("finalBonesMatrices", animator->GetFinalBoneMatrices());
+            }
+
+            characterMesh->draw(animatedShader->GetID());
         }
+    }
 
-        characterMesh->draw(animatedShader->GetID());
+    // 6. UI / Gameplay Overlays
+    int width, height;
+    glfwGetFramebufferSize(engine.GetWindow().GetHandle(), &width, &height);
+
+    if (world->IsPuzzleActive()) {
+        world->RenderPuzzleOverlay(textRenderer, width, height);
+    }
+
+    if (DialogueManager::Instance().IsActive()) {
+        DialogueManager::Instance().Render(&textRenderer, width, height);
+    }
+    
+    RenderHud(engine);
+}
+
+void Game::UpdateHudTitle(Engine& engine) const {
+    if (!world) return;
+    const Character* activeChar = world->GetActiveCharacter();
+    std::ostringstream title;
+    title << "Fromville | ";
+    if (activeChar) title << activeChar->GetName();
+    engine.GetWindow().SetTitle(title.str());
+}
+
+void Game::RenderHud(const Engine& engine) const {
+    if (!world) return;
+    int width, height;
+    glfwGetFramebufferSize(engine.GetWindow().GetHandle(), &width, &height);
+
+    const Character* activeChar = world->GetActiveCharacter();
+    if (activeChar) {
+        std::string nameInfo = "ACTIVE: " + activeChar->GetName() + "  HP: " + std::to_string(static_cast<int>(activeChar->GetHealth()));
+        textRenderer.RenderText(nameInfo, 24.0f, static_cast<float>(height) - 40.0f, 0.5f, glm::vec3(1.0f), width, height);
+    }
+
+    std::string prompt = world->GetInteractionPrompt();
+    if (!prompt.empty()) {
+        textRenderer.RenderText("[E] " + prompt, width / 2.0f - 100.0f, height / 2.0f - 50.0f, 0.6f, glm::vec3(1.0f, 1.0f, 0.3f), width, height);
+    }
+
+    std::string questInfo = world->GetQuestHelperText();
+    if (!questInfo.empty()) {
+        textRenderer.RenderText("QUEST: " + questInfo, 24.0f, 40.0f, 0.45f, glm::vec3(0.3f, 1.0f, 0.8f), width, height);
     }
 }
 

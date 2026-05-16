@@ -19,6 +19,7 @@ class Engine;
 #include "game/PlayerController.h"
 #include "engine/renderer/Animation.h"
 #include "engine/renderer/Animator.h"
+#include "engine/renderer/TextRenderer.h"
 
 class Game {
 public:
@@ -30,6 +31,8 @@ public:
     void Shutdown();
 
 private:
+    void UpdateHudTitle(Engine& engine) const;
+    void RenderHud(const Engine& engine) const;
     std::unique_ptr<Camera> camera;
     std::unique_ptr<World> world;
 
@@ -47,4 +50,6 @@ private:
     std::unique_ptr<Animation> walkingAnimation;
     std::unique_ptr<Animator> animator;
     PlayerController m_Player;
+
+    mutable TextRenderer textRenderer;
 };

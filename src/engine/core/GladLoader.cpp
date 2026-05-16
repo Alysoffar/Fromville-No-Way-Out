@@ -20,6 +20,7 @@ PFNGLDELETEVERTEXARRAYSPROC glad_glDeleteVertexArrays = nullptr;
 PFNGLGENBUFFERSPROC glad_glGenBuffers = nullptr;
 PFNGLBINDBUFFERPROC glad_glBindBuffer = nullptr;
 PFNGLBUFFERDATAPROC glad_glBufferData = nullptr;
+PFNGLBUFFERSUBDATAPROC glad_glBufferSubData = nullptr;
 PFNGLVERTEXATTRIBPOINTERPROC glad_glVertexAttribPointer = nullptr;
 PFNGLVERTEXATTRIBIPOINTERPROC glad_glVertexAttribIPointer = nullptr;
 PFNGLENABLEVERTEXATTRIBARRAYPROC glad_glEnableVertexAttribArray = nullptr;
@@ -54,7 +55,9 @@ PFNGLGENTEXTURESPROC glad_glGenTextures = nullptr;
 PFNGLBINDTEXTUREPROC glad_glBindTexture = nullptr;
 PFNGLDELETETEXTURESPROC glad_glDeleteTextures = nullptr;
 PFNGLTEXIMAGE2DPROC glad_glTexImage2D = nullptr;
+PFNGLTEXSUBIMAGE2DPROC glad_glTexSubImage2D = nullptr;
 PFNGLTEXPARAMETERIPROC glad_glTexParameteri = nullptr;
+PFNGLPIXELSTOREIPROC glad_glPixelStorei = nullptr;
 PFNGLGENERATEMIPMAPPROC glad_glGenerateMipmap = nullptr;
 PFNGLACTIVETEXTUREPROC glad_glActiveTexture = nullptr;
 PFNGLDRAWARRAYSINSTANCEDPROC glad_glDrawArraysInstanced = nullptr;
@@ -63,6 +66,7 @@ PFNGLVERTEXATTRIBDIVISORPROC glad_glVertexAttribDivisor = nullptr;
 PFNGLISENABLEDPROC glad_glIsEnabled = nullptr;
 PFNGLGETBOOLEANVPROC glad_glGetBooleanv = nullptr;
 PFNGLBLENDFUNCPROC glad_glBlendFunc = nullptr;
+PFNGLBLENDEQUATIONPROC glad_glBlendEquation = nullptr;
 
 static void LoadCoreFunctions(GLADloadproc loader) {
 	glad_glClear = reinterpret_cast<PFNGLCLEARPROC>(loader("glClear"));
@@ -81,6 +85,7 @@ static void LoadCoreFunctions(GLADloadproc loader) {
 	glad_glGenBuffers = reinterpret_cast<PFNGLGENBUFFERSPROC>(loader("glGenBuffers"));
 	glad_glBindBuffer = reinterpret_cast<PFNGLBINDBUFFERPROC>(loader("glBindBuffer"));
 	glad_glBufferData = reinterpret_cast<PFNGLBUFFERDATAPROC>(loader("glBufferData"));
+	glad_glBufferSubData = reinterpret_cast<PFNGLBUFFERSUBDATAPROC>(loader("glBufferSubData"));
 	glad_glVertexAttribPointer = reinterpret_cast<PFNGLVERTEXATTRIBPOINTERPROC>(loader("glVertexAttribPointer"));
 	glad_glVertexAttribIPointer = reinterpret_cast<PFNGLVERTEXATTRIBIPOINTERPROC>(loader("glVertexAttribIPointer"));
 	glad_glEnableVertexAttribArray = reinterpret_cast<PFNGLENABLEVERTEXATTRIBARRAYPROC>(loader("glEnableVertexAttribArray"));
@@ -115,7 +120,9 @@ static void LoadCoreFunctions(GLADloadproc loader) {
 	glad_glBindTexture = reinterpret_cast<PFNGLBINDTEXTUREPROC>(loader("glBindTexture"));
 	glad_glDeleteTextures = reinterpret_cast<PFNGLDELETETEXTURESPROC>(loader("glDeleteTextures"));
 	glad_glTexImage2D = reinterpret_cast<PFNGLTEXIMAGE2DPROC>(loader("glTexImage2D"));
+	glad_glTexSubImage2D = reinterpret_cast<PFNGLTEXSUBIMAGE2DPROC>(loader("glTexSubImage2D"));
 	glad_glTexParameteri = reinterpret_cast<PFNGLTEXPARAMETERIPROC>(loader("glTexParameteri"));
+	glad_glPixelStorei = reinterpret_cast<PFNGLPIXELSTOREIPROC>(loader("glPixelStorei"));
 	glad_glGenerateMipmap = reinterpret_cast<PFNGLGENERATEMIPMAPPROC>(loader("glGenerateMipmap"));
 	glad_glActiveTexture = reinterpret_cast<PFNGLACTIVETEXTUREPROC>(loader("glActiveTexture"));
 	glad_glDrawArraysInstanced = reinterpret_cast<PFNGLDRAWARRAYSINSTANCEDPROC>(loader("glDrawArraysInstanced"));
@@ -124,6 +131,7 @@ static void LoadCoreFunctions(GLADloadproc loader) {
 	glad_glIsEnabled = reinterpret_cast<PFNGLISENABLEDPROC>(loader("glIsEnabled"));
 	glad_glGetBooleanv = reinterpret_cast<PFNGLGETBOOLEANVPROC>(loader("glGetBooleanv"));
 	glad_glBlendFunc = reinterpret_cast<PFNGLBLENDFUNCPROC>(loader("glBlendFunc"));
+	glad_glBlendEquation = reinterpret_cast<PFNGLBLENDEQUATIONPROC>(loader("glBlendEquation"));
 }
 
 int gladLoadGLLoader(GLADloadproc loader) {

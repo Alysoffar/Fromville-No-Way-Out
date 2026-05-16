@@ -12,6 +12,14 @@
 #include "engine/renderer/Shader.h"
 #include "engine/resources/loader.h"
 #include "game/world/DayNightCycle.h"
+#include "game/dialogue/DialogueManager.h"
+#include "game/moral/MoralCorruptionSystem.h"
+#include "game/memory/MemoryReplaySystem.h"
+#include "game/story/StoryManager.h"
+#include <filesystem>
+#include <unordered_map>
+#include <algorithm>
+#include <cctype>
 
 // =============================================================================
 // Player Mesh
@@ -24,6 +32,111 @@ struct WorldMesh {
     float minY = 0.0f;
     bool valid = false;
 };
+
+struct VoiceCueLibrary {
+    bool initialized = false;
+    std::unordered_map<std::string, std::string> monster;
+    std::unordered_map<std::string, std::string> npcFemale;
+    std::unordered_map<std::string, std::string> npcMale;
+    std::unordered_map<std::string, std::string> responses;
+    std::unordered_map<std::string, std::string> panicFemale;
+    std::unordered_map<std::string, std::string> panicMale;
+};
+
+VoiceCueLibrary& GetVoiceCueLibrary() {
+    static VoiceCueLibrary library;
+    return library;
+}
+
+std::string BuildVoiceSlug(const std::string& line) {
+    std::string cleaned;
+    cleaned.reserve(line.size());
+    bool prevUnderscore = false;
+    for (char c : line) {
+        const unsigned char uc = static_cast<unsigned char>(c);
+        if (std::isalnum(uc)) {
+            cleaned.push_back(static_cast<char>(std::tolower(uc)));
+            prevUnderscore = false;
+        } else if (!prevUnderscore) {
+            cleaned.push_back('_');
+            prevUnderscore = true;
+        }
+    }
+    while (!cleaned.empty() && cleaned.front() == '_') cleaned.erase(cleaned.begin());
+    while (!cleaned.empty() && cleaned.back() == '_') cleaned.pop_back();
+    if (cleaned.size() > 40) {
+        cleaned = cleaned.substr(0, 40);
+        while (!cleaned.empty() && cleaned.back() == '_') cleaned.pop_back();
+    }
+    return cleaned.empty() ? "line" : cleaned;
+}
+
+std::string NormalizeVoiceLine(std::string line) {
+    const std::string monsterPrefix = "[MONSTER]";
+    if (line.rfind(monsterPrefix, 0) == 0) {
+        line = line.substr(monsterPrefix.size());
+        while (!line.empty() && std::isspace(static_cast<unsigned char>(line.front()))) line.erase(line.begin());
+    }
+    return line;
+}
+
+std::string StripSpeakerPrefix(const std::string& line) {
+    const std::size_t colon = line.find(':');
+    if (colon == std::string::npos || colon + 1 >= line.size()) return line;
+    std::string stripped = line.substr(colon + 1);
+    while (!stripped.empty() && std::isspace(static_cast<unsigned char>(stripped.front()))) stripped.erase(stripped.begin());
+    return stripped;
+}
+
+void RegisterVoiceFolder(AudioManager& audio, const std::filesystem::path& folder, const std::string& cuePrefix, std::unordered_map<std::string, std::string>& outMap) {
+    if (!std::filesystem::exists(folder)) return;
+    for (const auto& entry : std::filesystem::directory_iterator(folder)) {
+        if (!entry.is_regular_file() || entry.path().extension() != ".wav") continue;
+        const std::string stem = entry.path().stem().string();
+        const std::size_t underscore = stem.find('_');
+        if (underscore == std::string::npos || underscore + 1 >= stem.size()) continue;
+        const std::string slug = stem.substr(underscore + 1);
+        const std::string cueName = cuePrefix + "/" + entry.path().filename().string();
+        if (audio.LoadSound(cueName, entry.path().string())) outMap[slug] = cueName;
+    }
+}
+
+void InitializeVoiceCueLibrary(AudioManager& audio) {
+    VoiceCueLibrary& library = GetVoiceCueLibrary();
+    if (library.initialized) return;
+    RegisterVoiceFolder(audio, "assets/audio/voice/monster", "voice/monster", library.monster);
+    RegisterVoiceFolder(audio, "assets/audio/voice/npc_female", "voice/npc_female", library.npcFemale);
+    RegisterVoiceFolder(audio, "assets/audio/voice/npc_male", "voice/npc_male", library.npcMale);
+    RegisterVoiceFolder(audio, "assets/audio/voice/responses", "voice/responses", library.responses);
+    RegisterVoiceFolder(audio, "assets/audio/voice/panic_female", "voice/panic_female", library.panicFemale);
+    RegisterVoiceFolder(audio, "assets/audio/voice/panic_male", "voice/panic_male", library.panicMale);
+    library.initialized = true;
+}
+
+bool PlayVoiceLineInternal(AudioManager* audio, const std::string& group, const std::string& rawLine, float gain = 0.85f) {
+    if (!audio || rawLine.empty()) return false;
+    VoiceCueLibrary& library = GetVoiceCueLibrary();
+    if (!library.initialized) InitializeVoiceCueLibrary(*audio);
+    std::string line = NormalizeVoiceLine(rawLine);
+    if (group == "npc_female" || group == "npc_male") line = StripSpeakerPrefix(line);
+    const std::string slug = BuildVoiceSlug(line);
+    const std::unordered_map<std::string, std::string>* table = nullptr;
+    if (group == "monster") table = &library.monster;
+    else if (group == "npc_female") table = &library.npcFemale;
+    else if (group == "npc_male") table = &library.npcMale;
+    else if (group == "responses") table = &library.responses;
+    else if (group == "panic_female") table = &library.panicFemale;
+    else if (group == "panic_male") table = &library.panicMale;
+    if (!table) return false;
+    const auto found = table->find(slug);
+    if (found == table->end()) return false;
+    return audio->PlaySound(found->second, gain);
+}
+} // anonymous namespace
+
+bool PlayVoiceLine(AudioManager* audio, const std::string& group, const std::string& rawLine, float gain) {
+    return PlayVoiceLineInternal(audio, group, rawLine, gain);
+}
 
 WorldMesh gPlayerMesh;
 WorldMesh gHouseMesh;
@@ -201,9 +314,6 @@ void LoadMeshes(CollisionWorld* cw, std::vector<Door>& doors) {
     gPlayerReady = true;
 }
 
-
-} // anonymous namespace
-
 // =============================================================================
 // World class implementation
 // =============================================================================
@@ -211,26 +321,75 @@ void LoadMeshes(CollisionWorld* cw, std::vector<Door>& doors) {
 World::World() = default;
 
 void World::Initialize() {
-    player.transform.position = glm::vec3(0.0f, 2.0f, 10.0f);
+    // Initialize characters
+    characters.push_back(std::make_unique<Boyd>(glm::vec3(0.0f, 2.0f, 10.0f)));
+    characters.push_back(std::make_unique<Jade>(glm::vec3(5.0f, 2.0f, 10.0f)));
+    characters.push_back(std::make_unique<Tabitha>(glm::vec3(-5.0f, 2.0f, 10.0f)));
+    characters.push_back(std::make_unique<Victor>(glm::vec3(10.0f, 2.0f, 10.0f)));
+    characters.push_back(std::make_unique<Sara>(glm::vec3(-10.0f, 2.0f, 10.0f)));
+    
+    activeCharacterIndex = 0;
 
     LoadMeshes(&collisionWorld, doors);
 
     // Wire collision system to entities
-    player.SetCollisionWorld(&collisionWorld);
+    for (auto& character : characters) {
+        character->SetCollisionWorld(&collisionWorld);
+    }
+
+    // Initialize systems
+    audioManager = std::make_unique<AudioManager>();
+    audioManager->Initialize();
+
+    questSystem = std::make_unique<QuestSystem>(&worldClock);
+    
+    std::array<Character*, 5> charPtrs;
+    for(int i=0; i<5; ++i) charPtrs[i] = characters[i].get();
+    questSystem->Initialize(charPtrs);
+    
+    puzzleManager.Initialize();
+    interactionSystem.Initialize();
+    DialogueManager::Instance().Initialize();
+    DialogueManager::Instance().LoadConversationsFromFolder();
 
     std::cout << "[World] Initialized (player + houses + " << doors.size() << " doors).\n";
 }
 
-void World::Update(const Camera& camera, float dt) {
+void World::Update(const Camera& camera, float dt, InputManager& input) {
     (void)camera;
-    player.Update(dt);
+    // Update active character
+    GetPlayer().Update(dt);
+    
+    // Update inactive characters
+    for (size_t i = 0; i < characters.size(); ++i) {
+        if (static_cast<int>(i) != activeCharacterIndex) {
+            characters[i]->Update(dt);
+        }
+    }
+
+    // Update doors
     for (auto& door : doors) {
         door.Update(dt);
     }
+
+    // Update gameplay systems
+    inputContext.SetInputManager(&input);
+    
+    worldClock += dt;
+    if (questSystem) questSystem->Update(dt);
+    puzzleManager.Update(dt, inputContext);
+    interactionSystem.Update(dt, *questSystem);
+    
+    DialogueManager::Instance().Update(dt);
+    DialogueManager::Instance().HandleInput(inputContext);
+    
+    StoryManager::Instance().Update(dt);
+    MoralCorruptionSystem::Instance().Update(dt);
+    MemoryReplaySystem::Instance().Update(dt);
 }
 
 void World::TryInteract() {
-    glm::vec3 playerPos = player.transform.position;
+    glm::vec3 playerPos = GetPlayer().transform.position;
 
     if (isInsideBuilding) {
         for (auto& door : doors) {
@@ -254,7 +413,7 @@ void World::TryInteract() {
             previousOutsidePosition = playerPos;
             
             // Teleport player directly to the building's physical center
-            player.transform.position = door.GetInsidePosition();
+            GetPlayer().transform.position = door.GetInsidePosition();
             
             isInsideBuilding = true;
             break;
@@ -267,10 +426,18 @@ void World::TryExit() {
 
     std::cout << "[World] Exiting building...\n";
     
-    // Teleport player back to where they were standing
-    player.transform.position = previousOutsidePosition;
+    // Teleport active character back to where they were standing
+    GetPlayer().transform.position = previousOutsidePosition;
     
     isInsideBuilding = false;
+}
+
+void World::SwitchCharacter(int index) {
+    if (index < 0 || index >= static_cast<int>(characters.size())) return;
+    
+    GetPlayer().OnSwitchedFrom();
+    activeCharacterIndex = index;
+    GetPlayer().OnSwitchedTo();
 }
 
 
@@ -319,6 +486,63 @@ void World::Render(const Camera& camera, float aspectRatio) {
 
         gPlayerShader.Unbind();
     }
+}
+
+std::string World::GetInteractionPrompt() const {
+    return interactionSystem.GetPromptFor(GetPlayer(), *questSystem, false, GetPlayer().GetType());
+}
+
+bool World::NearestInteractionIsPickup() const {
+    return false; // Implement properly if Pickup type is added
+}
+
+std::string World::GetQuestHelperText() const {
+    if (!questSystem) return "";
+    const auto* activeQuest = questSystem->GetCharacterQuest(GetPlayer().GetType());
+    if (activeQuest) return activeQuest->GetTitle();
+    return "";
+}
+
+std::string World::GetQuestWaypointText() const {
+    return ""; // Implement if waypoints are added
+}
+
+bool World::IsPuzzleActive() const {
+    return puzzleManager.IsActive();
+}
+
+void World::UpdatePuzzle(float dt, const InputContext& input) {
+    puzzleManager.Update(dt, input);
+}
+
+bool World::HasActiveQuest() const {
+    if (!questSystem) return false;
+    return questSystem->GetCharacterQuest(GetPlayer().GetType()) != nullptr;
+}
+
+CharacterType World::GetActiveQuestCharacter() const {
+    return GetPlayer().GetType();
+}
+
+World::DayCyclePhase World::GetCyclePhase() const {
+    // Basic mapping based on worldClock or similar if available
+    return DayCyclePhase::Morning;
+}
+
+void World::RenderNarrativeOverlays(TextRenderer& renderer, int width, int height) {
+    // Implement narrative overlay rendering
+}
+
+void World::RenderPuzzleOverlay(TextRenderer& renderer, int width, int height) {
+    if (puzzleManager.IsActive()) {
+        puzzleManager.Render(renderer, width, height);
+    }
+}
+
+bool World::ConsumeSpawnRestartRequest() {
+    bool requested = spawnRestartRequested;
+    spawnRestartRequested = false;
+    return requested;
 }
 
 void World::RenderObjects(const Camera& camera, float aspectRatio, const DayNightCycle& dayNight, float fogDensity) {

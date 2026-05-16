@@ -1,8 +1,8 @@
 #pragma once
 
-#include "game/entities/Entity.h"
+#include "game/entities/Character.h"
 
-class Player : public Entity {
+class Player : public Character {
 public:
     Player();
 

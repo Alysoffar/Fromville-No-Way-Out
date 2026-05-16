@@ -130,3 +130,9 @@ void Window::FramebufferSizeCallback(GLFWwindow* window, int w, int h) {
 void Window::ErrorCallback(int error, const char* desc) {
 	std::cerr << "GLFW Error " << error << ": " << (desc ? desc : "Unknown") << '\n';
 }
+void Window::SetTitle(const std::string& newTitle) {
+    title = newTitle;
+    if (handle) {
+        glfwSetWindowTitle(handle, title.c_str());
+    }
+}
