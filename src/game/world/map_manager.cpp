@@ -3,9 +3,8 @@
 #include "engine/physics/HeightmapSampler.h"
 
 void MapManager::Update(const glm::vec3& cameraPosition) {
-    const float snappedX = std::floor(cameraPosition.x / loopSpan) * loopSpan;
-    const float snappedZ = std::floor(cameraPosition.z / loopSpan) * loopSpan;
-    origin = glm::vec2(snappedX, snappedZ);
+    (void)cameraPosition;
+    origin = glm::vec2(-loopSpan * 0.5f, -loopSpan * 0.5f);
 }
 
 glm::vec2 MapManager::GetOrigin() const {

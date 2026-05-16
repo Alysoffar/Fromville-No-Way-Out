@@ -13,6 +13,7 @@ public:
     CollisionWorld() = default;
     
     bool LoadMap(const std::string& path);
+    bool LoadFlatGround(float halfSize = 256.0f, float height = 0.0f);
     void AddTriangles(const std::vector<Triangle>& tris);
     void AddTrianglesFromMesh(const std::vector<MeshVertex>& vertices, const std::vector<unsigned int>& indices, const glm::mat4& transform, bool filterGround = false, bool filterLeaves = false, float treeMaxY = 0.0f);
     void AddAABB(const AABB& box, const glm::mat4& transform);

@@ -15,6 +15,7 @@ public:
 	bool ShouldClose() const;
 	void Close();
 	void SetVSync(bool enabled);
+	void SetTitle(const std::string& newTitle);
 	float GetAspectRatio() const;
 	int GetWidth() const;
 	int GetHeight() const;

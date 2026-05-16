@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <string>
 
 #include <glm/glm.hpp>
 
@@ -8,6 +9,7 @@ class Camera;
 class Engine;
 
 #include "engine/renderer/Camera.h"
+#include "engine/renderer/TextRenderer.h"
 #include "game/world/World.h"
 #include "engine/renderer/TerrainRenderer.h"
 #include "engine/renderer/GrassRenderer.h"
@@ -31,6 +33,7 @@ public:
 
 private:
     std::unique_ptr<Camera> camera;
+    std::unique_ptr<TextRenderer> hudRenderer;
     std::unique_ptr<World> world;
 
     mutable GroundRenderer   groundRenderer;
@@ -41,6 +44,17 @@ private:
 
     glm::vec3 spawnPosition = glm::vec3(0.0f, 1.8f, 3.5f);
     bool cursorLocked = true;
+    bool sprintToggled = false;
+    std::string lastInteractionPrompt;
+    // debug overlay
+    bool debugOverlayEnabled = false;
+    int debugSelectedRelationshipIndex = 0;
+
+    void HandleGlobalInput(Engine& engine);
+    void HandleGameplayInput(float dt, Engine& engine);
+    void HandleCharacterInput(float dt, Engine& engine);
+    void UpdateHudTitle(Engine& engine) const;
+    void RenderHud(const Engine& engine) const;
     
     std::unique_ptr<AnimatedMesh> characterMesh;
     std::unique_ptr<Shader> animatedShader;

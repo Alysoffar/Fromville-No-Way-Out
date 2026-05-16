@@ -26,6 +26,7 @@ void InputManager::SetWindow(GLFWwindow* win) {
 
 void InputManager::Poll() {
 	previousKeys = currentKeys;
+	previousButtons = currentButtons;
 	previousMousePos = currentMousePos;
 
 	glfwPollEvents();
@@ -69,11 +70,29 @@ glm::vec2 InputManager::GetMousePos() const {
 	return currentMousePos;
 }
 
+glm::ivec2 InputManager::GetFramebufferSize() const {
+	if (!window) {
+		return glm::ivec2(0, 0);
+	}
+
+	int width = 0;
+	int height = 0;
+	glfwGetFramebufferSize(window, &width, &height);
+	return glm::ivec2(width, height);
+}
+
 bool InputManager::IsMouseButtonDown(int button) const {
 	if (button < 0 || button > GLFW_MOUSE_BUTTON_LAST) {
 		return false;
 	}
 	return currentButtons[button] != 0;
+}
+
+bool InputManager::IsMouseButtonPressed(int button) const {
+	if (button < 0 || button > GLFW_MOUSE_BUTTON_LAST) {
+		return false;
+	}
+	return currentButtons[button] != 0 && previousButtons[button] == 0;
 }
 
 void InputManager::SetCursorLocked(bool locked) {

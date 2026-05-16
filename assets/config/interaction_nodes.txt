@@ -1,0 +1,34 @@
+# id|type|name|x|y|z|radius|prompt|successMessage|questFlag|requiredFlag|questObjectiveIndex|requiredCharacter
+mara_conversation|Conversation|Mara Witness Lead|0.0|0.0|4.0|2.5|Talk|Mara gives Boyd a suspect name and points him toward the sheriff station board.|mara_talked||0|Boyd
+boyd_conversation|Conversation|Boyd|0.0|0.0|2.5|2.4|Talk|Boyd keeps his voice low and asks what you heard.|boyd_talked||-1|Boyd
+jade_conversation|Conversation|Jade|2.0|0.0|4.0|2.3|Talk|Jade is tracing symbols and tries not to look rattled by the pattern.|jade_talked||-1|Jade
+tabitha_conversation|Conversation|Tabitha|-4.0|0.0|4.0|2.3|Talk|Tabitha keeps watch and speaks in careful, measured fragments.|tabitha_talked||-1|Tabitha
+victor_conversation|Conversation|Victor|-2.0|0.0|-4.0|2.3|Talk|Victor remembers something he does not want to say out loud.|victor_talked||-1|Victor
+boyd_evidence_knife|ItemPickup|Bloody Knife|2.0|0.0|6.0|2.0|Pick up|Boyd finds a bloody knife hidden behind the warehouse.|boyd_knife_taken|mara_talked|1|Boyd|0
+boyd_evidence_ledger|Trigger|Cult Ledger|4.5|0.0|6.5|2.0|Inspect|Boyd deciphers a ledger listing the cult's meeting dates.|boyd_ledger_found|boyd_knife_taken|1|Boyd|1
+boyd_evidence_idol|Trigger|Strange Idol|6.5|0.0|4.0|2.0|Inspect|Boyd recovers a strange idol that points to the ritual circle.|boyd_idol_found|boyd_ledger_found|1|Boyd|2
+boyd_evidence_board|Trigger|Evidence Board|0.0|0.0|6.0|2.2|Inspect|Boyd pins the final evidence board and reveals the cult trail.|boyd_evidence_found|boyd_idol_found|2|Boyd|0
+boyd_cult_place|Trigger|Cult Trail Marker|4.5|0.0|0.0|2.4|Track|Boyd discovers where the cult has been gathering after dark.|boyd_cult_place_found|boyd_evidence_found|2|Boyd
+boyd_leader_clue|Conversation|Leader Clue|6.0|0.0|0.0|2.4|Confront|Boyd corners a witness and learns who is leading the ritual.|boyd_leader_found|boyd_cult_place_found|3|Boyd
+boyd_ritual_stop|Trigger|Ritual Circle|6.0|0.0|6.0|2.6|Disrupt|Boyd breaks the ritual setup before the monsters can use it.|boyd_ritual_stopped|boyd_leader_found|4|Boyd
+library_key|ItemPickup|Library Glyph Key|2.0|0.0|4.0|2.0|Pick up|Jade picks up a key with a glyph etched into it.|library_key_taken||0|Jade
+church_symbol|Trigger|Church Symbol|-4.0|0.0|6.0|2.5|Decode|Jade decodes a second glyph and links it to the tunnels.|church_symbol_decoded|library_key_taken|1|Jade
+jade_town_hall_glyph|Trigger|Town Hall Glyph|0.0|0.0|6.0|2.2|Decode|Jade finds the third glyph hidden under old civic records.|jade_town_hall_glyph|church_symbol_decoded|2|Jade
+jade_tunnel_glyph|Trigger|Tunnel Glyph|-6.0|0.0|0.0|2.4|Decode|Jade copies the fourth glyph from the tunnel entrance wall.|jade_tunnel_glyph|jade_town_hall_glyph|3|Jade
+jade_full_message|Trigger|Full Symbol Message|2.0|0.0|6.0|2.4|Decipher|Jade deciphers the full warning: the town repeats old sins.|jade_message_decoded|jade_tunnel_glyph|4|Jade
+cabin_door|Door|Cabin Door|4.0|0.0|4.0|2.2|Open/Close|The cabin door unlocks and reveals a safe space.|cabin_door_opened|library_key_taken|-1|
+tunnel_trigger|Trigger|Collapsed Tunnel|-4.0|0.0|4.0|3.0|Inspect|Tabitha maps the first tunnel opening and marks the air flow.|tunnel_found||0|Tabitha
+tabitha_east_tunnel|Trigger|East Tunnel Vent|-6.0|0.0|0.0|2.5|Map|Tabitha maps the eastern tunnel branch and the sound of water below.|tabitha_east_tunnel|tunnel_found|1|Tabitha
+tabitha_south_tunnel|Trigger|South Tunnel Drop|-4.0|0.0|-4.0|2.5|Map|Tabitha marks the southern drop and a draft coming through the stones.|tabitha_south_tunnel|tabitha_east_tunnel|2|Tabitha
+tabitha_west_tunnel|Trigger|West Tunnel Scar|-6.0|0.0|-6.0|2.5|Map|Tabitha sketches the western scar where the wall looks freshly cut.|tabitha_west_tunnel|tabitha_south_tunnel|3|Tabitha
+tabitha_central_chamber|Trigger|Central Chamber|-2.0|0.0|-6.0|2.8|Enter|Tabitha discovers the central chamber beneath the placeholder town.|tabitha_central_chamber|tabitha_west_tunnel|4|Tabitha
+victor_memory_trigger|Trigger|Memory Site|-2.0|0.0|-4.0|3.0|Remember|Victor remembers the first disappearance and the color of the sky.|victor_memory_fragment||0|Victor
+victor_second_memory|Trigger|Old Drawing|0.0|0.0|-6.0|2.2|Remember|Victor remembers the second disappearance and the room everyone avoided.|victor_second_memory|victor_memory_fragment|1|Victor
+victor_cult_memory|Trigger|Burned Photo|-4.0|0.0|-2.0|2.4|Remember|Victor remembers the cult gathering and the faces around the fire.|victor_cult_memory|victor_second_memory|2|Victor
+victor_betrayal_memory|Trigger|Broken Toy|0.0|0.0|-4.0|2.4|Remember|Victor remembers the betrayal that let the monsters into town.|victor_betrayal_memory|victor_cult_memory|3|Victor
+victor_survivor_memory|Trigger|Survivor Token|2.0|0.0|-6.0|2.4|Remember|Victor remembers the survivor's identity and why the town hid it.|victor_survivor_memory|victor_betrayal_memory|4|Victor
+sheriff_talisman|Trigger|Sheriff Station Talisman|0.0|0.0|6.0|3.0|Check|The talisman holds. The monsters circle outside but cannot enter.|sheriff_talisman_checked||-1|
+diner_shelter|Trigger|Diner Shelter|4.0|0.0|6.0|3.0|Secure|The doors are sealed and the townspeople settle in for the night.|diner_secured||-1|
+colony_house_warning|Trigger|Colony House Window|6.0|0.0|0.0|3.0|Inspect|A window latch is loose. At night this would break the protection.|colony_window_checked||-1|
+tunnel_entrance|Door|Tunnel Entrance|-6.0|0.0|0.0|3.0|Open/Close|The tunnel entrance opens into a placeholder underground route.|tunnel_entrance_opened|tunnel_found|-1|
+victor_lunchbox|ItemPickup|Victor's Lunchbox|0.0|0.0|-6.0|2.0|Pick up|Victor recovers a drawing that marks a safe path through town.|victor_lunchbox_found||-1|Victor

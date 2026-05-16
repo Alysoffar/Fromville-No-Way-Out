@@ -97,6 +97,13 @@ void Window::SetVSync(bool enabled) {
 	glfwSwapInterval(vsync ? 1 : 0);
 }
 
+void Window::SetTitle(const std::string& newTitle) {
+	title = newTitle;
+	if (handle) {
+		glfwSetWindowTitle(handle, title.c_str());
+	}
+}
+
 float Window::GetAspectRatio() const {
 	if (height == 0) {
 		return 1.0f;
