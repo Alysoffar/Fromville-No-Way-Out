@@ -16,7 +16,9 @@ public:
 	bool IsKeyReleased(int glfwKey) const;
 	glm::vec2 GetMouseDelta() const;
 	glm::vec2 GetMousePos() const;
+	glm::ivec2 GetFramebufferSize() const;
 	bool IsMouseButtonDown(int button) const;
+	bool IsMouseButtonPressed(int button) const;
 	void SetWindow(GLFWwindow* win);
 	void SetCursorLocked(bool locked);
 
@@ -25,6 +27,7 @@ private:
 
 	std::array<unsigned char, GLFW_KEY_LAST + 1> previousKeys{};
 	std::array<unsigned char, GLFW_KEY_LAST + 1> currentKeys{};
+	std::array<unsigned char, GLFW_MOUSE_BUTTON_LAST + 1> previousButtons{};
 	std::array<unsigned char, GLFW_MOUSE_BUTTON_LAST + 1> currentButtons{};
 
 	glm::vec2 previousMousePos = glm::vec2(0.0f);

@@ -14,6 +14,7 @@ uniform float screenShakeIntensity;
 uniform float redChromaticAberration;
 uniform float symbolSightStrength;
 uniform float uvRippleStrength;
+uniform float u_TerrorLevel;
 uniform vec3 colorGrade;
 uniform vec3 fogColorGrade;
 uniform float time;
@@ -59,6 +60,12 @@ void main() {
 	}
 
 	color *= colorGrade;
+
+	float terror = clamp(u_TerrorLevel, 0.0, 1.0);
+	float fog = smoothstep(0.20, 1.0, length(TexCoords - 0.5) + terror * 0.18);
+	color = mix(color, fogColorGrade, fog * (0.18 + terror * 0.45));
+	color.r += sin(time * 7.0 + TexCoords.y * 28.0) * terror * 0.01;
+	color.b -= cos(time * 6.0 + TexCoords.x * 24.0) * terror * 0.01;
 
 	float dist = length(TexCoords - 0.5) * 2.0;
 	float vignette = 1.0 - smoothstep(0.5, 1.4, dist) * vignetteStrength;

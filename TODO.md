@@ -1,12 +1,17 @@
-# Collision System TODO
+# Fromville TODO
 
-## Plan Steps:
-- [ ] 1. Create Triangle.h and HitResult.h (basic structs)
-- [ ] 2. Create BVH.h (node struct, class declaration)
-- [ ] 3. Create BVH.cpp (build with SAH, ray/sweep/overlap queries, stack traversal)
-- [ ] 4. Create CollisionWorld.h (class declaration, methods)
-- [ ] 5. Create CollisionWorld.cpp (OBJ parse w/ tinyobj, BVH init, RaycastMap/SweepAABB/OverlapAABB/IsGrounded/ResolveMovement)
-- [ ] 6. Test: Compile, load sample OBJ, verify queries <1ms
-- [ ] 7. Integrate/demo in main or World.cpp if needed
+## Current Focus
+
+- [x] Core collision/physics system exists and is wired into entities.
+- [ ] Final Blender map is still in production; keep the runtime working against a temporary test arena.
+- [ ] Replace hardcoded story-location/shelter coordinates with final map-authored data when the Blender export is ready.
+- [ ] Finish the character-switch presentation work: camera handoff, HUD refresh, and any post-process effects.
+- [ ] Keep interaction nodes valid for the temporary test arena so characters, quests, and abilities can be exercised now.
+- [ ] Add or expand gameplay smoke tests for interaction, quest, movement, and save/load flows.
+
+## Test Arena Goal
+
+- [ ] Flat placeholder world for testing character movement, switching, abilities, and interactions.
+- [ ] Stable fallback visuals while the final map is being built in Blender.
 
 Progress tracked here.

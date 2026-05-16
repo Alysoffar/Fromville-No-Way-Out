@@ -1,0 +1,16 @@
+{
+  "id": "jade_conversation",
+  "title": "Jade",
+  "startNode": "start",
+  "nodes": [
+    {"id":"start","speaker":"Jade","voiceGroup":"npc_female","text":"The symbols are the same. That's the problem.","choices": [
+      {"id":"pattern","text":"You found a pattern?","nextNodeId":"pattern_reply","trustDelta":2},
+      {"id":"dismissed","text":"People are calling it coincidence.","nextNodeId":"dismissed_reply","trustDelta":0},
+      {"id":"careful","text":"Tell me what you do know.","nextNodeId":"careful_reply","trustDelta":1}
+    ]},
+    {"id":"pattern_reply","speaker":"Jade","voiceGroup":"npc_female","text":"Not a pattern. A map someone keeps trying to hide.","nextNodeId":"end","autoAdvance":true},
+    {"id":"dismissed_reply","speaker":"Jade","voiceGroup":"npc_female","text":"Coincidence is what people call it when they do not want to read the room.","nextNodeId":"end","autoAdvance":true},
+    {"id":"careful_reply","speaker":"Jade","voiceGroup":"npc_female","text":"Fine. Quietly then. If it hears us, it changes.","nextNodeId":"end","autoAdvance":true},
+    {"id":"end","speaker":"Jade","voiceGroup":"npc_female","text":"Bring me anything with a mark on it. I want the truth before everyone else argues with it."}
+  ]
+}

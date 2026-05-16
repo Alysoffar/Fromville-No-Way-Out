@@ -3,22 +3,62 @@
 #include <utility>
 
 Entity::Entity(std::string entityName)
-    : name(std::move(entityName)) {
+    : BaseEntity(std::move(entityName)) {
 }
 
-const std::string& Entity::GetName() const {
-    return name;
+glm::vec3 Entity::GetDebugColor() const {
+    return glm::vec3(0.85f);
+}
+
+float Entity::GetMoveSpeed() const {
+    return 8.0f;
+}
+
+float Entity::GetSprintSpeed() const {
+    return 14.0f;
+}
+
+float Entity::GetCrouchSpeed() const {
+    return 3.0f;
+}
+
+float Entity::GetJumpForce() const {
+    return 8.0f;
+}
+
+float Entity::GetGravity() const {
+    return -20.0f;
+}
+
+float Entity::GetFallGravityMultiplier() const {
+    return 1.6f;
+}
+
+float Entity::GetMaxFallSpeed() const {
+    return -30.0f;
+}
+
+float Entity::GetJumpBufferTime() const {
+    return 0.12f;
+}
+
+float Entity::GetCoyoteTime() const {
+    return 0.10f;
+}
+
+float Entity::GetJumpCutMultiplier() const {
+    return 0.55f;
 }
 
 void Entity::Move(float dirX, float dirZ, float dt) {
     // Pick the right speed based on current state
-    float currentSpeed = moveSpeed;
+    float currentSpeed = GetMoveSpeed();
     if (isCrouching) {
-        currentSpeed = crouchSpeed;
+        currentSpeed = GetCrouchSpeed();
     } else if (isSprinting) {
-        currentSpeed = sprintSpeed;
+        currentSpeed = GetSprintSpeed();
     }
-    
+
     // Build 3D horizontal delta
     glm::vec3 delta(dirX * currentSpeed * dt, 0.0f, dirZ * currentSpeed * dt);
 
@@ -31,13 +71,21 @@ void Entity::Move(float dirX, float dirZ, float dt) {
         // Fallback: raw position update
         transform.position += delta;
     }
+
+    // Rotate player to face movement direction
+    if (glm::length(glm::vec2(dirX, dirZ)) > 0.001f) {
+        transform.rotation.y = glm::degrees(atan2(dirX, dirZ));
+    }
 }
 
 void Entity::Jump() {
-    // You can only jump if you are touching the ground and not crouching
-    if (isGrounded && !isCrouching) {
-        velocityY = jumpForce;
-        isGrounded = false;
+    jumpBufferRemaining = GetJumpBufferTime();
+    TryConsumeJump();
+}
+
+void Entity::ReleaseJump() {
+    if (velocityY > 0.0f) {
+        velocityY *= GetJumpCutMultiplier();
     }
 }
 
@@ -56,32 +104,59 @@ void Entity::Sprint(bool sprint) {
     }
 }
 
+void Entity::TryConsumeJump() {
+    if (jumpBufferRemaining <= 0.0f) {
+        return;
+    }
+
+    if (!isGrounded && coyoteTimeRemaining <= 0.0f) {
+        return;
+    }
+
+    if (isCrouching) {
+        return;
+    }
+
+    velocityY = GetJumpForce();
+    isGrounded = false;
+    jumpBufferRemaining = 0.0f;
+    coyoteTimeRemaining = 0.0f;
+}
+
 void Entity::ApplyPhysics(float dt) {
-    // 1. Apply gravity to our vertical velocity over time
-    velocityY += gravity * dt;
+    // 1. Apply gravity to vertical velocity if in the air
+    if (!isGrounded) {
+        velocityY += GetGravity() * dt;
+    } else if (velocityY < 0.0f) {
+        // Reset downward velocity when grounded
+        velocityY = 0.0f;
+    }
 
     // 2. Build vertical movement delta
     glm::vec3 verticalDelta(0.0f, velocityY * dt, 0.0f);
 
     if (collisionWorld) {
-        // Resolve vertical movement through the collision system.
-        // Pass dt=1.0 because delta is already pre-scaled.
+        // 3. Resolve vertical movement
         transform.position = collisionWorld->ResolveMovement(
             transform.position, verticalDelta, localBounds, 1.0f);
 
-        // Check grounded state via the collision world
+        // 4. Update grounded state
         isGrounded = collisionWorld->IsGrounded(GetWorldAABB(), 0.05f);
-        if (isGrounded && velocityY < 0.0f) {
-            velocityY = 0.0f;
-        }
-    } else {
-        // Fallback: raw vertical movement with hardcoded floor at y=0
-        transform.position.y += velocityY * dt;
-
-        if (transform.position.y <= 0.0f) {
-            transform.position.y = 0.0f;
-            velocityY = 0.0f;
-            isGrounded = true;
-        }
     }
+
+    // Always enforce floor at Y=0 as a safety measure for the flat world
+    if (transform.position.y <= 0.001f) {
+        transform.position.y = 0.001f;
+        if (velocityY < 0.0f) velocityY = 0.0f;
+        isGrounded = true;
+    } else if (!collisionWorld) {
+        isGrounded = false;
+    }
+
+    if (isGrounded) {
+        coyoteTimeRemaining = GetCoyoteTime();
+    }
+
+    TryConsumeJump();
 }
+

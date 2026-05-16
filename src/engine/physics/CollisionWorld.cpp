@@ -30,8 +30,96 @@ bool CollisionWorld::LoadMap(const std::string& path) {
         }
     }
 
+    AddTriangles(triangles);
+    return true;
+}
+
+bool CollisionWorld::LoadFlatGround(float halfSize, float height) {
+    const float minX = -halfSize;
+    const float maxX = halfSize;
+    const float minZ = -halfSize;
+    const float maxZ = halfSize;
+
+    std::vector<Triangle> triangles;
+    triangles.push_back({
+        glm::vec3(minX, height, minZ),
+        glm::vec3(maxX, height, minZ),
+        glm::vec3(maxX, height, maxZ)
+    });
+    triangles.push_back({
+        glm::vec3(minX, height, minZ),
+        glm::vec3(maxX, height, maxZ),
+        glm::vec3(minX, height, maxZ)
+    });
+
     m_MapBVH.Build(std::move(triangles));
     return true;
+}
+
+void CollisionWorld::AddTriangles(const std::vector<Triangle>& tris) {
+    m_AllTriangles.insert(m_AllTriangles.end(), tris.begin(), tris.end());
+}
+
+void CollisionWorld::AddTrianglesFromMesh(const std::vector<MeshVertex>& vertices, const std::vector<unsigned int>& indices, const glm::mat4& transform, bool filterGround, bool filterLeaves, float treeMaxY) {
+    std::vector<Triangle> triangles;
+    triangles.reserve(indices.size() / 3);
+    for (size_t i = 0; i < indices.size(); i += 3) {
+        
+        float localMaxY = std::max(vertices[indices[i]].position.y, 
+                                   std::max(vertices[indices[i+1]].position.y, vertices[indices[i+2]].position.y));
+        
+        if (filterLeaves && localMaxY > treeMaxY * 0.6f) {
+            continue; // Skip the canopy/leaves
+        }
+
+        Triangle tri;
+        tri.a = glm::vec3(transform * glm::vec4(vertices[indices[i]].position, 1.0f));
+        tri.b = glm::vec3(transform * glm::vec4(vertices[indices[i+1]].position, 1.0f));
+        tri.c = glm::vec3(transform * glm::vec4(vertices[indices[i+2]].position, 1.0f));
+        
+        // Skip triangles that are flat and very close to the world floor (Y=0.0)
+        // Wait, the floor of the house is often Y < 0.2f. We can also check if the normal is pointing up.
+        if (filterGround) {
+            float maxY = std::max(tri.a.y, std::max(tri.b.y, tri.c.y));
+            if (maxY < 0.2f) {
+                // simple check for upward-facing normal to be sure it's a floor, but maxY < 0.2f is usually enough
+                glm::vec3 edge1 = tri.b - tri.a;
+                glm::vec3 edge2 = tri.c - tri.a;
+                glm::vec3 normal = glm::normalize(glm::cross(edge1, edge2));
+                if (normal.y > 0.8f || normal.y < -0.8f) {
+                    continue;
+                }
+            }
+        }
+        
+        triangles.push_back(tri);
+    }
+    m_AllTriangles.insert(m_AllTriangles.end(), triangles.begin(), triangles.end());
+}
+
+void CollisionWorld::AddAABB(const AABB& box, const glm::mat4& transform) {
+    glm::vec3 c[8] = {
+        {box.min.x, box.min.y, box.min.z}, {box.max.x, box.min.y, box.min.z},
+        {box.max.x, box.max.y, box.min.z}, {box.min.x, box.max.y, box.min.z},
+        {box.min.x, box.min.y, box.max.z}, {box.max.x, box.min.y, box.max.z},
+        {box.max.x, box.max.y, box.max.z}, {box.min.x, box.max.y, box.max.z}
+    };
+    for(int i=0; i<8; ++i) c[i] = glm::vec3(transform * glm::vec4(c[i], 1.0f));
+
+    int idx[] = {
+        0,1,2, 0,2,3, 1,5,6, 1,6,2, 5,4,7, 5,7,6, 4,0,3, 4,3,7, 3,2,6, 3,6,7, 4,5,1, 4,1,0
+    };
+    std::vector<Triangle> triangles(12);
+    for(int i=0; i<12; ++i) {
+        triangles[i].a = c[idx[i*3]]; 
+        triangles[i].b = c[idx[i*3+1]]; 
+        triangles[i].c = c[idx[i*3+2]];
+    }
+    m_AllTriangles.insert(m_AllTriangles.end(), triangles.begin(), triangles.end());
+}
+
+void CollisionWorld::BuildBVH() {
+    m_MapBVH.Build(m_AllTriangles);
 }
 
 bool CollisionWorld::RaycastMap(glm::vec3 origin, glm::vec3 dir, float maxDist, HitResult& out) const {

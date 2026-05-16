@@ -11,9 +11,10 @@ public:
     glm::mat4 GetViewMatrix() const;
     glm::mat4 GetProjectionMatrix(float aspect) const;
 
-    // We now pass the player's position into the camera every frame!
+    // Follow the active character with mouse-controlled third-person orbit.
     void Update(InputManager& input, float dt, const glm::vec3& playerPosition);
     void ProcessMouseMovement(float xoffset, float yoffset);
+    void SnapToTarget(const glm::vec3& playerPosition);
 
     glm::vec3 GetPosition() const;
     glm::vec3 GetForward() const;
@@ -31,12 +32,14 @@ private:
     float yaw = -90.0f;
     float pitch = 0.0f;
     
-    float mouseSensitivity = 0.08f;
+    float mouseSensitivity = 0.05f;
     float fov = 60.0f;
     float nearPlane = 0.1f;
-    float farPlane = 500.0f;
+    float farPlane = 10000.0f;
 
     // Follow-camera parameters
-    float targetDistance = 6.0f;
+    float followYaw = -135.0f;
+    float targetDistance = 7.5f;
     float targetHeightOffset = 1.8f;
+    float followPitch = 12.0f;
 };

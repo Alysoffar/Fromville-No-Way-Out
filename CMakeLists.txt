@@ -60,7 +60,27 @@ if(NOT TARGET assimp::assimp)
     find_package(assimp REQUIRED)
 endif()
 
-find_package(OpenAL CONFIG REQUIRED)
+find_package(OpenAL CONFIG QUIET)
+if(NOT TARGET OpenAL::OpenAL)
+    find_package(OpenAL QUIET)
+endif()
+
+if(NOT TARGET OpenAL::OpenAL AND NOT TARGET OpenAL)
+    if(FROMVILLE_USE_FETCHCONTENT)
+        message(STATUS "OpenAL not found; fetching openal-soft")
+        set(ALSOFT_EXAMPLES OFF CACHE BOOL "" FORCE)
+        set(ALSOFT_TESTS OFF CACHE BOOL "" FORCE)
+        set(ALSOFT_UTILS OFF CACHE BOOL "" FORCE)
+        FetchContent_Declare(
+            openal_soft
+            GIT_REPOSITORY https://github.com/kcat/openal-soft.git
+            GIT_TAG 1.24.2
+        )
+        FetchContent_MakeAvailable(openal_soft)
+    else()
+        message(FATAL_ERROR "OpenAL not found")
+    endif()
+endif()
 
 find_package(SndFile QUIET)
 if(NOT SndFile_FOUND)
@@ -95,6 +115,9 @@ file(GLOB_RECURSE FROMVILLE_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
 )
 
+# Remove old engine-level puzzle implementations (now in game/puzzles/core)
+list(FILTER FROMVILLE_SOURCES EXCLUDE REGEX "src/engine/puzzle")
+
 add_executable(fromville ${FROMVILLE_SOURCES})
 
 target_include_directories(fromville
@@ -110,9 +133,16 @@ target_link_libraries(fromville
         glfw
         glm::glm
         Freetype::Freetype
-        OpenAL::OpenAL
         nlohmann_json::nlohmann_json
 )
+
+if(TARGET OpenAL::OpenAL)
+    target_link_libraries(fromville PRIVATE OpenAL::OpenAL)
+elseif(TARGET OpenAL)
+    target_link_libraries(fromville PRIVATE OpenAL)
+else()
+    message(FATAL_ERROR "OpenAL target missing after dependency resolution")
+endif()
 
 if(TARGET assimp::assimp)
     target_link_libraries(fromville PRIVATE assimp::assimp)
@@ -145,4 +175,22 @@ add_custom_command(TARGET fromville POST_BUILD
     COMMENT "Copying assets directory to runtime output"
 )
 
-# Force rebuild
+add_custom_command(TARGET fromville POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/shaders
+            $<TARGET_FILE_DIR:fromville>/shaders
+    COMMENT "Copying terrain shaders to runtime output"
+)
+
+add_custom_command(TARGET fromville POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:fromville>/textures
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/assets/models/textures
+            $<TARGET_FILE_DIR:fromville>/textures
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_CURRENT_SOURCE_DIR}/assets/models/vegetation_grass_card_03.png
+            $<TARGET_FILE_DIR:fromville>/textures/vegetation_grass_card_03.png
+    COMMENT "Copying terrain and grass textures to runtime output"
+)
+
+# End of file

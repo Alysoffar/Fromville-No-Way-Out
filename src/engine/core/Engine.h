@@ -6,6 +6,7 @@
 #include "engine/core/InputManager.h"
 #include "engine/core/Timer.h"
 #include "engine/core/Window.h"
+#include "engine/input/InputContext.h"
 
 class Engine {
 public:
@@ -26,9 +27,15 @@ public:
     const Window& GetWindow() const;
     InputManager& GetInput();
     const InputManager& GetInput() const;
+    InputContext& GetGameplayInput();
+    const InputContext& GetGameplayInput() const;
+    InputContext& GetUiInput();
+    const InputContext& GetUiInput() const;
 
 private:
     std::unique_ptr<Window> window;
     std::unique_ptr<Timer> timer;
     std::unique_ptr<InputManager> input;
+    InputContext gameplayInput{ "Gameplay" };
+    InputContext uiInput{ "UI" };
 };
