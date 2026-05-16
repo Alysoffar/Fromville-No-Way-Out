@@ -126,7 +126,7 @@ void Entity::TryConsumeJump() {
 void Entity::ApplyPhysics(float dt) {
     // 1. Apply gravity to vertical velocity if in the air
     if (!isGrounded) {
-        velocityY += gravity * dt;
+        velocityY += GetGravity() * dt;
     } else if (velocityY < 0.0f) {
         // Reset downward velocity when grounded
         velocityY = 0.0f;

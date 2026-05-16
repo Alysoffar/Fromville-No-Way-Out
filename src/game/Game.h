@@ -28,7 +28,7 @@ public:
 
     bool Initialize(Engine& engine);
     void Update(float dt, Engine& engine);
-    void Render(Engine& engine) const;
+    void Render(Engine& engine);
     void Shutdown();
 
 private:
@@ -36,7 +36,7 @@ private:
     std::unique_ptr<TextRenderer> hudRenderer;
     std::unique_ptr<World> world;
 
-    mutable GroundRenderer   groundRenderer;
+    mutable TerrainRenderer  terrainRenderer;
     mutable GrassRenderer    grassRenderer;
     mutable TreeRenderer     treeRenderer;
     mutable SkydomeRenderer  skydomeRenderer;

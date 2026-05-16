@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include "game/world/DayNightCycle.h"
 #include <memory>
 #include <string>
 #include <array>
@@ -67,10 +68,11 @@ struct WorldSaveState {
 class World {
 public:
     World();
+    ~World();
 
     void Initialize();
     void Update(const Camera& camera, float dt);
-    void Render(const Camera& camera, float aspectRatio);
+    void Render(const Camera& camera, float aspectRatio, const DayNightCycle& dayNightCycle);
 
     Character* GetActiveCharacter();
     const Character* GetActiveCharacter() const;
@@ -112,12 +114,13 @@ public:
 
     // Access to audio manager for global systems (transitions, UI)
     AudioManager* GetAudioManager() { return audioManager.get(); }
+    CollisionWorld* GetCollisionWorld() { return &collisionWorld; }
 
 private:
-    MapManager* mapManager = nullptr;
+    std::unique_ptr<MapManager> mapManager;
      void ApplyPuzzleConsequence(const std::string& consequence);
      void EnsureTabithaWhisperRouteNodes();
-    TerrainRenderer* terrain = nullptr;
+    std::unique_ptr<TerrainRenderer> terrain;
     std::vector<NPC> npcs;
     std::vector<Enemy> enemies;
     std::vector<LocationZone> storyLocations;
@@ -179,6 +182,7 @@ private:
     static constexpr float kNpcDialogueDisplayDuration = 4.5f;
 
     void InitializeCharacters();
+    void GroundEntities();
     void InitializePlaceholderWorldRules();
     void EnsureNpcDialogueCooldowns();
     bool TryNpcDialogue(Character& character, bool explicitInteraction);

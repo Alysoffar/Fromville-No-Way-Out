@@ -50,8 +50,8 @@ bool Game::Initialize(Engine& engine) {
             if (world) world->LoadFromFile("savegame.txt");
         });
         top->SetNewGameCallback([this, &engine]() {
-            UIManager::Instance().PopScreen();
             if (world) world->RestartFromSpawn();
+            UIManager::Instance().PopScreen();
             cursorLocked = true;
             engine.GetInput().SetCursorLocked(true);
         });
@@ -61,10 +61,9 @@ bool Game::Initialize(Engine& engine) {
     }
 
     // Initialize new terrain rendering subsystems
-    groundRenderer.init();
-    grassRenderer.init();
+    terrainRenderer.init();
+    grassRenderer.init(world->GetCollisionWorld(), terrainRenderer.getMinY());
     treeRenderer.init(world->GetCollisionWorld());
-    world->GetCollisionWorld()->BuildBVH();
     skydomeRenderer.init();
 
     characterMesh = std::make_unique<AnimatedMesh>("assets/models/Character 1/character.fbx");
@@ -450,6 +449,11 @@ void Game::Update(float dt, Engine& engine) {
 
     HandleGlobalInput(engine);
 
+    static int frameCount = 0;
+    if (++frameCount % 100 == 0) {
+        std::cout << "[Game] Loop running. Frame: " << frameCount << std::endl;
+    }
+
     // UI system update
     UIManager::Instance().Update(dt, engine.GetUiInput());
 
@@ -483,10 +487,10 @@ void Game::Update(float dt, Engine& engine) {
     }
 
     if (engine.GetInput().IsKeyPressed(GLFW_KEY_E)) {
-        world->TryInteract();
+        world->TryActiveCharacterInteraction();
     }
 
-    camera->Update(engine.GetInput(), dt, world->GetPlayer().transform.position);
+    camera->Update(engine.GetInput(), dt, world->GetActiveCharacter()->transform.position);
     world->Update(*camera, dt);
 
     // Advance day/night cycle
@@ -501,10 +505,14 @@ void Game::Update(float dt, Engine& engine) {
     glClearColor(fogColor.r, fogColor.g, fogColor.b, 1.0f);
 }
 
-void Game::Render(Engine& engine) const {
+void Game::Render(Engine& engine) {
     if (!camera || !world) {
         return;
     }
+
+    // Set clear color to current fog color
+    glm::vec3 fogColor = dayNightCycle.getFogColor();
+    glClearColor(fogColor.r, fogColor.g, fogColor.b, 1.0f);
 
     const float aspectRatio = engine.GetAspectRatio();
     const glm::mat4 view = camera->GetViewMatrix();
@@ -520,21 +528,21 @@ void Game::Render(Engine& engine) const {
                            dayNightCycle.getDayFactor(),
                            dayNightCycle.getDayTime());
 
-    // 2. Textured ground quad
-    groundRenderer.render(view, projection, cameraPos,
-                          dayNightCycle.getActiveLightDir(),
-                          dayNightCycle.getLightColor(),
-                          dayNightCycle.getAmbientColor(),
-                          dayNightCycle.getDiffuseStrength(),
-                          dayNightCycle.getFogColor(), fogDensity);
+    // 2. Terrain
+    terrainRenderer.render(view, projection, cameraPos, 
+                           dayNightCycle.getActiveLightDir(), 
+                           dayNightCycle.getLightColor(), 
+                           dayNightCycle.getAmbientColor(), 
+                           dayNightCycle.getDiffuseStrength(), 
+                           dayNightCycle.getFogColor(), 0.004f);
 
-    // 3. Instanced grass billboards
+    // 3. Instanced Grass
     grassRenderer.render(view, projection, cameraPos, currentTime,
                          dayNightCycle.getActiveLightDir(),
                          dayNightCycle.getLightColor(),
                          dayNightCycle.getAmbientColor(),
                          dayNightCycle.getDiffuseStrength(),
-                         dayNightCycle.getFogColor(), fogDensity);
+                         dayNightCycle.getFogColor(), 0.004f);
 
     // 3.5 Instanced trees
     treeRenderer.render(view, projection, cameraPos,
@@ -542,13 +550,14 @@ void Game::Render(Engine& engine) const {
                         dayNightCycle.getLightColor(),
                         dayNightCycle.getAmbientColor(),
                         dayNightCycle.getDiffuseStrength(),
-                        dayNightCycle.getFogColor(), fogDensity);
+                        dayNightCycle.getFogColor(), 0.004f);
 
     // 4. World objects and player (using dynamic day/night lighting)
-    world->RenderObjects(*camera, aspectRatio, dayNightCycle, fogDensity);
+    world->Render(*camera, aspectRatio, dayNightCycle);
 
     // 5. Render animated character
-    if (characterMesh && animatedShader) {
+    const Character* activeChar = world->GetActiveCharacter();
+    if (activeChar && characterMesh && animatedShader) {
         animatedShader->Bind();
         animatedShader->SetMat4("view", view);
         animatedShader->SetMat4("projection", projection);
@@ -558,8 +567,8 @@ void Game::Render(Engine& engine) const {
         animatedShader->SetFloat("fogDensity", fogDensity);
         animatedShader->SetVec3("fogColor", dayNightCycle.getFogColor());
 
-        glm::vec3 playerPos = world->GetPlayer().transform.position;
-        float playerRot = world->GetPlayer().transform.rotation.y;
+        glm::vec3 playerPos = activeChar->transform.position;
+        float playerRot = activeChar->transform.rotation.y;
 
         glm::mat4 model = glm::translate(glm::mat4(1.0f), playerPos);
         model = glm::rotate(model, glm::radians(playerRot), glm::vec3(0.0f, 1.0f, 0.0f));
@@ -572,10 +581,14 @@ void Game::Render(Engine& engine) const {
 
         characterMesh->draw(animatedShader->GetID());
     }
+
+    // 6. UI and HUD Overlays
+    RenderHud(engine);
+    UIManager::Instance().Render(engine.GetWindow().GetWidth(), engine.GetWindow().GetHeight());
 }
 
 void Game::Shutdown() {
-    groundRenderer.cleanup();
+    terrainRenderer.cleanup();
     grassRenderer.cleanup();
     treeRenderer.cleanup();
     skydomeRenderer.cleanup();

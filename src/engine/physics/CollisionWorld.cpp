@@ -54,6 +54,8 @@ bool CollisionWorld::LoadFlatGround(float halfSize, float height) {
 
     m_MapBVH.Build(std::move(triangles));
     return true;
+}
+
 void CollisionWorld::AddTriangles(const std::vector<Triangle>& tris) {
     m_AllTriangles.insert(m_AllTriangles.end(), tris.begin(), tris.end());
 }

@@ -3,11 +3,13 @@
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 
+class CollisionWorld;
+
 class GrassRenderer {
 public:
     GrassRenderer() = default;
 
-    void init();
+    void init(const CollisionWorld* cw, float terrainMinY);
     void render(const glm::mat4& view, const glm::mat4& projection,
                 const glm::vec3& cameraPos, float currentTime,
                 const glm::vec3& lightDir, const glm::vec3& lightColor,
@@ -22,7 +24,7 @@ private:
     GLuint shaderProgram = 0;
     GLuint texGrass = 0;
 
-    static constexpr int GRASS_COUNT = 20000;
+    static constexpr int GRASS_COUNT = 100000;
 
     GLuint loadTexture(const char* path);
 };

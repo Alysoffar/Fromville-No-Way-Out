@@ -39,6 +39,24 @@ void World::InitializeCharacters() {
     }
 }
 
+void World::GroundEntities() {
+    std::cout << "[World] Grounding all entities to terrain...\n";
+    auto GroundTransform = [this](Transform& transform) {
+        glm::vec3 rayOrigin = transform.position;
+        rayOrigin.y = 1000.0f; 
+        glm::vec3 rayDir = glm::vec3(0.0f, -1.0f, 0.0f);
+        HitResult hit;
+        if (collisionWorld.RaycastMap(rayOrigin, rayDir, 2000.0f, hit)) {
+            transform.position.y = rayOrigin.y - hit.t + 0.05f; 
+        } else {
+            transform.position.y = 0.1f;
+        }
+    };
+    for (auto& character : characters) if (character) GroundTransform(character->transform);
+    for (auto& npc : npcs) GroundTransform(npc.transform);
+    for (auto& enemy : enemies) GroundTransform(enemy.transform);
+}
+
 void World::SwitchCharacter(int index) {
     if (index < 0 || index >= static_cast<int>(characters.size())) {
         std::cerr << "[World] Invalid character index: " << index << "\n";

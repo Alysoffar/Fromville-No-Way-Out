@@ -100,13 +100,19 @@ void MainMenuScreen::Render(TextRenderer* hud, int screenWidth, int screenHeight
     const float centerX = static_cast<float>(screenWidth) * 0.5f;
     const float spacing = 48.0f;
 
+    // Draw Title
+    hud->RenderText("FROMVILLE: NO WAY OUT", centerX - 220.0f, static_cast<float>(screenHeight) * 0.75f, 1.5f, glm::vec3(0.9f, 0.1f, 0.1f), screenWidth, screenHeight, true);
+    hud->RenderText("Can you find the way out?", centerX - 140.0f, static_cast<float>(screenHeight) * 0.70f, 0.7f, glm::vec3(0.6f, 0.6f, 0.6f), screenWidth, screenHeight, false);
+
     for (size_t i = 0; i < items.size(); ++i) {
-        glm::vec3 color(0.8f, 0.8f, 0.8f);
+        glm::vec3 color(0.7f, 0.7f, 0.7f);
+        float scale = 1.0f;
         if (static_cast<int>(i) == selected) {
             float t = fmod(blinkTimer, 1.0f);
-            float pulse = 0.8f + 0.2f * t;
-            color = glm::vec3(pulse, pulse, pulse);
+            float pulse = 0.8f + 0.2f * std::sin(blinkTimer * 5.0f);
+            color = glm::vec3(1.0f, 0.9f, 0.4f); // Golden select color
+            scale = 1.1f;
         }
-        hud->RenderText(items[i], centerX - 100.0f, baseY + static_cast<float>(i) * spacing, 1.0f, color, screenWidth, screenHeight, false);
+        hud->RenderText(items[i], centerX - 80.0f, baseY + static_cast<float>(i) * spacing, scale, color, screenWidth, screenHeight, true);
     }
 }

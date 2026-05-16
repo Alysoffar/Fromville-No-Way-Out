@@ -35,7 +35,7 @@ private:
     float mouseSensitivity = 0.05f;
     float fov = 60.0f;
     float nearPlane = 0.1f;
-    float farPlane = 500.0f;
+    float farPlane = 10000.0f;
 
     // Follow-camera parameters
     float followYaw = -135.0f;

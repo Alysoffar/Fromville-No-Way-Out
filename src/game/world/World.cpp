@@ -24,7 +24,7 @@
 #include "engine/renderer/Shader.h"
 #include "engine/renderer/TextRenderer.h"
 #include "engine/core/InputManager.h"
-#include "engine/renderer/terrain.h"
+#include "engine/renderer/TerrainRenderer.h"
 #include "engine/resources/loader.h"
 #include "game/atmosphere/AtmosphereManager.h"
 #include "game/memory/MemoryReplaySystem.h"
@@ -37,10 +37,192 @@
 #include "game/dialogue/DialogueManager.h"
 #include "engine/resources/loader.h"
 #include "game/world/DayNightCycle.h"
+#include "game/entities/Door.h"
+#include <GLFW/glfw3.h>
 
 // =============================================================================
 // Player Mesh
 // =============================================================================
+
+struct VoiceCueLibrary {
+    bool initialized = false;
+    std::unordered_map<std::string, std::string> monster;
+    std::unordered_map<std::string, std::string> npcFemale;
+    std::unordered_map<std::string, std::string> npcMale;
+    std::unordered_map<std::string, std::string> responses;
+    std::unordered_map<std::string, std::string> panicFemale;
+    std::unordered_map<std::string, std::string> panicMale;
+};
+
+VoiceCueLibrary& GetVoiceCueLibrary() {
+    static VoiceCueLibrary library;
+    return library;
+}
+
+std::string BuildVoiceSlug(const std::string& line) {
+    std::string cleaned;
+    cleaned.reserve(line.size());
+
+    bool prevUnderscore = false;
+    for (char c : line) {
+        const unsigned char uc = static_cast<unsigned char>(c);
+        if (std::isalnum(uc)) {
+            cleaned.push_back(static_cast<char>(std::tolower(uc)));
+            prevUnderscore = false;
+        } else if (!prevUnderscore) {
+            cleaned.push_back('_');
+            prevUnderscore = true;
+        }
+    }
+
+    while (!cleaned.empty() && cleaned.front() == '_') {
+        cleaned.erase(cleaned.begin());
+    }
+    while (!cleaned.empty() && cleaned.back() == '_') {
+        cleaned.pop_back();
+    }
+
+    if (cleaned.size() > 40) {
+        cleaned = cleaned.substr(0, 40);
+        while (!cleaned.empty() && cleaned.back() == '_') {
+            cleaned.pop_back();
+        }
+    }
+
+    if (cleaned.empty()) {
+        cleaned = "line";
+    }
+    return cleaned;
+}
+
+std::string NormalizeVoiceLine(std::string line) {
+    const std::string monsterPrefix = "[MONSTER]";
+    if (line.rfind(monsterPrefix, 0) == 0) {
+        line = line.substr(monsterPrefix.size());
+        while (!line.empty() && std::isspace(static_cast<unsigned char>(line.front()))) {
+            line.erase(line.begin());
+        }
+    }
+    return line;
+}
+
+std::string StripSpeakerPrefix(const std::string& line) {
+    const std::size_t colon = line.find(':');
+    if (colon == std::string::npos || colon + 1 >= line.size()) {
+        return line;
+    }
+
+    std::string stripped = line.substr(colon + 1);
+    while (!stripped.empty() && std::isspace(static_cast<unsigned char>(stripped.front()))) {
+        stripped.erase(stripped.begin());
+    }
+    return stripped;
+}
+
+void RegisterVoiceFolder(
+    AudioManager& audio,
+    const std::filesystem::path& folder,
+    const std::string& cuePrefix,
+    std::unordered_map<std::string, std::string>& outMap) {
+    if (!std::filesystem::exists(folder)) {
+        return;
+    }
+
+    for (const auto& entry : std::filesystem::directory_iterator(folder)) {
+        if (!entry.is_regular_file() || entry.path().extension() != ".wav") {
+            continue;
+        }
+
+        const std::string stem = entry.path().stem().string();
+        const std::size_t underscore = stem.find('_');
+        if (underscore == std::string::npos || underscore + 1 >= stem.size()) {
+            continue;
+        }
+
+        const std::string slug = stem.substr(underscore + 1);
+        const std::string cueName = cuePrefix + "/" + entry.path().filename().string();
+        if (audio.LoadSound(cueName, entry.path().string())) {
+            outMap[slug] = cueName;
+        }
+    }
+}
+
+void InitializeVoiceCueLibrary(AudioManager& audio) {
+    VoiceCueLibrary& library = GetVoiceCueLibrary();
+    if (library.initialized) {
+        return;
+    }
+
+    RegisterVoiceFolder(audio, "assets/audio/voice/monster", "voice/monster", library.monster);
+    RegisterVoiceFolder(audio, "assets/audio/voice/npc_female", "voice/npc_female", library.npcFemale);
+    RegisterVoiceFolder(audio, "assets/audio/voice/npc_male", "voice/npc_male", library.npcMale);
+    RegisterVoiceFolder(audio, "assets/audio/voice/responses", "voice/responses", library.responses);
+    RegisterVoiceFolder(audio, "assets/audio/voice/panic_female", "voice/panic_female", library.panicFemale);
+    RegisterVoiceFolder(audio, "assets/audio/voice/panic_male", "voice/panic_male", library.panicMale);
+
+    library.initialized = true;
+}
+
+bool IsFemaleSpeaker(const std::string& name) {
+    return name == "Elena" || name == "Mara" || name == "Tabitha" || name == "Sara";
+}
+
+std::string GetSpeakerName(const std::string& line) {
+    const std::size_t toPos = line.find(" to ");
+    if (toPos != std::string::npos) {
+        return line.substr(0, toPos);
+    }
+
+    const std::size_t colonPos = line.find(':');
+    if (colonPos != std::string::npos) {
+        return line.substr(0, colonPos);
+    }
+
+    return "";
+}
+
+bool PlayVoiceLine(AudioManager* audio, const std::string& group, const std::string& rawLine, float gain = 0.85f) {
+    if (!audio || rawLine.empty()) {
+        return false;
+    }
+
+    VoiceCueLibrary& library = GetVoiceCueLibrary();
+    if (!library.initialized) {
+        InitializeVoiceCueLibrary(*audio);
+    }
+
+    std::string line = NormalizeVoiceLine(rawLine);
+    if (group == "npc_female" || group == "npc_male") {
+        line = StripSpeakerPrefix(line);
+    }
+
+    const std::string slug = BuildVoiceSlug(line);
+    const std::unordered_map<std::string, std::string>* table = nullptr;
+    if (group == "monster") {
+        table = &library.monster;
+    } else if (group == "npc_female") {
+        table = &library.npcFemale;
+    } else if (group == "npc_male") {
+        table = &library.npcMale;
+    } else if (group == "responses") {
+        table = &library.responses;
+    } else if (group == "panic_female") {
+        table = &library.panicFemale;
+    } else if (group == "panic_male") {
+        table = &library.panicMale;
+    }
+
+    if (!table) {
+        return false;
+    }
+
+    const auto found = table->find(slug);
+    if (found == table->end()) {
+        return false;
+    }
+
+    return audio->PlaySound(found->second, gain);
+}
 
 namespace {
 
@@ -51,6 +233,7 @@ struct WorldMesh {
 };
 
 WorldMesh gPlayerMesh;
+WorldMesh gTerrainMesh;
 WorldMesh gHouseMesh;
 WorldMesh gDinnerMesh;
 WorldMesh gPoliceMesh;
@@ -152,187 +335,6 @@ std::string FragmentLine(std::string line, float intensity, std::size_t seed) {
 
     return line;
 }
-
-struct VoiceCueLibrary {
-    bool initialized = false;
-    std::unordered_map<std::string, std::string> monster;
-    std::unordered_map<std::string, std::string> npcFemale;
-    std::unordered_map<std::string, std::string> npcMale;
-    std::unordered_map<std::string, std::string> responses;
-    std::unordered_map<std::string, std::string> panicFemale;
-    std::unordered_map<std::string, std::string> panicMale;
-};
-
-VoiceCueLibrary& GetVoiceCueLibrary() {
-    static VoiceCueLibrary library;
-    return library;
-}
-
-std::string BuildVoiceSlug(const std::string& line) {
-    std::string cleaned;
-    cleaned.reserve(line.size());
-
-    bool prevUnderscore = false;
-    for (char c : line) {
-        const unsigned char uc = static_cast<unsigned char>(c);
-        if (std::isalnum(uc)) {
-            cleaned.push_back(static_cast<char>(std::tolower(uc)));
-            prevUnderscore = false;
-        } else if (!prevUnderscore) {
-            cleaned.push_back('_');
-            prevUnderscore = true;
-        }
-    }
-
-    while (!cleaned.empty() && cleaned.front() == '_') {
-        cleaned.erase(cleaned.begin());
-    }
-    while (!cleaned.empty() && cleaned.back() == '_') {
-        cleaned.pop_back();
-    }
-
-    if (cleaned.size() > 40) {
-        cleaned = cleaned.substr(0, 40);
-        while (!cleaned.empty() && cleaned.back() == '_') {
-            cleaned.pop_back();
-        }
-    }
-
-    if (cleaned.empty()) {
-        cleaned = "line";
-    }
-    return cleaned;
-}
-
-std::string NormalizeVoiceLine(std::string line) {
-    const std::string monsterPrefix = "[MONSTER]";
-    if (line.rfind(monsterPrefix, 0) == 0) {
-        line = line.substr(monsterPrefix.size());
-        while (!line.empty() && std::isspace(static_cast<unsigned char>(line.front()))) {
-            line.erase(line.begin());
-        }
-    }
-    return line;
-}
-
-std::string StripSpeakerPrefix(const std::string& line) {
-    const std::size_t colon = line.find(':');
-    if (colon == std::string::npos || colon + 1 >= line.size()) {
-        return line;
-    }
-
-    std::string stripped = line.substr(colon + 1);
-    while (!stripped.empty() && std::isspace(static_cast<unsigned char>(stripped.front()))) {
-        stripped.erase(stripped.begin());
-    }
-    return stripped;
-}
-
-bool IsFemaleSpeaker(const std::string& name) {
-    return name == "Elena" || name == "Mara" || name == "Tabitha" || name == "Sara";
-}
-
-std::string GetSpeakerName(const std::string& line) {
-    const std::size_t toPos = line.find(" to ");
-    if (toPos != std::string::npos) {
-        return line.substr(0, toPos);
-    }
-
-    const std::size_t colonPos = line.find(':');
-    if (colonPos != std::string::npos) {
-        return line.substr(0, colonPos);
-    }
-
-    return "";
-}
-
-void RegisterVoiceFolder(
-    AudioManager& audio,
-    const std::filesystem::path& folder,
-    const std::string& cuePrefix,
-    std::unordered_map<std::string, std::string>& outMap) {
-    if (!std::filesystem::exists(folder)) {
-        return;
-    }
-
-    for (const auto& entry : std::filesystem::directory_iterator(folder)) {
-        if (!entry.is_regular_file() || entry.path().extension() != ".wav") {
-            continue;
-        }
-
-        const std::string stem = entry.path().stem().string();
-        const std::size_t underscore = stem.find('_');
-        if (underscore == std::string::npos || underscore + 1 >= stem.size()) {
-            continue;
-        }
-
-        const std::string slug = stem.substr(underscore + 1);
-        const std::string cueName = cuePrefix + "/" + entry.path().filename().string();
-        if (audio.LoadSound(cueName, entry.path().string())) {
-            outMap[slug] = cueName;
-        }
-    }
-}
-
-void InitializeVoiceCueLibrary(AudioManager& audio) {
-    VoiceCueLibrary& library = GetVoiceCueLibrary();
-    if (library.initialized) {
-        return;
-    }
-
-    RegisterVoiceFolder(audio, "assets/audio/voice/monster", "voice/monster", library.monster);
-    RegisterVoiceFolder(audio, "assets/audio/voice/npc_female", "voice/npc_female", library.npcFemale);
-    RegisterVoiceFolder(audio, "assets/audio/voice/npc_male", "voice/npc_male", library.npcMale);
-    RegisterVoiceFolder(audio, "assets/audio/voice/responses", "voice/responses", library.responses);
-    RegisterVoiceFolder(audio, "assets/audio/voice/panic_female", "voice/panic_female", library.panicFemale);
-    RegisterVoiceFolder(audio, "assets/audio/voice/panic_male", "voice/panic_male", library.panicMale);
-
-    library.initialized = true;
-}
-
-bool PlayVoiceLineInternal(AudioManager* audio, const std::string& group, const std::string& rawLine, float gain = 0.85f) {
-    if (!audio || rawLine.empty()) {
-        return false;
-    }
-
-    VoiceCueLibrary& library = GetVoiceCueLibrary();
-    if (!library.initialized) {
-        InitializeVoiceCueLibrary(*audio);
-    }
-
-    std::string line = NormalizeVoiceLine(rawLine);
-    if (group == "npc_female" || group == "npc_male") {
-        line = StripSpeakerPrefix(line);
-    }
-
-    const std::string slug = BuildVoiceSlug(line);
-    const std::unordered_map<std::string, std::string>* table = nullptr;
-    if (group == "monster") {
-        table = &library.monster;
-    } else if (group == "npc_female") {
-        table = &library.npcFemale;
-    } else if (group == "npc_male") {
-        table = &library.npcMale;
-    } else if (group == "responses") {
-        table = &library.responses;
-    } else if (group == "panic_female") {
-        table = &library.panicFemale;
-    } else if (group == "panic_male") {
-        table = &library.panicMale;
-    }
-
-    if (!table) {
-        return false;
-    }
-
-    const auto found = table->find(slug);
-    if (found == table->end()) {
-        return false;
-    }
-
-    return audio->PlaySound(found->second, gain);
-}
-
 
 
 float HorizontalDistance(const glm::vec3& a, const glm::vec3& b) {
@@ -1069,20 +1071,23 @@ glm::vec3 FindNearestEnemyPosition(const std::vector<Enemy>& enemies, const glm:
 }
 
 void InitializeModels() {
-    // ---- Character mesh (small model, load synchronously) ----
+    // ---- Player mesh ----
     if (!gPlayerReady) {
         std::vector<MeshVertex> vertices;
         std::vector<unsigned int> indices;
         if (Loader::LoadOBJ("assets/models/boyd.obj", vertices, indices)) {
-            gPlayerMesh.Create(vertices, indices);
-            gPlayerShader.Load("assets/shaders/model_lit.vert", "assets/shaders/model_lit.frag");
-            gPlayerReady = gPlayerMesh.IsValid();
+            gPlayerMesh.mesh.Create(vertices, indices);
+            gPlayerReady = gPlayerMesh.mesh.IsValid();
         } else {
             std::cerr << "Failed to load character OBJ: assets/models/boyd.obj\n";
-            CreateColoredCubeMesh(gPlayerMesh, glm::vec3(0.85f, 0.85f, 0.95f));
-            gPlayerShader.Load("assets/shaders/model_lit.vert", "assets/shaders/model_lit.frag");
-            gPlayerReady = gPlayerMesh.IsValid();
+            CreateColoredCubeMesh(gPlayerMesh.mesh, glm::vec3(0.85f, 0.85f, 0.95f));
+            gPlayerReady = gPlayerMesh.mesh.IsValid();
         }
+    }
+    
+    // We'll load the Terrain mesh in LoadMeshes to reuse vertices for collision.
+}
+
 float CalculateMinY(const std::vector<MeshVertex>& vertices) {
     float minY = FLT_MAX;
     for (const auto& v : vertices) {
@@ -1092,7 +1097,28 @@ float CalculateMinY(const std::vector<MeshVertex>& vertices) {
 }
 
 void LoadMeshes(CollisionWorld* cw, std::vector<Door>& doors) {
-    if (gPlayerReady) return;
+    if (gCharacterReady) return;
+
+    // ---- Terrain ground mesh ----
+    std::cout << "[World] Attempting to load ground mesh: assets/models/Terrain003_1K.obj\n";
+    if (!gTerrainMesh.valid) {
+        std::vector<MeshVertex> vertices;
+        std::vector<unsigned int> indices;
+        if (Loader::LoadOBJ("assets/models/Terrain003_1K.obj", vertices, indices)) {
+            gTerrainMesh.mesh.Create(vertices, indices);
+            gTerrainMesh.minY = CalculateMinY(vertices);
+            gTerrainMesh.valid = true;
+            
+            if (cw) {
+                // Normalize terrain so its minimum point is at Y=0
+                glm::mat4 terrainTransform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -gTerrainMesh.minY, 0.0f));
+                cw->AddTrianglesFromMesh(vertices, indices, terrainTransform);
+            }
+            std::cout << "[World] Ground mesh and collision loaded: Terrain003_1K.obj (" << vertices.size() << " vertices)\n";
+        } else {
+            std::cerr << "[World] CRITICAL ERROR: Failed to load ground mesh: assets/models/Terrain003_1K.obj\n";
+        }
+    }
 
     std::cout << "[World] Loading meshes...\n";
 
@@ -1238,7 +1264,8 @@ void LoadMeshes(CollisionWorld* cw, std::vector<Door>& doors) {
         glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(pos.x, adjustedY, pos.z));
         model = glm::rotate(model, glm::radians(rot), glm::vec3(0.0f, 1.0f, 0.0f));
         // We already scaled the vertices, so we don't scale the model matrix anymore!
-        if (cw) cw->AddTrianglesFromMesh(mainVertices, mainIndices, model, true);
+        // Disable floor filtering for buildings to ensure interior navigation is solid.
+        if (cw) cw->AddTrianglesFromMesh(mainVertices, mainIndices, model, false);
     };
 
     // House 1 & 2
@@ -1249,7 +1276,9 @@ void LoadMeshes(CollisionWorld* cw, std::vector<Door>& doors) {
     LoadBuilding("assets/models/Police.obj", gPoliceMesh, glm::vec3(0.0f, 0, 40.0f), 180.0f, 2.0f, "Door", 90.0f);
 
     gPlayerShader.Load("assets/shaders/model_lit.vert", "assets/shaders/model_lit.frag");
+    gCharacterShader.Load("assets/shaders/model_lit.vert", "assets/shaders/model_lit.frag");
     gPlayerReady = true;
+    gCharacterReady = true;
 }
 
 
@@ -1258,11 +1287,29 @@ void LoadMeshes(CollisionWorld* cw, std::vector<Door>& doors) {
 // =============================================================================
 // World class implementation
 // =============================================================================
+World::World() {
+    mapManager = std::make_unique<MapManager>();
+    terrain = std::make_unique<TerrainRenderer>();
+}
 
-    terrain->Initialize();
+World::~World() = default;
+
+void World::Initialize() {
+    // terrain->Initialize();
     InitializeModels();
+
+    std::vector<Door> doors; 
+    LoadMeshes(&collisionWorld, doors);
+    
+    // Build collision BVH after meshes are loaded so we can raycast against them for grounding
+    collisionWorld.BuildBVH();
+
     InitializeCharacters();
+    GroundEntities();
     InitializePlaceholderWorldRules();
+
+    entityManager.BindStorage(&characters, &npcs, &enemies, &activeCharacterIndex);
+    entityManager.BindCollisionWorld(&collisionWorld);
 
     // Create and initialize quest system with pointer to worldClock
     questSystem = std::make_unique<QuestSystem>(&worldClock);
@@ -1289,6 +1336,7 @@ void LoadMeshes(CollisionWorld* cw, std::vector<Door>& doors) {
             } else {
                 std::cout << "[Audio] Missing cue file: " << relativePath << "\n";
             }
+            glfwPollEvents(); // Keep window responsive during long loads
         }
 
         InitializeVoiceCueLibrary(*audioManager);
@@ -1448,13 +1496,6 @@ void LoadMeshes(CollisionWorld* cw, std::vector<Door>& doors) {
     // Assign quests to characters
     for (size_t i = 0; i < characters.size(); ++i) {
         characters[i]->SetQuest(questSystem->GetCharacterQuest(characters[i]->GetType()));
-    }
-
-    // Use a flat invisible collision plane for the temporary test arena.
-    if (collisionWorld.LoadFlatGround(256.0f, 0.0f)) {
-        std::cout << "[World] Flat test ground loaded successfully!\n";
-    } else {
-        std::cerr << "[World] Warning: Failed to load flat test ground, entities will use fallback physics.\n";
     }
 
     // Wire collision system to all characters
@@ -1805,7 +1846,7 @@ void World::Update(const Camera& camera, float dt) {
     }
 
     mapManager->Update(camera.GetPosition());
-    terrain->Update(*mapManager);
+    // terrain->Update(*mapManager);
 }
 
 void World::UpdateWorldSystemsPhase(float dt) {
@@ -1943,12 +1984,50 @@ void World::UpdateQuestAndInteractionPhase(float dt) {
     }
 }
 
-void World::Render(const Camera& camera, float aspectRatio) {
-    if (!terrain) {
-        return;
-    }
+void World::Render(const Camera& camera, float aspectRatio, const DayNightCycle& dayNightCycle) {
+    const glm::mat4 projection = camera.GetProjectionMatrix(aspectRatio);
+    const glm::mat4 view = camera.GetViewMatrix();
+    const glm::vec3 cameraPos = camera.GetPosition();
 
-    terrain->Render(camera, aspectRatio);
+    // Lighting parameters
+    glm::vec3 sunDir = dayNightCycle.getActiveLightDir();
+    glm::vec3 lightColor = dayNightCycle.getLightColor();
+    glm::vec3 ambientColor = dayNightCycle.getAmbientColor();
+    float diffuseStrength = dayNightCycle.getDiffuseStrength();
+    glm::vec3 fogColor = dayNightCycle.getFogColor();
+    float fogDensity = 0.005f; // Reduced density to see further across the large terrain
+
+    auto SetupLighting = [&](Shader& s) {
+        s.Bind();
+        s.SetVec3("uLightDir", sunDir);
+        s.SetVec3("uLightColor", lightColor);
+        s.SetVec3("uAmbient", ambientColor);
+        s.SetFloat("uDiffuseStrength", diffuseStrength);
+        s.SetVec3("uViewPos", cameraPos);
+        s.SetVec3("uFogColor", fogColor);
+        s.SetFloat("uFogDensity", fogDensity);
+    };
+
+    // 1. Ground (Rendered by TerrainRenderer in Game.cpp)
+    // 2. Render Buildings
+    auto DrawBuilding = [&](const WorldMesh& mesh, const glm::vec3& pos, float rot, float scale) {
+        if (!mesh.valid) return;
+        glm::mat4 model = glm::translate(glm::mat4(1.0f), pos);
+        model = glm::rotate(model, glm::radians(rot), glm::vec3(0.0f, 1.0f, 0.0f));
+        model = glm::scale(model, glm::vec3(scale));
+        
+        SetupLighting(gPlayerShader);
+        gPlayerShader.SetMat4("projection", projection);
+        gPlayerShader.SetMat4("view", view);
+        gPlayerShader.SetMat4("model", model);
+        mesh.mesh.Draw();
+        gPlayerShader.Unbind();
+    };
+
+    DrawBuilding(gHouseMesh, glm::vec3(-25.0f, 0, 0.0f), 90.0f, 1.0f);
+    DrawBuilding(gHouseMesh, glm::vec3(25.0f, 0, 0.0f), -90.0f, 1.0f);
+    DrawBuilding(gDinnerMesh, glm::vec3(0.0f, 0, -40.0f), 0.0f, 2.0f);
+    DrawBuilding(gPoliceMesh, glm::vec3(0.0f, 0, 40.0f), 180.0f, 2.0f);
 
     if (gCharacterReady) {
         // Render all 5 characters (active in bright color, off-screen in muted color)
@@ -1970,7 +2049,7 @@ void World::Render(const Camera& camera, float aspectRatio) {
                 characterColor *= 0.6f;
             }
             
-            RenderCharacterCube(gCharacterShader, gPlayerMesh, camera, aspectRatio, 
+            RenderCharacterCube(gCharacterShader, gPlayerMesh.mesh, camera, aspectRatio, 
                               characters[i]->transform.position, glm::vec3(0.4f), characterColor);
         }
         
@@ -2035,36 +2114,7 @@ void World::Render(const Camera& camera, float aspectRatio) {
             RenderCharacterCube(gCharacterShader, gNpcMesh, camera, aspectRatio, position, scale, color);
         };
 
-        // Quest test props for the flat arena. Colors match the intended character:
-        // Boyd red, Jade cyan, Tabitha green, Victor yellow, Sara magenta.
-        renderProp(glm::vec3(0.0f, 0.25f, 4.0f), glm::vec3(0.95f, 0.50f, 0.18f), glm::vec3(1.0f, 0.15f, 0.12f));
-        renderProp(glm::vec3(0.0f, 0.90f, 4.0f), glm::vec3(0.65f, 0.70f, 0.16f), glm::vec3(0.72f, 0.10f, 0.08f));
-        renderProp(glm::vec3(0.0f, 1.30f, 4.0f), glm::vec3(0.85f, 0.12f, 0.45f), glm::vec3(0.45f, 0.06f, 0.05f));
-
-        renderProp(glm::vec3(2.0f, 0.20f, 4.0f), glm::vec3(0.55f, 0.40f, 0.55f), glm::vec3(0.0f, 0.95f, 1.0f));
-        renderProp(glm::vec3(2.0f, 0.75f, 4.0f), glm::vec3(0.18f, 0.70f, 0.18f), glm::vec3(0.8f, 1.0f, 1.0f));
-        renderProp(glm::vec3(-4.0f, 0.20f, 6.0f), glm::vec3(0.85f, 0.22f, 0.85f), glm::vec3(0.0f, 0.82f, 0.95f));
-        renderProp(glm::vec3(-4.0f, 0.85f, 6.0f), glm::vec3(0.16f, 0.90f, 0.16f), glm::vec3(0.65f, 1.0f, 1.0f));
-
-        renderProp(glm::vec3(-4.0f, 0.18f, 4.0f), glm::vec3(1.10f, 0.35f, 0.45f), glm::vec3(0.0f, 0.9f, 0.25f));
-        renderProp(glm::vec3(-4.55f, 0.85f, 4.0f), glm::vec3(0.18f, 0.90f, 0.18f), glm::vec3(0.0f, 0.55f, 0.15f));
-        renderProp(glm::vec3(-3.45f, 0.85f, 4.0f), glm::vec3(0.18f, 0.90f, 0.18f), glm::vec3(0.0f, 0.55f, 0.15f));
-
-        renderProp(glm::vec3(-2.0f, 0.20f, -4.0f), glm::vec3(0.65f, 0.40f, 0.65f), glm::vec3(1.0f, 0.92f, 0.1f));
-        renderProp(glm::vec3(-2.0f, 0.95f, -4.0f), glm::vec3(0.24f, 1.10f, 0.24f), glm::vec3(0.95f, 0.85f, 0.2f));
-        renderProp(glm::vec3(0.0f, 0.18f, -6.0f), glm::vec3(0.75f, 0.35f, 0.55f), glm::vec3(1.0f, 0.95f, 0.25f));
-
-        renderProp(glm::vec3(4.0f, 0.20f, -4.0f), glm::vec3(0.70f, 0.35f, 0.70f), glm::vec3(1.0f, 0.0f, 1.0f));
-        renderProp(glm::vec3(4.0f, 1.00f, -4.0f), glm::vec3(0.18f, 1.25f, 0.18f), glm::vec3(0.95f, 0.25f, 0.95f));
-
-        renderProp(glm::vec3(4.0f, 0.30f, 4.0f), glm::vec3(1.20f, 0.60f, 0.35f), glm::vec3(0.50f, 0.35f, 0.22f));
-        renderProp(glm::vec3(4.0f, 0.95f, 4.0f), glm::vec3(1.35f, 0.18f, 0.45f), glm::vec3(0.35f, 0.22f, 0.14f));
-
-        // Add a few extra environment props to reduce emptiness (rocks, debris, simple props)
-        renderProp(glm::vec3(1.0f, 0.12f, 5.5f), glm::vec3(0.30f, 0.15f, 0.45f), glm::vec3(0.35f, 0.32f, 0.28f));
-        renderProp(glm::vec3(-1.5f, 0.12f, 5.0f), glm::vec3(0.45f, 0.18f, 0.30f), glm::vec3(0.28f, 0.25f, 0.22f));
-        renderProp(glm::vec3(3.0f, 0.12f, 3.5f), glm::vec3(0.60f, 0.30f, 0.60f), glm::vec3(0.15f, 0.55f, 0.15f));
-        renderProp(glm::vec3(5.0f, 0.12f, 5.7f), glm::vec3(0.35f, 0.18f, 0.35f), glm::vec3(0.35f, 0.32f, 0.28f));
+        // (Test props removed to clear the spawn area)
 
         // Special: render Bloody Knife with dark metallic base + red glow to make it obvious
         for (const InteractionNode& node : interactionSystem.GetNodes()) {

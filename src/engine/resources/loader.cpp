@@ -387,6 +387,16 @@ bool Loader::LoadOBJ(const std::filesystem::path& path,
                     vertex.normal = glm::vec3(0.0f, 1.0f, 0.0f);
                 }
 
+                // Texture coordinates (2 floats per texcoord)
+                if (idx.texcoord_index >= 0 && static_cast<size_t>(idx.texcoord_index * 2 + 1) < attrib.texcoords.size()) {
+                    vertex.uv = glm::vec2(
+                        attrib.texcoords[2 * idx.texcoord_index + 0],
+                        attrib.texcoords[2 * idx.texcoord_index + 1]
+                    );
+                } else {
+                    vertex.uv = glm::vec2(0.0f, 0.0f);
+                }
+
                 // Bake material color into vertex color
                 vertex.color = faceColor;
 
@@ -512,6 +522,14 @@ bool Loader::LoadOBJWithShapes(const std::filesystem::path& path, std::vector<OB
                     vertex.normal = glm::vec3(attrib.normals[3 * key.n + 0], attrib.normals[3 * key.n + 1], attrib.normals[3 * key.n + 2]);
                 } else {
                     vertex.normal = glm::vec3(0.0f, 1.0f, 0.0f);
+                }
+                if (idx.texcoord_index >= 0 && static_cast<size_t>(idx.texcoord_index * 2 + 1) < attrib.texcoords.size()) {
+                    vertex.uv = glm::vec2(
+                        attrib.texcoords[2 * idx.texcoord_index + 0],
+                        attrib.texcoords[2 * idx.texcoord_index + 1]
+                    );
+                } else {
+                    vertex.uv = glm::vec2(0.0f, 0.0f);
                 }
                 vertex.color = faceColor;
                 outShape.vertices.push_back(vertex);

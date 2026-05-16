@@ -3,6 +3,7 @@ out vec4 FragColor;
 in vec3 viewRay;
 
 uniform vec3 lightDir;
+uniform vec2 resolution;
 
 void main() {
     vec3 dir = normalize(viewRay);
@@ -26,7 +27,7 @@ void main() {
     vec3 finalColor = skyColor + haloColor * haloFactor + sunColor * sunFactor;
     
     // Procedural Clouds
-    vec2 uv = gl_FragCoord.xy / vec2(1280.0, 720.0);
+    vec2 uv = gl_FragCoord.xy / resolution.xy;
     
     float d1 = length((uv - vec2(0.3, 0.7)) * vec2(1.0, 2.5));
     float cloud1 = smoothstep(0.15, 0.05, d1);
