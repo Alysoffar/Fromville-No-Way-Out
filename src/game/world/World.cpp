@@ -1501,6 +1501,16 @@ void World::Update(const Camera& camera, float dt) {
                             std::cout << lastMonsterScream << "\n";
                         }
                     }
+
+                    if (character.GetHealth() <= 0.0f && charIdx < initialSpawnState.characters.size()) {
+                        std::cout << "[Respawn] " << character.GetName() << " died and respawned.\n";
+                        character.transform.position = initialSpawnState.characters[charIdx].position;
+                        character.SetHealth(100.0f);
+                        if (static_cast<int>(charIdx) == activeCharacterIndex) {
+                            lastDamageAmount = 0.0f;
+                            lastDamageDisplayTimer.Stop();
+                        }
+                    }
                 }
             }
         }

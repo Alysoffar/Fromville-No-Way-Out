@@ -106,6 +106,7 @@ public:
     WorldSaveState CaptureSaveState() const;
     void RestoreSaveState(const WorldSaveState& state);
     bool ConsumeSpawnRestartRequest();
+    void RestartFromSpawn();
     bool SaveToFile(const std::string& path) const;
     bool LoadFromFile(const std::string& path);
 
@@ -193,5 +194,4 @@ private:
     bool MoveCharacterToward(Character& character, const glm::vec3& target, float dt);
     void TryAdvanceOffscreenStory(Character& character, std::size_t index, float dt, bool atGoal);
     void RenderInteriorZoneBounds(const Camera& camera, float aspectRatio) const;
-    void RestartFromSpawn();
 };

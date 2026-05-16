@@ -5,13 +5,14 @@
 #include <glm/vec3.hpp>
 #include <algorithm>
 #include <cmath>
+#include <GLFW/glfw3.h>
 #include "engine/ui/widgets/UIButton.h"
 #include "engine/ui/TransitionManager.h"
 
 using namespace std;
 
 MainMenuScreen::MainMenuScreen() {
-    items = {"Continue", "New Game", "Load Game", "Settings", "Credits", "Quit"};
+    items = {"Quit", "Credits", "Settings", "Load Game", "New Game", "Continue"};
 }
 
 void MainMenuScreen::OnEnter() {
@@ -32,15 +33,7 @@ bool MainMenuScreen::IsModal() const {
 
 void MainMenuScreen::Update(float dt, InputContext& input) {
     blinkTimer += dt;
-    // use semantic navigation
-    if (input.IsActionPressed(InputAction::NavigateUp) || input.IsActionPressed(InputAction::DialogueChoicePrev) || input.IsActionPressed(InputAction::PuzzleUp)) {
-        selected = std::max(0, selected - 1);
-    }
-    if (input.IsActionPressed(InputAction::NavigateDown) || input.IsActionPressed(InputAction::DialogueChoiceNext) || input.IsActionPressed(InputAction::PuzzleDown)) {
-        selected = std::min<int>(items.size()-1, selected + 1);
-    }
-
-    if (input.IsActionPressed(InputAction::Confirm) || input.IsActionPressed(InputAction::DialogueAdvance)) {
+    auto activateChoice = [this]() {
         const std::string& choice = items[selected];
         if (choice == "Quit") {
             TransitionManager::Instance().PlayStinger("ui_stinger_quit", 1.0f);
@@ -62,6 +55,40 @@ void MainMenuScreen::Update(float dt, InputContext& input) {
             });
         } else if (choice == "Load Game") {
             if (onLoad) onLoad();
+        }
+    };
+
+    // use semantic navigation
+    if (input.IsActionPressed(InputAction::NavigateUp) || input.IsActionPressed(InputAction::DialogueChoicePrev) || input.IsActionPressed(InputAction::PuzzleUp)) {
+        selected = std::max(0, selected - 1);
+    }
+    if (input.IsActionPressed(InputAction::NavigateDown) || input.IsActionPressed(InputAction::DialogueChoiceNext) || input.IsActionPressed(InputAction::PuzzleDown)) {
+        selected = std::min<int>(items.size()-1, selected + 1);
+    }
+
+    if (input.IsActionPressed(InputAction::Confirm) || input.IsActionPressed(InputAction::DialogueAdvance)) {
+        activateChoice();
+        return;
+    }
+
+    if (input.IsMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT)) {
+        const glm::vec2 mousePos = input.GetMousePosition();
+        const glm::ivec2 framebuffer = input.GetFramebufferSize();
+        const float baseY = static_cast<float>(framebuffer.y) * 0.4f;
+        const float centerX = static_cast<float>(framebuffer.x) * 0.5f;
+        const float spacing = 48.0f;
+        const float left = centerX - 100.0f;
+        const float right = centerX + 180.0f;
+        const float halfHeight = 18.0f;
+
+        for (std::size_t i = 0; i < items.size(); ++i) {
+            const float top = baseY + static_cast<float>(i) * spacing - halfHeight;
+            const float bottom = baseY + static_cast<float>(i) * spacing + halfHeight;
+            if (mousePos.x >= left && mousePos.x <= right && mousePos.y >= top && mousePos.y <= bottom) {
+                selected = static_cast<int>(i);
+                activateChoice();
+                break;
+            }
         }
     }
 }
