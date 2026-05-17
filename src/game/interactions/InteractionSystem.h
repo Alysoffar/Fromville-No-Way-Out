@@ -32,6 +32,8 @@ struct InteractionNode {
     int questObjectiveIndex = -1;
     int questSubObjectiveIndex = -1;
     std::string requiredCharacter;
+    bool followsActiveCharacter = false;
+    glm::vec3 originalPosition = glm::vec3(0.0f);
 };
 
 class InteractionSystem {
@@ -45,12 +47,13 @@ public:
     void MarkQuestStepSolved(CharacterType characterType, int objectiveIndex);
     const std::string& GetLastInteractionMessage() const { return lastInteractionMessage; }
     const std::vector<InteractionNode>& GetNodes() const { return nodes; }
+    std::vector<InteractionNode>& GetNodes() { return nodes; }
     bool HasLastQuestObjective() const { return lastInteractionQuestObjectiveIndex >= 0; }
     CharacterType GetLastInteractionQuestCharacter() const { return lastInteractionQuestCharacter; }
     int GetLastInteractionQuestObjectiveIndex() const { return lastInteractionQuestObjectiveIndex; }
     int GetLastInteractionQuestSubObjectiveIndex() const { return lastInteractionQuestSubObjectiveIndex; }
 
-    void Update(float dt, QuestSystem& questSystem);
+    void Update(float dt, QuestSystem& questSystem, const glm::vec3& activeCharPos = glm::vec3(0.0f), float activeCharRotY = 0.0f);
     // Add a new interaction node at runtime (used for spawning checkpoints)
     void AddNode(const InteractionNode& node);
 

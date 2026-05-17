@@ -28,8 +28,12 @@ enum class EnemyAIState {
 class Enemy : public Entity {
 public:
     explicit Enemy(glm::vec3 spawnPosition = glm::vec3(0.0f));
+    virtual ~Enemy() = default;
+    Enemy(Enemy&&) noexcept = default;
+    Enemy& operator=(Enemy&&) noexcept = default;
 
     void Update(float dt) override;
+    bool IsEnemy() const override { return true; }
     void SetNight(bool night);
 
     void SetTarget(const glm::vec3& targetPosition);

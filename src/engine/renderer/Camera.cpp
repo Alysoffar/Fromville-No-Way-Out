@@ -16,24 +16,26 @@ glm::mat4 Camera::GetViewMatrix() const {
 }
 
 glm::mat4 Camera::GetProjectionMatrix(float aspect) const {
+    float fov = (fovOverride >= 0.0f) ? fovOverride : defaultFov;
     return glm::perspective(glm::radians(fov), aspect, nearPlane, farPlane);
 }
 
 void Camera::Update(InputManager& input, float dt, const glm::vec3& playerPosition) {
+    if (hasPositionOverride) {
+        position = positionOverride;
+        return; // skip normal position update during transition
+    }
+
     (void)dt;
     const glm::vec2 mouseDelta = input.GetMouseDelta();
     ProcessMouseMovement(mouseDelta.x * mouseSensitivity, -mouseDelta.y * mouseSensitivity);
 
-    const glm::vec3 forward = GetForward();
-    const glm::vec3 lookAtTarget = playerPosition + glm::vec3(0.0f, targetHeightOffset, 0.0f);
-    const glm::vec3 desiredPosition = lookAtTarget - (forward * targetDistance);
-
-    position = desiredPosition;
+    position = playerPosition + glm::vec3(0.0f, eyeHeight, 0.0f);
 }
 
 void Camera::ProcessMouseMovement(float xoffset, float yoffset) {
     yaw += xoffset;
-    pitch = std::clamp(pitch + yoffset, -15.0f, 85.0f);
+    pitch = std::clamp(pitch + yoffset, -85.0f, 85.0f); // Allow fuller pitch up/down for first person
 }
 
 void Camera::SetRotation(float newYaw, float newPitch) {
@@ -42,14 +44,13 @@ void Camera::SetRotation(float newYaw, float newPitch) {
 }
 
 void Camera::Reset(const glm::vec3& spawnPosition) {
-    position = spawnPosition;
-    yaw = followYaw;
-    pitch = followPitch;
+    position = spawnPosition + glm::vec3(0.0f, eyeHeight, 0.0f);
+    yaw = -90.0f;
+    pitch = 0.0f;
 }
 
 void Camera::SnapToTarget(const glm::vec3& playerPosition) {
-    const glm::vec3 lookAtTarget = playerPosition + glm::vec3(0.0f, targetHeightOffset, 0.0f);
-    position = lookAtTarget - (GetForward() * targetDistance);
+    position = playerPosition + glm::vec3(0.0f, eyeHeight, 0.0f);
 }
 
 glm::vec3 Camera::GetPosition() const {

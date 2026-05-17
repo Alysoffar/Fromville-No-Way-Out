@@ -27,7 +27,9 @@ void AnimatedMesh::draw(GLuint shaderProgram) const {
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, m_TextureID);
     glUniform1i(glGetUniformLocation(shaderProgram, "diffuseMap"), 0);
+    glUniform1i(glGetUniformLocation(shaderProgram, "uTexture"), 0);
     glUniform1i(glGetUniformLocation(shaderProgram, "u_UseTexture"), m_TextureLoaded ? 1 : 0);
+    glUniform1i(glGetUniformLocation(shaderProgram, "uHasTexture"), m_TextureLoaded ? 1 : 0);
 
     glBindVertexArray(m_VAO);
     glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(m_Indices.size()), GL_UNSIGNED_INT, 0);
@@ -36,9 +38,13 @@ void AnimatedMesh::draw(GLuint shaderProgram) const {
 
 void AnimatedMesh::loadModel(const std::string& path) {
     Assimp::Importer importer;
+    importer.SetPropertyInteger(AI_CONFIG_PP_SBP_REMOVE,
+        aiPrimitiveType_POINT | aiPrimitiveType_LINE);
+
     const aiScene* scene = importer.ReadFile(path, 
         aiProcess_Triangulate | 
         aiProcess_GenSmoothNormals | 
+        aiProcess_FlipUVs |
         aiProcess_CalcTangentSpace | 
         aiProcess_LimitBoneWeights);
 
@@ -109,53 +115,46 @@ void AnimatedMesh::processMesh(aiMesh* mesh, const aiScene* scene) {
     extractBoneWeights(mesh);
 
     if (m_TextureID == 0) {
-        // mMaterialIndex is unsigned, so we don't need >= 0 check
         aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
-            if (material->GetTextureCount(aiTextureType_DIFFUSE) > 0) {
-                aiString texPath;
-                if (material->GetTexture(aiTextureType_DIFFUSE, 0, &texPath) == AI_SUCCESS) {
-                    const aiTexture* embeddedTex = scene->GetEmbeddedTexture(texPath.C_Str());
-                    int width, height, nrChannels;
-                    unsigned char* data = nullptr;
+        if (material->GetTextureCount(aiTextureType_DIFFUSE) > 0) {
+            aiString texPath;
+            if (material->GetTexture(aiTextureType_DIFFUSE, 0, &texPath) == AI_SUCCESS) {
+                // Do NOT attempt to load embedded textures. Only external ones.
+                std::string filename = std::filesystem::path(texPath.C_Str()).filename().string();
+                std::string fullPath = "assets/models/characters/" + filename;
+                
+                int width, height, nrChannels;
+                unsigned char* data = nullptr;
+                if (std::filesystem::exists(fullPath)) {
+                    data = stbi_load(fullPath.c_str(), &width, &height, &nrChannels, 0);
+                }
 
-                    if (embeddedTex) {
-                        if (embeddedTex->mHeight == 0) { // Compressed
-                            data = stbi_load_from_memory(reinterpret_cast<unsigned char*>(embeddedTex->pcData), embeddedTex->mWidth, &width, &height, &nrChannels, 0);
-                        } else { // Uncompressed
-                            // Not implemented for simplicity, usually Mixamo uses compressed
-                        }
-                    } else {
-                        // Not embedded, load from relative path
-                        // Assume we have access to the FBX directory, hardcoded for now or we extract from path
-                        // However, we don't store the original path. Let's just use "assets/models/Character 1/"
-                        std::string fullPath = "assets/models/Character 1/" + std::string(texPath.C_Str());
-                        data = stbi_load(fullPath.c_str(), &width, &height, &nrChannels, 0);
-                    }
-
-                    if (data) {
-                        glGenTextures(1, &m_TextureID);
-                        glBindTexture(GL_TEXTURE_2D, m_TextureID);
-                        glTexImage2D(GL_TEXTURE_2D, 0, nrChannels == 4 ? GL_RGBA : GL_RGB, width, height, 0, nrChannels == 4 ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, data);
-                        glGenerateMipmap(GL_TEXTURE_2D);
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-                        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                        stbi_image_free(data);
-                        m_TextureLoaded = true;
-                    }
+                if (data) {
+                    glGenTextures(1, &m_TextureID);
+                    glBindTexture(GL_TEXTURE_2D, m_TextureID);
+                    glTexImage2D(GL_TEXTURE_2D, 0, nrChannels == 4 ? GL_RGBA : GL_RGB, width, height, 0, nrChannels == 4 ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, data);
+                    glGenerateMipmap(GL_TEXTURE_2D);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                    stbi_image_free(data);
+                    m_TextureLoaded = true;
+                } else {
+                    m_TextureLoaded = false;
                 }
             }
         }
+    }
 
-        if (m_TextureID == 0) {
-            // Fallback 1x1 white texture
-            glGenTextures(1, &m_TextureID);
-            glBindTexture(GL_TEXTURE_2D, m_TextureID);
-            unsigned char white[] = { 255, 255, 255, 255 };
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, white);
-            m_TextureLoaded = false;
-        }
+    if (m_TextureID == 0) {
+        // Fallback 1x1 white texture
+        glGenTextures(1, &m_TextureID);
+        glBindTexture(GL_TEXTURE_2D, m_TextureID);
+        unsigned char white[] = { 255, 255, 255, 255 };
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, white);
+        m_TextureLoaded = false;
+    }
 }
 
 void AnimatedMesh::extractBoneWeights(aiMesh* mesh) {

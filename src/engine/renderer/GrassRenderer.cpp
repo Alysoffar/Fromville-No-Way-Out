@@ -43,16 +43,27 @@ void GrassRenderer::init() {
             x = (static_cast<float>(std::rand()) / RAND_MAX) * 200.0f - 100.0f;
             z = (static_cast<float>(std::rand()) / RAND_MAX) * 200.0f - 100.0f;
 
-            // House 1 world bounds: X[-44, -14], Z[-15, 15]
-            bool inHouse1 = (x > -45.0f && x < -13.0f && z > -16.0f && z < 16.0f);
-            // House 2 world bounds: X[14, 44], Z[-15, 15]
-            bool inHouse2 = (x > 13.0f && x < 45.0f && z > -16.0f && z < 16.0f);
-            // Dinner world bounds: X[-1, 33], Z[-57, -37]
-            bool inDinner = (x > -2.0f && x < 34.0f && z > -58.0f && z < -36.0f);
-            // Police world bounds: X[-69, -44], Z[31, 57]
-            bool inPolice = (x > -70.0f && x < -43.0f && z > 30.0f && z < 58.0f);
+            bool inAnyHouse = false;
+            glm::vec2 houseCenters[] = {
+                {-29.0f, 0.0f},
+                {29.0f, 0.0f},
+                {-29.0f, 20.0f},
+                {29.0f, 20.0f},
+                {-29.0f, -20.0f},
+                {29.0f, -20.0f},
+                {0.0f, 24.0f},
+                {9.0f, 12.0f}
+            };
+            for (const auto& center : houseCenters) {
+                if (glm::distance(glm::vec2(x, z), center) < 17.0f) {
+                    inAnyHouse = true;
+                    break;
+                }
+            }
+            bool inDinner = glm::distance(glm::vec2(x, z), glm::vec2(-19.32f, -42.84f)) < 17.18f;
+            bool inPolice = glm::distance(glm::vec2(x, z), glm::vec2(-65.84f, 15.84f)) < 11.3f;
 
-            if (!inHouse1 && !inHouse2 && !inDinner && !inPolice) {
+            if (!inAnyHouse && !inDinner && !inPolice) {
                 inHouseArea = false;
             }
         }

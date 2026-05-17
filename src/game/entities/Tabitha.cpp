@@ -5,6 +5,7 @@
 
 Tabitha::Tabitha(glm::vec3 startPos)
     : Character(CharacterType::Tabitha, "Tabitha", startPos) {
+    LoadMesh("assets/models/characters/tabitha/tabitha.fbx", "assets/models/characters/tabitha/tabitha_Walking.fbx");
 }
 
 void Tabitha::OnSwitchedTo() {

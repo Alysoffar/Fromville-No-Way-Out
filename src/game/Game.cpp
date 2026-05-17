@@ -47,6 +47,11 @@ bool Game::Initialize(Engine& engine) {
     walkingAnimation = std::make_unique<Animation>("assets/models/Character 1/Standing Idle.fbx", characterMesh.get());
     animator = std::make_unique<Animator>(walkingAnimation.get());
 
+    if (!walkingAnimation || walkingAnimation->GetDuration() <= 0.0f) {
+        std::cerr << "[Warning] Animation failed to load, character will show T-pose\n";
+        animator->SetAnimation(nullptr);
+    }
+
     engine.GetInput().SetCursorLocked(true);
     return true;
 }
@@ -88,13 +93,13 @@ void Game::UpdateHudTitle(Engine& engine) const {
     const std::string interactionPrompt = world->GetInteractionPrompt();
     if (!interactionPrompt.empty()) {
         if (world->NearestInteractionIsPickup()) {
-            title << " | " << interactionPrompt << " (F)";
+            title << " | " << interactionPrompt << " (G)";
         } else {
-            title << " | " << interactionPrompt << " (E)";
+            title << " | " << interactionPrompt << " (F)";
         }
     }
 
-    title << " | 1-5 switch | WASD move | E interact | Q abandon quest | Space jump | C crouch | Shift sprint";
+    title << " | 1-5 switch | WASD move | F interact | Q abandon quest | Space jump | C crouch | Shift sprint";
     engine.GetWindow().SetTitle(title.str());
 }
 
@@ -141,7 +146,9 @@ void Game::RenderHud(const Engine& engine) const {
 
     std::ostringstream line3;
     if (!interactionPrompt.empty()) {
-        line3 << interactionPrompt << "  [E]";
+        const bool isPickup = world ? world->NearestInteractionIsPickup() : false;
+        const std::string key = isPickup ? "  [G]" : "  [F]";
+        line3 << interactionPrompt << key;
     } else {
         line3 << "NO INTERACTION IN RANGE";
     }
@@ -157,7 +164,9 @@ void Game::RenderHud(const Engine& engine) const {
 
     std::ostringstream promptFormatted;
     if (!interactionPrompt.empty()) {
-        promptFormatted << "[E] " << interactionPrompt;
+        const bool isPickup = world ? world->NearestInteractionIsPickup() : false;
+        const std::string key = isPickup ? "[G] " : "[F] ";
+        promptFormatted << key << interactionPrompt;
     } else {
         promptFormatted << "No interaction nearby";
     }
@@ -287,11 +296,11 @@ void Game::RenderHud(const Engine& engine) const {
         hudRenderer->RenderText(feedbackMsg, 32.0f, static_cast<float>(height) / 2.0f + 50.0f, 0.88f, glm::vec3(0.2f, 1.0f, 0.3f), width, height);
     }
 
-    hudRenderer->RenderText("1-4 SWITCH  WASD MOVE  SPACE JUMP  C CROUCH  SHIFT SPRINT  Q ABANDON QUEST  E INTERACT", 24.0f, 28.0f, 0.40f, glm::vec3(0.82f, 0.82f, 0.82f), width, height);
+    hudRenderer->RenderText("1-4 SWITCH  WASD MOVE  SPACE JUMP  C CROUCH  SHIFT SPRINT  Q ABANDON QUEST  F INTERACT", 24.0f, 28.0f, 0.40f, glm::vec3(0.82f, 0.82f, 0.82f), width, height);
 
     if (!interactionPrompt.empty() && world) {
         const bool isPickup = world->NearestInteractionIsPickup();
-        const std::string key = isPickup ? "[F] " : "[E] ";
+        const std::string key = isPickup ? "[G] " : "[F] ";
         const std::string centerPrompt = key + interactionPrompt;
         hudRenderer->RenderText(centerPrompt, static_cast<float>(width) * 0.12f, 120.0f, 1.0f, glm::vec3(1.0f, 0.9f, 0.6f), width, height);
     }
@@ -326,13 +335,13 @@ void Game::HandleGameplayInput(float dt, Engine& engine) {
     }
 
     if (input.IsActionPressed(InputAction::SwitchCharacter1)) {
-        world->SwitchCharacter(0);
+        BeginCharacterSwitchTransition(0);
     } else if (input.IsActionPressed(InputAction::SwitchCharacter2)) {
-        world->SwitchCharacter(1);
+        BeginCharacterSwitchTransition(1);
     } else if (input.IsActionPressed(InputAction::SwitchCharacter3)) {
-        world->SwitchCharacter(2);
+        BeginCharacterSwitchTransition(2);
     } else if (input.IsActionPressed(InputAction::SwitchCharacter4)) {
-        world->SwitchCharacter(3);
+        BeginCharacterSwitchTransition(3);
     }
 
     // Handle spawn restart requests triggered by other systems
@@ -405,6 +414,75 @@ void Game::HandleCharacterInput(float dt, Engine& engine) {
 
 }
 
+void Game::BeginCharacterSwitchTransition(int newIndex) {
+    if (switchTransition.state != CharSwitchState::None) return; // already switching
+    if (newIndex == world->GetActiveCharacterIndex()) return; // same character
+
+    switchTransition.state = CharSwitchState::ZoomOut;
+    switchTransition.timer = 0.0f;
+    switchTransition.pendingCharacterIndex = newIndex;
+
+    // Sweep will go from above current character to above new character
+    glm::vec3 currentPos = world->GetActiveCharacter()->transform.position;
+    glm::vec3 targetPos = world->GetCharacter(newIndex)->transform.position;
+    switchTransition.sweepStartPos = currentPos + glm::vec3(0, switchTransition.sweepHeight, 0);
+    switchTransition.sweepTargetPos = targetPos + glm::vec3(0, switchTransition.sweepHeight, 0);
+}
+
+void Game::UpdateCharacterSwitchTransition(float dt) {
+    if (switchTransition.state == CharSwitchState::None) return;
+
+    switchTransition.timer += dt;
+
+    if (switchTransition.state == CharSwitchState::ZoomOut) {
+        float t = switchTransition.timer / switchTransition.zoomOutDuration;
+        t = glm::clamp(t, 0.0f, 1.0f);
+        // Smoothly increase FOV and lift camera up
+        camera->fovOverride = switchTransition.baseFov + switchTransition.sweepFovBoost * t;
+        glm::vec3 activePos = world->GetActiveCharacter()->transform.position;
+        camera->SetPositionOverride(activePos + glm::vec3(0, glm::mix(1.7f, switchTransition.sweepHeight, t), 0));
+
+        if (switchTransition.timer >= switchTransition.zoomOutDuration) {
+            switchTransition.state = CharSwitchState::Sweep;
+            switchTransition.timer = 0.0f;
+            // Now actually switch the character in world so we can target the new one
+            world->SwitchCharacter(switchTransition.pendingCharacterIndex);
+        }
+    }
+    else if (switchTransition.state == CharSwitchState::Sweep) {
+        float t = switchTransition.timer / switchTransition.sweepDuration;
+        t = glm::clamp(t, 0.0f, 1.0f);
+        // Smooth step for cinematic feel
+        float smoothT = t * t * (3.0f - 2.0f * t);
+        glm::vec3 sweepPos = glm::mix(switchTransition.sweepStartPos, switchTransition.sweepTargetPos, smoothT);
+        camera->SetPositionOverride(sweepPos);
+        camera->fovOverride = switchTransition.baseFov + switchTransition.sweepFovBoost;
+
+        if (switchTransition.timer >= switchTransition.sweepDuration) {
+            switchTransition.state = CharSwitchState::ZoomIn;
+            switchTransition.timer = 0.0f;
+        }
+    }
+    else if (switchTransition.state == CharSwitchState::ZoomIn) {
+        float t = switchTransition.timer / switchTransition.zoomInDuration;
+        t = glm::clamp(t, 0.0f, 1.0f);
+        float smoothT = t * t * (3.0f - 2.0f * t);
+        // Bring camera back down to eye level on the new character
+        glm::vec3 newCharPos = world->GetActiveCharacter()->transform.position;
+        glm::vec3 fromPos = switchTransition.sweepTargetPos;
+        glm::vec3 toPos = newCharPos + glm::vec3(0, 1.7f, 0);
+        camera->SetPositionOverride(glm::mix(fromPos, toPos, smoothT));
+        camera->fovOverride = (switchTransition.baseFov + switchTransition.sweepFovBoost) - switchTransition.sweepFovBoost * smoothT;
+
+        if (switchTransition.timer >= switchTransition.zoomInDuration) {
+            // Transition complete
+            switchTransition.state = CharSwitchState::None;
+            camera->fovOverride = -1.0f;
+            camera->ClearPositionOverride();
+        }
+    }
+}
+
 void Game::Update(float dt, Engine& engine) {
     if (!camera || !world) {
         return;
@@ -418,21 +496,25 @@ void Game::Update(float dt, Engine& engine) {
             ac->transform.rotation.y = 0.0f;
         }
     }
-    HandleGlobalInput(engine);
 
-    const InputContext& input = engine.GetGameplayInput();
-    if (input.IsActionPressed(InputAction::SwitchCharacter1) ||
-        input.IsActionPressed(InputAction::SwitchCharacter2) ||
-        input.IsActionPressed(InputAction::SwitchCharacter3) ||
-        input.IsActionPressed(InputAction::SwitchCharacter4) ||
-        input.IsActionPressed(InputAction::SwitchCharacter5)) {
-        if (Character* activeChar = world->GetActiveCharacter()) {
-            camera->SnapToTarget(activeChar->transform.position);
-            lastInteractionPrompt.clear();
+    if (switchTransition.state == CharSwitchState::None) {
+        HandleGlobalInput(engine);
+        HandleCharacterInput(dt, engine);
+
+        const InputContext& input = engine.GetGameplayInput();
+        if (input.IsActionPressed(InputAction::SwitchCharacter1) ||
+            input.IsActionPressed(InputAction::SwitchCharacter2) ||
+            input.IsActionPressed(InputAction::SwitchCharacter3) ||
+            input.IsActionPressed(InputAction::SwitchCharacter4) ||
+            input.IsActionPressed(InputAction::SwitchCharacter5)) {
+            if (Character* activeChar = world->GetActiveCharacter()) {
+                camera->SnapToTarget(activeChar->transform.position);
+                lastInteractionPrompt.clear();
+            }
         }
     }
 
-    HandleCharacterInput(dt, engine);
+    UpdateCharacterSwitchTransition(dt);
 
     if (camera) {
         if (Character* activeChar = world->GetActiveCharacter()) {
@@ -506,33 +588,38 @@ void Game::Render(Engine& engine) const {
 
     // 4. World rendering (buildings, NPCs, entities, interaction overlays)
     world->RenderObjects(*camera, aspectRatio, dayNightCycle, fogDensity);
-    world->Render(*camera, aspectRatio);
+    world->Render(*camera, aspectRatio, dayNightCycle, fogDensity);
 
     // 5. Render animated character (active character)
-    if (characterMesh && animatedShader) {
-        animatedShader->Bind();
-        animatedShader->SetMat4("view", view);
-        animatedShader->SetMat4("projection", projection);
-        animatedShader->SetVec3("lightDir", dayNightCycle.getActiveLightDir());
-        animatedShader->SetVec3("lightColor", dayNightCycle.getLightColor());
-        animatedShader->SetVec3("viewPos", cameraPos);
-        animatedShader->SetFloat("fogDensity", fogDensity);
-        animatedShader->SetVec3("fogColor", dayNightCycle.getFogColor());
+    // Never render the active character mesh in first person view
+    // (the character IS the camera in first person)
+    // Only render if you want a body/shadow — skip entirely for now
+    if (false) {
+        if (characterMesh && animatedShader) {
+            animatedShader->Bind();
+            animatedShader->SetMat4("view", view);
+            animatedShader->SetMat4("projection", projection);
+            animatedShader->SetVec3("lightDir", dayNightCycle.getActiveLightDir());
+            animatedShader->SetVec3("lightColor", dayNightCycle.getLightColor());
+            animatedShader->SetVec3("viewPos", cameraPos);
+            animatedShader->SetFloat("fogDensity", fogDensity);
+            animatedShader->SetVec3("fogColor", dayNightCycle.getFogColor());
 
-        if (Character* activeChar = world->GetActiveCharacter()) {
-            glm::vec3 playerPos = activeChar->transform.position;
-            float playerRot = activeChar->transform.rotation.y;
+            if (Character* activeChar = world->GetActiveCharacter()) {
+                glm::vec3 playerPos = activeChar->transform.position;
+                float playerRot = activeChar->transform.rotation.y;
 
-            glm::mat4 model = glm::translate(glm::mat4(1.0f), playerPos);
-            model = glm::rotate(model, glm::radians(playerRot), glm::vec3(0.0f, 1.0f, 0.0f));
-            model = glm::scale(model, glm::vec3(0.01f)); 
-            animatedShader->SetMat4("model", model);
+                glm::mat4 model = glm::translate(glm::mat4(1.0f), playerPos);
+                model = glm::rotate(model, glm::radians(playerRot), glm::vec3(0.0f, 1.0f, 0.0f));
+                model = glm::scale(model, glm::vec3(0.01f)); 
+                animatedShader->SetMat4("model", model);
 
-            if (animator) {
-                animatedShader->SetMat4Array("finalBonesMatrices", animator->GetFinalBoneMatrices());
+                if (animator) {
+                    animatedShader->SetMat4Array("finalBonesMatrices", animator->GetFinalBoneMatrices());
+                }
+
+                characterMesh->draw(animatedShader->GetID());
             }
-
-            characterMesh->draw(animatedShader->GetID());
         }
     }
 

@@ -1,0 +1,489 @@
+PROJECT OPERATION DETAILS (Fromville 0.1)
+============================================================
+
+This file explains, in a “full chain” way, how the project boots, how frames are processed, and which modules/files interact.
+
+Scope notes
+- The codebase is a C++ OpenGL game engine + game layer (Engine and Game/World).
+- Runtime assets are copied post-build: /assets and /shaders.
+- Many systems are wired through World (game orchestration) and Engine (window/input/timing).
+- Some details (puzzle logic, interaction node data, character internals) are not fully expanded here because they require reading many additional files.
+
+------------------------------------------------------------
+1) Build / entry point
+------------------------------------------------------------
+
+1.1 CMake build graph
+File: CMakeLists.txt
+- Defines executable: fromville
+- Gathers sources: all src/*.cpp (recursive) via file(GLOB_RECURSE ... "src/*.cpp")
+- Links libraries:
+  - OpenGL::GL
+  - glfw (fetched if missing)
+  - glm::glm (fetched if missing)
+  - Freetype (fetched if missing)
+  - OpenAL::OpenAL (openal-soft fetched if missing)
+  - nlohmann_json (fetched if missing)
+  - Assimp (if found/else fallback)
+  - SndFile (sndfile lib)
+  - glad::glad if available, else compile define FROMVILLE_NEEDS_GLAD=1
+
+Post-build steps (important for runtime operation)
+- Copies assets/ → $<TARGET_FILE_DIR:fromville>/assets
+- Copies shaders/ → $<TARGET_FILE_DIR:fromville>/shaders
+
+So at runtime, code expects relative paths like "assets/..." and "shaders/..." to exist next to the executable.
+
+1.2 Program entry
+File: src/main.cpp
+- Adjusts current working directory to the directory containing the executable (best-effort):
+  - std::filesystem::current_path(exeDir)
+- Creates:
+  - Engine engine;
+  - Game game;
+- Boot sequence:
+  1) engine.Initialize(1280, 720, "Fromville: Engine/Game Split")
+  2) game.Initialize(engine)
+- Main loop:
+  while (!engine.ShouldClose()):
+    - engine.PollInput()
+    - dt = engine.Tick()
+    - game.Update(dt, engine)
+    - engine.BeginFrame()
+    - game.Render(engine)
+    - engine.EndFrame()
+- Shutdown order:
+  game.Shutdown(); engine.Shutdown();
+
+Key implication:
+- Engine drives input/timing/frame boundaries.
+- Game updates world state and renders everything.
+
+------------------------------------------------------------
+2) Engine layer (window/input/timing/frame)
+------------------------------------------------------------
+
+2.1 Engine API and responsibilities
+Files:
+- src/engine/core/Engine.h
+- src/engine/core/Engine.cpp
+
+Engine owns:
+- Window (GLFW + OpenGL context)
+- Timer (delta time)
+- InputManager (binding/actions)
+- InputContext gameplayInput and uiInput
+
+Engine lifecycle
+- Initialize(width,height,title):
+  - window = Window(width,height,title); window->Init()
+  - timer = Timer()
+  - input = InputManager(); input->SetWindow(window->GetHandle())
+  - gameplayInput.Attach(input.get()); gameplayInput.ConfigureGameplayDefaults()
+  - uiInput.Attach(input.get()); uiInput.ConfigureUiDefaults()
+  - glEnable(GL_DEPTH_TEST)
+  - glDisable(GL_CULL_FACE)
+  - glClearColor(...)
+
+- PollInput(): input->Poll()
+- Tick(): timer->Tick(); return timer->GetDeltaTime()
+- BeginFrame(): glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+- EndFrame(): window->SwapBuffers()
+- ShouldClose(): window->ShouldClose()
+
+------------------------------------------------------------
+3) Game layer (orchestration)
+------------------------------------------------------------
+
+3.1 Game class responsibilities
+File: src/game/Game.h
+File: src/game/Game.cpp
+
+Game owns:
+- Camera (player view)
+- HUD TextRenderer
+- World (core game simulation)
+- Terrain rendering subsystems (GroundRenderer/GrassRenderer/TreeRenderer/SkydomeRenderer)
+- Animated mesh + shader + animation objects for “active character” rendering
+
+3.2 Game::Initialize
+File: src/game/Game.cpp
+Boot steps (high level):
+1) camera = std::make_unique<Camera>(); camera->Reset(spawnPosition)
+2) world = std::make_unique<World>(); world->Initialize()
+3) hudRenderer = std::make_unique<TextRenderer>(); hudRenderer->Initialize(...)
+   - if fails, HUD disabled
+4) Terrain renderers:
+   - groundRenderer.init();
+   - grassRenderer.init();
+   - treeRenderer.init(world->GetCollisionWorld());
+   - skydomeRenderer.init();
+5) Animated character setup:
+   - characterMesh = AnimatedMesh("assets/models/Character 1/character.fbx")
+   - animatedShader = Shader("animated"); animatedShader->Load("shaders/animated.vert","shaders/animated.frag")
+   - walkingAnimation = Animation("assets/models/Character 1/Standing Idle.fbx", characterMesh.get())
+   - animator = Animator(walkingAnimation.get())
+6) input cursor lock: engine.GetInput().SetCursorLocked(true)
+
+3.3 Game::Update
+Main update responsibilities:
+- Debug behavior: if GLFW_KEY_F9 pressed, reset camera and teleport active character
+- Input routing:
+  - HandleGlobalInput(engine): pause, reset view, save/load
+  - HandleCharacterInput(dt, engine): jump/crouch/sprint/move/interact/pickup/ability/abandon quest
+  - If puzzle is active, gameplay input is routed to world->UpdatePuzzle + UI input
+- Character camera update:
+  - If active character exists, camera->Update(engine.GetInput(), dt, activeChar->transform.position)
+- World update:
+  - world->Update(*camera, dt)
+  - dayNightCycle.syncToWorldClock(world->GetWorldClock())
+- Animation update: animator->UpdateAnimation(dt)
+- Sets glClearColor each frame based on day-night fog color
+
+3.4 Game::Render
+Render pipeline (order matters):
+1) skydomeRenderer.render(view, projection, sunDir, dayFactor, dayTime)
+2) groundRenderer.render(... including light colors + fog)
+3) grassRenderer.render(...)
+4) treeRenderer.render(...)
+5) World rendering:
+   - world->RenderObjects(*camera, aspectRatio, dayNightCycle, fogDensity)  [buildings + doors + terrain project pieces]
+   - world->Render(*camera, aspectRatio)  [characters/NPC/enemies debug cubes + quest beacons + overlays hooks]
+6) Animated mesh for active character:
+   - animatedShader binds
+   - sets view/projection/light/fog uniforms
+   - builds model matrix from active character transform position/rotation
+   - sets finalBonesMatrices from animator
+   - characterMesh->draw(animatedShader->GetID())
+7) HUD and overlays:
+   - If not puzzle active: world->RenderNarrativeOverlays(hudRenderer,...)
+   - world->RenderPuzzleOverlay(hudRenderer,...)
+   - Game::RenderHud(engine) draws additional HUD strings (title, quest status, prompts, warnings)
+
+------------------------------------------------------------
+4) World layer (core game state machine + systems)
+------------------------------------------------------------
+
+4.1 World class responsibilities
+File: src/game/world/World.h
+File: src/game/world/World.cpp
+
+World owns/coordinates:
+- Player and building/door interactions (terrain project)
+- Multi-character system (5 characters)
+- NPCs and Enemies
+- CollisionWorld for physics/visibility/collisions
+- InteractionSystem (interaction nodes, prompts, quest node routing)
+- PuzzleManager (puzzle overlay, puzzle active state)
+- QuestSystem (quest state progression and story flags)
+- Runtime systems:
+  - EventBus (publish events)
+  - RuntimeProfiler, Timers (support)
+  - AudioManager
+  - AtmosphereManager (global tension/corruption visuals)
+  - SymbolSystem
+  - TunnelMappingSystem
+  - MemoryReplaySystem
+  - MoralCorruptionSystem
+- Day/night simulation and gating logic
+
+Also includes save/load:
+- CaptureSaveState() / RestoreSaveState()
+- SaveToFile("savegame.txt") / LoadFromFile("savegame.txt") from Game global input
+
+4.2 World::Initialize (the big wiring point)
+File: src/game/world/World.cpp
+Key steps:
+
+A) Terrain/buildings
+- player.transform.position = (0, 2, 10)
+- LoadBuildingMeshes(&collisionWorld, doors)
+  - Loads OBJ(s) from assets/models/*.obj
+  - Creates mesh geometry + door objects (Door::Initialize)
+  - Adds collision triangles into CollisionWorld (cw->AddTrianglesFromMesh(...))
+- player.SetCollisionWorld(&collisionWorld)
+- collisionWorld.BuildBVH() (later in Initialize)
+
+B) Placeholder character + model rendering
+- InitializeModels(): creates colored cube meshes and loads a model_lit shader
+  - For actual characters, the code uses an animated FBX via Game; World uses debug cube rendering for “all characters”
+
+C) Gameplay character setup
+- InitializeCharacters() (not fully included in the snippet; defines the 5 Character objects)
+- InitializePlaceholderWorldRules(): fills storyLocations and shelterZones
+
+D) Quest + interaction + puzzles + audio wiring
+- questSystem = std::make_unique<QuestSystem>(&worldClock)
+- interactionSystem.Initialize()
+- puzzleManager.Initialize()
+- audioManager = std::make_unique<AudioManager>(); audioManager->Initialize()
+- Loads audio cues (SFX + music) from assets/audio/**
+  - puzzle_tick, puzzle_complete, puzzle_fail
+  - player_hurt
+  - footsteps
+  - ambient_tension_low/high
+  - cinematic_event_sting
+- InitializeVoiceCueLibrary(audioManager)
+  - Indexes wav files in:
+    - assets/audio/voice/monster
+    - assets/audio/voice/npc_female
+    - assets/audio/voice/npc_male
+    - assets/audio/voice/responses
+    - assets/audio/voice/panic_female
+    - assets/audio/voice/panic_male
+  - Uses a slugging function to map dialogue lines to cue filenames.
+
+Hooks (important connections)
+- puzzleManager.SetSoundHook([this](cue){ audioManager->PlaySound(cue); })
+- puzzleManager.SetConsequenceHook([this](consequence){ ApplyPuzzleConsequence(consequence); })
+- puzzleManager.SetCompletionCallback([this](characterType, objectiveIndex){
+    eventBus.Publish(PuzzleCompletedEvent{...});
+    questSystem->AdvanceObjective(...);
+    StoryManager::Instance().AdvanceStep(objectiveIndex);
+    interactionSystem.MarkQuestStepSolved(...);
+    TriggerQuestlineNarrativeHooks(...);
+    // Also sets quest flags from Interaction nodes belonging to this objective.
+    // Spawns checkpoint InteractionNode at active character position.
+  })
+
+E) Story/narrative system seeding
+- SeedNarrativeSystems(): sets global tension/corruption and registers default MoralCorruption evidence.
+
+F) Quest initialization with character pointers
+- Creates array<Character*,5> and calls questSystem->Initialize(charPtrs)
+- Assigns quests to each Character: characters[i]->SetQuest(questSystem->GetCharacterQuest(characters[i]->GetType()))
+
+G) Collision BVH + collision binding
+- collisionWorld.BuildBVH()
+- entityManager.BindCollisionWorld(&collisionWorld)
+
+H) Activate the first character
+- characters[activeCharacterIndex]->OnSwitchedTo()
+
+I) Save initial spawn state
+- initialSpawnState = CaptureSaveState(); hasInitialSpawnState=true
+
+------------------------------------------------------------
+5) World update loop (phases)
+------------------------------------------------------------
+
+World::Update(const Camera&, dt)
+High level phase flow:
+1) UpdateWorldSystemsPhase(dt): worldManager.UpdateWorldSimulation(dt)
+2) If puzzleManager.IsActive():
+   - if questSystem: questSystem->Update(dt)
+   - return (no normal world quest/interaction/character updates)
+3) UpdateTimersAndCooldownsPhase(dt): decays dialogue/panic/combat cooldown timers
+4) UpdateTimeOfDay(dt):
+   - worldClock += dt
+   - cycle length dayNightCycle=120; sunsetTime=60
+   - nightTime becomes true/false at half-cycle
+   - on change, updates npcs/enemies night state
+5) UpdateQuestAndInteractionPhase(dt):
+   - If nightTime && active character is exposed (!IsProtectedByShelter):
+     - cancels active puzzle
+     - returns (quest progression paused)
+   - otherwise: questSystem->Update(dt)
+   - applies Tabitha whisper timers
+   - EnsureTabithaWhisperRouteNodes()
+   - while HasPendingConsequences(): log/consume
+   - interactionSystem.Update(dt, *questSystem)
+   - Spawns runtime combat trigger nodes if necessary
+6) Update active character:
+   - activeChar->Update(dt)
+7) Compute playerSound and playerLight contributions (based on movement, sprint/crouch, night)
+8) Update NPCs and Enemies:
+   - UpdateOffscreenCharacters(dt): moves offscreen characters toward shelters (night) or story goals (day)
+   - For each NPC: compute threatened state using nearest enemy perception and NPC danger.
+   - NPCs can set rescue targets and update themselves.
+   - For each Enemy:
+     - evaluate stimulus perception (sight/hearing/light) against player and other characters and NPCs
+     - incorporate shelter-specific behavior: if target is sheltered, enemy perception targets shelter edge
+     - enemy.Update(dt)
+     - if nightTime: enemy can damage characters in attack range (cooldown)
+       - applies TakeDamage()
+       - updates HUD feedback strings and timers
+       - plays SFX and monster voice cues
+   - Dialogue/cut-in logic:
+     - NPC talk triggers when active character is close and cooldown is ready
+     - panic lines if NPC in danger
+     - character-to-character neighbor lines if close enough
+     - monster taunts and panic for active character at night based on distance
+
+9) Update doors from terrain project:
+- door.Update(dt)
+
+------------------------------------------------------------
+6) Interaction, quest, puzzle coupling
+------------------------------------------------------------
+
+6.1 Interaction nodes and prompts
+Files:
+- src/game/interactions/InteractionSystem.cpp
+- src/game/interactions/InteractionSystem.h
+- (InteractionNode type is referenced by World)
+
+In World.cpp, World queries:
+- interactionSystem.GetNodes()
+- interactionSystem.GetPromptFor(activeChar, questSystem, hasActiveQuest, activeQuestCharacter)
+- interactionSystem.TryInteract(*activeChar, *questSystem, hasActiveQuest, activeQuestCharacter)
+- interactionSystem.TryPickup(...)
+- interactionSystem.MarkQuestStepSolved(...)
+- interactionSystem.SetSound hooks (indirect via puzzle callbacks)
+
+Selection rules (from World.cpp helper logic)
+- Interaction eligibility checks story flags (questSystem.HasStoryFlag)
+- Interaction eligibility checks requiredCharacter
+- Distances are evaluated horizontally
+- For quest objectives, there are special nodes carrying:
+  - questObjectiveIndex
+  - requiredCharacter
+  - questFlag (e.g., evidence/glyph collected story triggers)
+
+6.2 World::TryInteract (high-level)
+File: src/game/world/World.cpp
+- If near a Door (dist < 3.0):
+  - If not inside: move active character to door inside position, set isInsideBuilding, door.Interact()
+  - return
+- Otherwise: TryActiveCharacterInteraction()
+
+World::TryActiveCharacterInteraction() does:
+- TryCalmNearbyNpc for Boyd at night (reduces NPC fear/threat)
+- Enforce night/day puzzle restrictions handled in HandleInteractionOutcome
+- interactionSystem.TryInteract(...) returns didInteract
+- HandleInteractionOutcome applies quest/puzzle progress rules
+
+6.3 World::HandleInteractionOutcome (quest/puzzle gating)
+File: src/game/world/World.cpp
+When didInteract==true:
+- Publish InteractionTriggeredEvent on eventBus
+- If interactionSystem.HasLastQuestObjective():
+  - At night and active character is exposed:
+    - quests/puzzles paused
+  - If night and quest objective belongs to Boyd/Victor: block
+  - If day and quest objective belongs to Jade/Tabitha: block
+  - Otherwise:
+    - SetActiveQuest(questChar)
+    - If objective type is Collect and special cases:
+      - checks evidence via interaction nodes having questFlag and story flags
+      - if all collected, AdvanceObjective and MarkQuestStepSolved
+    - else:
+      - puzzleManager.StartPuzzle(...)
+- If didInteract==false:
+  - TryNpcDialogue(activeChar, true)
+
+6.4 Puzzle completion callback creates checkpoints + advances quest
+In World::Initialize:
+- puzzleManager.SetCompletionCallback(...) does:
+  - eventBus.Publish(PuzzleCompletedEvent)
+  - questSystem->AdvanceObjective(...)
+  - StoryManager::Instance().AdvanceStep(...)
+  - interactionSystem.MarkQuestStepSolved(...)
+  - TriggerQuestlineNarrativeHooks(...)
+  - sets additional quest story flags based on Interaction nodes for the objective
+  - spawns a runtime checkpoint InteractionNode (“checkpoint_X_Y”)
+    - with successMessage describing the next objective
+
+------------------------------------------------------------
+7) How assets plug in
+------------------------------------------------------------
+
+7.1 Audio
+World.cpp sets up AudioManager and loads:
+- SFX assets/audio/sfx/... (explicit list)
+- Music assets/audio/music/... (explicit list)
+- Voice cues loaded dynamically by scanning asset folders under assets/audio/voice/*.
+
+The voice cue mapping logic:
+- BuildVoiceSlug(line): converts to lowercase alphanumeric + underscores; truncates.
+- NormalizeVoiceLine() removes optional [MONSTER] prefix.
+- If speaker is npc_female/npc_male, StripSpeakerPrefix removes content before ':'.
+- Cue lookup uses filename slug after first underscore in wav file name.
+
+7.2 Shaders
+Shaders are used in multiple subsystems:
+- For animated character:
+  - shaders/animated.vert
+  - shaders/animated.frag
+- For world/building rendering:
+  - World.cpp uses gBuildingShader("BuildingModel") with assets/shaders/model_lit.vert and model_lit.frag
+- Engine/renderer includes many more shader files copied in post-build:
+  shaders/*.vert and shaders/*.frag
+
+7.3 Models
+- Buildings: assets/models/*.obj and OBJ shapes loaded via Loader::LoadOBJWithShapes
+  - House.obj, Dinner.obj, Police.obj
+- Animated player/cinematic character:
+  - assets/models/Character 1/character.fbx
+  - assets/models/Character 1/Standing Idle.fbx (Animation)
+- Trees/terrain are rendered via procedural/renderer subsystems (not fully expanded here).
+
+------------------------------------------------------------
+8) File connection map (high-level)
+------------------------------------------------------------
+
+Entry / loop
+- src/main.cpp
+  -> Engine (src/engine/core/Engine.*)
+  -> Game (src/game/Game.*)
+
+Game orchestration
+- src/game/Game.cpp
+  -> World (src/game/world/World.*)
+  -> renderers:
+     - GroundRenderer/GrassRenderer/TreeRenderer/SkydomeRenderer (src/engine/renderer/*)
+  -> animated mesh:
+     - AnimatedMesh/Shader/Animation/Animator (src/engine/renderer/*)
+
+World orchestration (the most connected class)
+- src/game/world/World.cpp
+  -> CollisionWorld, physics BVH (src/engine/physics/*)
+  -> AudioManager (src/engine/audio/AudioManager.*)
+  -> InteractionSystem (src/game/interactions/InteractionSystem.*)
+  -> PuzzleManager and puzzle core (src/game/puzzles/core/* and PuzzleManager.*)
+  -> QuestSystem (src/game/quest/QuestSystem.*)
+  -> narrative runtime systems:
+     - StoryManager (src/game/story/StoryManager.*)
+     - AtmosphereManager (src/game/atmosphere/AtmosphereManager.*)
+     - MoralCorruptionSystem (src/game/moral/MoralCorruptionSystem.*)
+     - SymbolSystem (src/game/symbols/SymbolSystem.*)
+     - TunnelMappingSystem (src/game/tunnels/TunnelMappingSystem.*)
+     - MemoryReplaySystem (src/game/memory/MemoryReplaySystem.*)
+
+------------------------------------------------------------
+9) What “fully operates” means in runtime terms
+------------------------------------------------------------
+
+On startup:
+1) CMake-built binary runs from its own directory (main.cpp adjusts cwd).
+2) Engine creates OpenGL window, initializes input and timer.
+3) Game initializes camera, world, and terrain/character renderers.
+4) World loads buildings/doors and collision triangles, creates quest/interaction/puzzle/audio systems.
+5) World begins with day-night cycle at worldClock=0 (nightTime computed in UpdateTimeOfDay).
+
+Every frame:
+1) Engine polls input.
+2) World state updates through Game::Update -> World::Update.
+3) Game::Render clears and renders:
+   - sky, ground, grass, trees
+   - world objects (buildings/doors) and debug characters
+   - animated active character mesh
+   - HUD and puzzle/narrative overlays
+
+On quit:
+- World/Game/Engine shutdown frees resources (pointers reset in Game::Shutdown and Engine::Shutdown).
+
+------------------------------------------------------------
+10) Where to extend/verify deeper
+------------------------------------------------------------
+
+To make this document 100% exhaustive (every function relationship), the next step is reading:
+- src/game/interactions/InteractionSystem.*
+- src/game/puzzles/core/PuzzleManager.* and specific puzzle implementations
+- src/game/quest/QuestSystem.*
+- Character/NPC/Enemy classes (src/game/entities/*)
+- CollisionWorld/BVH/Collision (src/engine/physics/*)
+- Atmosphere/Symbols/Tunnels/Memory/Moral systems
+
+This file intentionally used the already-read core wiring points (main/Game/Engine/World) so the dependency chain is accurate.
+

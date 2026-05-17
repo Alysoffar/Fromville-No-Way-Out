@@ -79,3 +79,14 @@ void World::SwitchCharacter(int index) {
     hasPreviousActivePosition = false;
     previousActivePosition = characters[activeCharacterIndex]->transform.position;
 }
+
+int World::GetActiveCharacterIndex() const {
+    return activeCharacterIndex;
+}
+
+Character* World::GetCharacter(int index) {
+    if (index >= 0 && index < static_cast<int>(characters.size())) {
+        return characters[index].get();
+    }
+    return nullptr;
+}

@@ -14,7 +14,9 @@ public:
     Animation(const std::string& animationPath, AnimatedMesh* model) {
         Assimp::Importer importer;
         const aiScene* scene = importer.ReadFile(animationPath, aiProcess_Triangulate);
-        assert(scene && scene->mAnimations);
+        if (!scene || !scene->mAnimations || scene->mNumAnimations == 0) {
+            throw std::runtime_error("Failed to load animation file: " + animationPath);
+        }
         auto animation = scene->mAnimations[0];
         m_Duration = static_cast<float>(animation->mDuration);
         m_TicksPerSecond = static_cast<int>(animation->mTicksPerSecond != 0 ? animation->mTicksPerSecond : 24);
@@ -37,6 +39,7 @@ public:
     inline float GetDuration() { return m_Duration; }
     inline const AssimpNodeData& GetRootNode() { return m_RootNode; }
     inline const std::map<std::string, BoneInfo>& GetBoneIDMap() { return m_BoneInfoMap; }
+    inline const glm::mat4& GetGlobalInverseTransform() const { return m_GlobalInverseTransform; }
 
 private:
     void ReadMissingBones(const aiAnimation* animation, AnimatedMesh& model) {

@@ -141,6 +141,20 @@ void LoadBuildingMeshes(CollisionWorld* cw, std::vector<Door>& doors) {
             Door d;
             d.Initialize(dName, dData.first, dData.second, buildingPos, rot, angle, hingePos, doorWorldCenter);
             d.SetInsidePosition(buildingWorldCenter);
+            
+            // Compute outsidePosition
+            glm::vec3 toInside = buildingWorldCenter - doorWorldCenter;
+            toInside.y = 0.0f;
+            if (glm::length(toInside) > 0.01f) {
+                toInside = glm::normalize(toInside);
+            } else {
+                float rad = glm::radians(rot);
+                toInside = glm::vec3(-std::sin(rad), 0.0f, -std::cos(rad));
+            }
+            glm::vec3 outsidePos = doorWorldCenter - toInside * 2.5f;
+            outsidePos.y = doorWorldCenter.y;
+            d.SetOutsidePosition(outsidePos);
+
             doors.push_back(std::move(d));
         }
 
@@ -169,6 +183,20 @@ void LoadBuildingMeshes(CollisionWorld* cw, std::vector<Door>& doors) {
             glm::vec3 insidePos = buildingPos;
             insidePos.y += 0.5f;
             virtualDoor.SetInsidePosition(insidePos);
+
+            // Compute outsidePosition for virtual door
+            glm::vec3 toInside = insidePos - entranceWorldPos;
+            toInside.y = 0.0f;
+            if (glm::length(toInside) > 0.01f) {
+                toInside = glm::normalize(toInside);
+            } else {
+                float rad = glm::radians(rot);
+                toInside = glm::vec3(-std::sin(rad), 0.0f, -std::cos(rad));
+            }
+            glm::vec3 outsidePos = entranceWorldPos - toInside * 2.5f;
+            outsidePos.y = entranceWorldPos.y;
+            virtualDoor.SetOutsidePosition(outsidePos);
+
             doors.push_back(std::move(virtualDoor));
         }
 
@@ -190,9 +218,9 @@ void LoadBuildingMeshes(CollisionWorld* cw, std::vector<Door>& doors) {
     LoadBuilding("assets/models/House.obj", gHouseMesh, glm::vec3(0.0f, 0, 20.0f), 0.0f, 1.0f, "Door_Main", 90.0f);
 
     // Align the main landmarks with the story-location coordinates used by quests and shelters.
-    LoadBuilding("assets/models/Dinner.obj", gDinnerMesh, glm::vec3(-35.0f, 0, -35.0f), 0.0f, 1.0f, "DoorGlass", -90.0f);
+    LoadBuilding("assets/models/Dinner.obj", gDinnerMesh, glm::vec3(-35.0f, 0, -35.0f), 0.0f, 1.96f, "DoorGlass", -90.0f);
     LoadBuilding("assets/models/House.obj", gHouseMesh, glm::vec3(9.0f, 0, 8.0f), 0.0f, 1.0f, "Door_Main", 90.0f);
-    LoadBuilding("assets/models/Police.obj", gPoliceMesh, glm::vec3(-9.0f, 0, 8.0f), 180.0f, 2.0f, "Door", 90.0f);
+    LoadBuilding("assets/models/Police.obj", gPoliceMesh, glm::vec3(-9.0f, 0, 8.0f), 180.0f, 1.96f, "Door", 90.0f);
 
     gBuildingShader.Load("assets/shaders/model_lit.vert", "assets/shaders/model_lit.frag");
     gBuildingReady = true;
@@ -1001,6 +1029,11 @@ void World::Initialize() {
     // Create and initialize quest system with pointer to worldClock
     questSystem = std::make_unique<QuestSystem>(&worldClock);
     interactionSystem.Initialize();
+    for (auto& node : interactionSystem.GetNodes()) {
+        if (node.questObjectiveIndex >= 0 || node.id.find("checkpoint") != std::string::npos) {
+            node.followsActiveCharacter = true;
+        }
+    }
     puzzleManager.Initialize();
     audioManager = std::make_unique<AudioManager>();
     if (audioManager->Initialize()) {
@@ -1091,19 +1124,19 @@ void World::Initialize() {
         std::string feedbackMsg = "◆ CHECKPOINT SAVED!";
         
         if (objectiveIndex == 0) {
-            checkpointMessage += "\nNEXT OBJECTIVE: Gather 3 pieces of evidence\n\nUse COMPASS (top-left) to find items:\n• BLOODY KNIFE\n• CULT LEDGER\n• STRANGE IDOL\n\nPress E to inspect each item.\nThen return to EVIDENCE BOARD.";
+            checkpointMessage += "\nNEXT OBJECTIVE: Gather 3 pieces of evidence\n\nUse COMPASS (top-left) to find items:\n• BLOODY KNIFE\n• CULT LEDGER\n• STRANGE IDOL\n\nPress G to inspect each item.\nThen return to EVIDENCE BOARD.";
             feedbackMsg = "◆ CHECKPOINT SAVED! Follow COMPASS to gather evidence.";
         } else if (objectiveIndex == 1) {
-            checkpointMessage += "\nNEXT OBJECTIVE: Discover cult gathering place\n\nUse COMPASS (top-left) to locate the\nCULT TRAIL MARKER where the ritual\nceremony takes place.\n\nPress E to investigate.";
+            checkpointMessage += "\nNEXT OBJECTIVE: Discover cult gathering place\n\nUse COMPASS (top-left) to locate the\nCULT TRAIL MARKER where the ritual\nceremony takes place.\n\nPress F to investigate.";
             feedbackMsg = "◆ CHECKPOINT SAVED! Follow COMPASS to cult gathering place.";
         } else if (objectiveIndex == 2) {
-            checkpointMessage += "\nNEXT OBJECTIVE: Confront the leader\n\nUse COMPASS (top-left) to find\nLEADER CLUE.\n\nPress E to trigger the confrontation puzzle.";
+            checkpointMessage += "\nNEXT OBJECTIVE: Confront the leader\n\nUse COMPASS (top-left) to find\nLEADER CLUE.\n\nPress F to trigger the confrontation puzzle.";
             feedbackMsg = "◆ CHECKPOINT SAVED! Follow COMPASS to LEADER CLUE.";
         } else if (objectiveIndex == 3) {
-            checkpointMessage += "\nNEXT OBJECTIVE: Prevent the ritual\n\nUse COMPASS (top-left) to reach\nRITUAL CIRCLE.\n\nPress E to disrupt the ritual.";
+            checkpointMessage += "\nNEXT OBJECTIVE: Prevent the ritual\n\nUse COMPASS (top-left) to reach\nRITUAL CIRCLE.\n\nPress F to disrupt the ritual.";
             feedbackMsg = "◆ CHECKPOINT SAVED! Follow COMPASS to RITUAL CIRCLE.";
         } else {
-            checkpointMessage += "\nNEXT OBJECTIVE: Continue investigation\n\nUse COMPASS (top-left) for guidance.\nFollow the waypoint and press E.";
+            checkpointMessage += "\nNEXT OBJECTIVE: Continue investigation\n\nUse COMPASS (top-left) for guidance.\nFollow the waypoint and press F.";
             feedbackMsg = "◆ CHECKPOINT SAVED! Follow COMPASS waypoint.";
         }
         
@@ -1112,6 +1145,7 @@ void World::Initialize() {
         checkpoint.requiredFlag = "";
         checkpoint.questObjectiveIndex = -1;
         checkpoint.requiredCharacter = "";
+        checkpoint.followsActiveCharacter = true;
         interactionSystem.AddNode(checkpoint);
         std::cout << "[World] Spawned checkpoint: " << checkpoint.id << " at " << checkpoint.position.x << "," << checkpoint.position.y << "," << checkpoint.position.z << "\n";
         lastInteractionFeedback = feedbackMsg;
@@ -1618,7 +1652,13 @@ void World::UpdateQuestAndInteractionPhase(float dt) {
         std::cout << "[Story Consequence] " << consequence << "\n";
     }
 
-    interactionSystem.Update(dt, *questSystem);
+    glm::vec3 activePos(0.0f);
+    float activeRotY = 0.0f;
+    if (activeChar) {
+        activePos = activeChar->transform.position;
+        activeRotY = activeChar->transform.rotation.y;
+    }
+    interactionSystem.Update(dt, *questSystem, activePos, activeRotY);
 
     if (hasActiveQuest && !characters.empty()) {
         Quest* activeQuest = questSystem->GetCharacterQuest(activeQuestCharacter);
@@ -1666,11 +1706,12 @@ void World::UpdateQuestAndInteractionPhase(float dt) {
                                 runtimeNode.position = activeCharForSpawn->transform.position + glm::vec3(2.0f, 0.0f, 0.0f);
                                 runtimeNode.radius = 3.0f;
                                 runtimeNode.prompt = "Confront";
-                                runtimeNode.successMessage = "The cult leader appears. Press E to confront him.";
+                                runtimeNode.successMessage = "The cult leader appears. Press F to confront him.";
                                 runtimeNode.questFlag = "runtime_combat_start_" + requiredCharacter;
                                 runtimeNode.requiredFlag = "";
                                 runtimeNode.questObjectiveIndex = nextObjectiveIndex;
                                 runtimeNode.requiredCharacter = requiredCharacter;
+                                runtimeNode.followsActiveCharacter = true;
                                 interactionSystem.AddNode(runtimeNode);
                                 std::cout << "[World] Spawned runtime combat encounter: " << runtimeNode.id << " at "
                                           << runtimeNode.position.x << "," << runtimeNode.position.y << "," << runtimeNode.position.z << "\n";
@@ -1692,41 +1733,29 @@ void World::UpdateQuestAndInteractionPhase(float dt) {
     }
 }
 
-void World::Render(const Camera& camera, float aspectRatio) {
+void World::Render(const Camera& camera, float aspectRatio, const DayNightCycle& dayNight, float fogDensity) {
 
     if (gCharacterReady) {
         // Render all 5 characters (active in bright color, off-screen in muted color)
         for (size_t i = 0; i < characters.size(); ++i) {
-            glm::vec3 characterColor;
-            
             if (static_cast<int>(i) == activeCharacterIndex) {
-                // Active character - bright color
-                switch (characters[i]->GetType()) {
-                    case CharacterType::Boyd:    characterColor = glm::vec3(1.0f, 0.0f, 0.0f); break;  // Red
-                    case CharacterType::Jade:    characterColor = glm::vec3(0.0f, 1.0f, 1.0f); break;  // Cyan
-                    case CharacterType::Tabitha: characterColor = glm::vec3(0.0f, 1.0f, 0.0f); break;  // Green
-                    case CharacterType::Victor:  characterColor = glm::vec3(1.0f, 1.0f, 0.0f); break;  // Yellow
-                    case CharacterType::Sara:    characterColor = glm::vec3(1.0f, 0.0f, 1.0f); break;  // Magenta
+                // Active character - skip rendering in first person camera mode (unless camera is swept far away during transitions)
+                if (glm::distance(camera.GetPosition(), characters[i]->transform.position) < 2.0f) {
+                    continue;
                 }
-            } else {
-                // Off-screen character - muted color (60% opacity equivalent)
-                characterColor = glm::vec3(0.65f);
-                characterColor *= 0.6f;
             }
-            
-            RenderCharacterCube(gCharacterShader, gPlayerMesh, camera, aspectRatio, 
-                              characters[i]->transform.position, glm::vec3(0.4f), characterColor);
+            characters[i]->RenderMesh(camera, aspectRatio, dayNight, fogDensity);
         }
         
         // Render NPCs
-        for (const NPC& npc : npcs) {
-            RenderCharacterCube(gCharacterShader, gNpcMesh, camera, aspectRatio, npc.transform.position, glm::vec3(0.50f, 0.90f, 0.50f), npc.GetDebugColor());
+        for (NPC& npc : npcs) {
+            npc.RenderMesh(camera, aspectRatio, dayNight, fogDensity);
         }
 
         // Render Enemies
         if (nightTime) {
-            for (const Enemy& enemy : enemies) {
-                RenderCharacterCube(gCharacterShader, gEnemyMesh, camera, aspectRatio, enemy.transform.position, glm::vec3(0.60f, 1.05f, 0.60f), enemy.GetDebugColor());
+            for (Enemy& enemy : enemies) {
+                enemy.RenderMesh(camera, aspectRatio, dayNight, fogDensity);
             }
         }
 
@@ -1766,14 +1795,14 @@ void World::Render(const Camera& camera, float aspectRatio) {
             }
 
             const bool isActiveStep = activeQuest && node.questObjectiveIndex == activeObjectiveIndex;
-            const glm::vec3 offsetPosition = node.position;
+            const glm::vec3 offsetPosition = node.originalPosition;
             renderQuestBeacon(offsetPosition, isActiveStep && node.questObjectiveIndex >= 0);
         }
 
         // Render any runtime checkpoints (ids starting with "checkpoint_")
         for (const InteractionNode& node : interactionSystem.GetNodes()) {
             if (node.id.rfind("checkpoint_", 0) != 0) continue;
-            const glm::vec3 offsetPosition = node.position;
+            const glm::vec3 offsetPosition = node.originalPosition;
             // Highlight color and scale for checkpoint flags (smaller but distinct)
             const glm::vec3 checkpointColor = glm::vec3(1.0f, 0.85f, 0.0f);
             const glm::vec3 checkpointScale = glm::vec3(1.0f, 1.3f, 0.8f);
@@ -1928,7 +1957,7 @@ bool World::HandleInteractionOutcome(Character& activeChar, bool didInteract, co
                         if (foundCollectNode && allCollected) {
                             questSystem->AdvanceObjective(interactionSystem.GetLastInteractionQuestCharacter(), objectiveIndex);
                             interactionSystem.MarkQuestStepSolved(interactionSystem.GetLastInteractionQuestCharacter(), objectiveIndex);
-                            lastInteractionFeedback = "Evidence complete. Go to the Evidence Board and press E.";
+                            lastInteractionFeedback = "Evidence complete. Go to the Evidence Board and press F.";
                             lastInteractionFeedbackTimer.Start(3.5f);
                             std::cout << "[Quest] Collect objective complete via evidence flags for objective " << objectiveIndex << "\n";
                         }
@@ -2360,9 +2389,9 @@ std::string World::GetQuestHelperText() const {
         const int meters = static_cast<int>(std::round(distance));
         const std::string distanceText = " — " + std::to_string(meters) + "m";
         if (activeNode->type == InteractionType::ItemPickup) {
-            return "HELP: go to " + activeNode->name + " and press F to collect: " + objective + distanceText;
+            return "HELP: go to " + activeNode->name + " and press G to collect: " + objective + distanceText;
         }
-        return "HELP: go to " + activeNode->name + " and press E to complete: " + objective + distanceText;
+        return "HELP: go to " + activeNode->name + " and press F to complete: " + objective + distanceText;
     }
 
     return "HELP: " + objective;
@@ -2411,8 +2440,8 @@ std::string World::GetQuestWaypointText() const {
 
     if (activeNode && !characters.empty()) {
         const Character* playerChar = characters[activeCharacterIndex].get();
-        const glm::vec3 delta = activeNode->position - playerChar->transform.position;
-        const float distance = HorizontalDistance(playerChar->transform.position, activeNode->position);
+        const glm::vec3 delta = activeNode->originalPosition - playerChar->transform.position;
+        const float distance = HorizontalDistance(playerChar->transform.position, activeNode->originalPosition);
         
         // Determine cardinal direction
         std::string direction = "?";
@@ -2531,8 +2560,52 @@ void World::UpdateOffscreenCharacters(float dt) {
         Character& character = *characters[i];
         const glm::vec3 goal = nightTime ? GetNearestShelterCenter(character.transform.position)
                                          : GetCharacterStoryGoal(character.GetType());
-        const bool moving = MoveCharacterToward(character, goal, dt);
-        (void)moving;
+
+        glm::vec3 toGoal = goal - character.transform.position;
+        toGoal.y = 0.0f;
+
+        bool wantsToMove = (glm::length(toGoal) > 0.55f);
+        glm::vec3 startPos = character.transform.position;
+
+        if (wantsToMove) {
+            if (character.GetWanderTimer() > 0.0f) {
+                character.GetWanderTimer() -= dt;
+
+                float angle = character.GetWanderAngle();
+                glm::vec3 wanderDir(std::sin(angle), 0.0f, std::cos(angle));
+                wanderDir = glm::normalize(wanderDir);
+
+                // Slower wander speed (2.0f for playable characters)
+                float defaultMoveSpeedScaled = character.GetMoveSpeed() * 0.6f;
+                float scale = 2.0f / defaultMoveSpeedScaled;
+                character.Move(wanderDir.x * scale, wanderDir.z * scale, dt);
+                character.transform.rotation.y = glm::degrees(std::atan2(wanderDir.x, wanderDir.z));
+                character.SetCurrentSpeed(2.0f);
+            } else {
+                glm::vec3 direction = glm::normalize(toGoal);
+                character.Move(direction.x, direction.z, dt);
+                character.transform.rotation.y = glm::degrees(std::atan2(direction.x, direction.z));
+                character.SetCurrentSpeed(character.GetMoveSpeed() * 0.6f);
+            }
+
+            // Stuck detection
+            float distMoved = glm::length(glm::vec3(character.transform.position.x - startPos.x, 0.0f, character.transform.position.z - startPos.z));
+            if (distMoved < dt * 0.05f) {
+                character.GetStuckTimer() += dt;
+                if (character.GetStuckTimer() > character.GetStuckThreshold()) {
+                    character.GetWanderAngle() = static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * 2.0f * glm::pi<float>();
+                    character.GetWanderTimer() = character.GetWanderChangeInterval();
+                    character.GetStuckTimer() = 0.0f;
+                }
+            } else {
+                character.GetStuckTimer() = 0.0f;
+            }
+        } else {
+            character.GetStuckTimer() = 0.0f;
+            character.SetCurrentSpeed(0.0f);
+        }
+
+        character.GetLastPosition() = character.transform.position;
         character.Update(dt);
     }
 }
@@ -2706,7 +2779,7 @@ void World::RenderObjects(const Camera& camera, float aspectRatio, const DayNigh
     RenderBuilding(gHouseMesh, glm::vec3(0.0f, 0, 20.0f), 0.0f, 1.0f);
     RenderBuilding(gDinnerMesh, glm::vec3(-35.0f, 0, -35.0f), 0.0f, 1.0f);
     RenderBuilding(gHouseMesh, glm::vec3(9.0f, 0, 8.0f), 0.0f, 1.0f);
-    RenderBuilding(gPoliceMesh, glm::vec3(-9.0f, 0, 8.0f), 180.0f, 2.0f);
+    RenderBuilding(gPoliceMesh, glm::vec3(-9.0f, 0, 8.0f), 180.0f, 1.0f);
 
     // Render doors
     for (auto& door : doors) {
@@ -2725,8 +2798,15 @@ void World::TryInteract() {
 
     for (auto& door : doors) {
         float dist = glm::length(charPos - door.GetPosition());
-        if (dist < 3.0f) {
-            if (!isInsideBuilding) {
+        float distInside = glm::length(charPos - door.GetInsidePosition());
+        bool nearDoor = (dist < 3.0f) || (isInsideBuilding && distInside < 3.0f);
+        if (nearDoor) {
+            if (isInsideBuilding) {
+                activeChar->transform.position = door.GetOutsidePosition();
+                isInsideBuilding = false;
+                door.Interact();
+                std::cout << "[World] Exited building: " << door.GetName() << "\n";
+            } else {
                 previousOutsidePosition = charPos;
                 activeChar->transform.position = door.GetInsidePosition();
                 isInsideBuilding = true;
@@ -2745,7 +2825,24 @@ void World::TryExit() {
     if (!isInsideBuilding) return;
     Character* activeChar = GetActiveCharacter();
     if (!activeChar) return;
-    activeChar->transform.position = previousOutsidePosition;
+    
+    // Find closest door to teleport back outside
+    glm::vec3 charPos = activeChar->transform.position;
+    float closestDist = FLT_MAX;
+    Door* closestDoor = nullptr;
+    for (auto& door : doors) {
+        float dist = glm::length(charPos - door.GetInsidePosition());
+        if (dist < closestDist) {
+            closestDist = dist;
+            closestDoor = &door;
+        }
+    }
+    
+    if (closestDoor) {
+        activeChar->transform.position = closestDoor->GetOutsidePosition();
+    } else {
+        activeChar->transform.position = previousOutsidePosition;
+    }
     isInsideBuilding = false;
     std::cout << "[World] Exited building.\n";
 }

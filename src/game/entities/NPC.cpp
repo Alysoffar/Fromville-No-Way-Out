@@ -1,4 +1,6 @@
 #include "game/entities/NPC.h"
+#include "engine/renderer/Animation.h"
+#include "engine/renderer/Animator.h"
 
 #include <algorithm>
 #include <cmath>
@@ -6,10 +8,18 @@
 
 #include <glm/gtc/constants.hpp>
 
+#include <algorithm>
+#include <cctype>
+
 NPC::NPC(std::string displayName, glm::vec3 home)
     : Entity(std::move(displayName)), homePosition(home) {
     transform.position = homePosition;
     BuildRoute();
+
+    std::string lowerName = name;
+    std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(), [](unsigned char c){ return std::tolower(c); });
+    LoadMesh("assets/models/characters/" + lowerName + "/" + lowerName + ".fbx",
+             "assets/models/characters/" + lowerName + "/" + lowerName + "_Walking.fbx");
 }
 
 void NPC::Update(float dt) {
@@ -21,6 +31,9 @@ void NPC::Update(float dt) {
         // minimal movement while conversing
         routeWaitRemaining = 0.0f;
         ApplyPhysics(dt);
+        stuckTimer = 0.0f;
+        SetCurrentSpeed(0.0f);
+        lastPosition = transform.position;
         return;
     }
 
@@ -32,21 +45,42 @@ void NPC::Update(float dt) {
         fear = std::max(0.0f, fear - dt * 11.0f);
     }
 
+    glm::vec3 targetGoal = transform.position;
+    bool wantsToMove = false;
+
     if (threatVisible && fear >= 62.0f) {
         aiState = NPCAIState::Panic;
-        FleeFromThreat(dt);
+        glm::vec3 fleeDirection = transform.position - threatPosition;
+        fleeDirection.y = 0.0f;
+        if (glm::length(fleeDirection) <= 0.001f) {
+            fleeDirection = homePosition - transform.position;
+            fleeDirection.y = 0.0f;
+        }
+        if (glm::length(fleeDirection) > 0.001f) {
+            targetGoal = transform.position + glm::normalize(fleeDirection) * 5.0f;
+            wantsToMove = true;
+        }
     } else if (threatVisible) {
         aiState = NPCAIState::Afraid;
-        FleeFromThreat(dt);
+        glm::vec3 fleeDirection = transform.position - threatPosition;
+        fleeDirection.y = 0.0f;
+        if (glm::length(fleeDirection) <= 0.001f) {
+            fleeDirection = homePosition - transform.position;
+            fleeDirection.y = 0.0f;
+        }
+        if (glm::length(fleeDirection) > 0.001f) {
+            targetGoal = transform.position + glm::normalize(fleeDirection) * 5.0f;
+            wantsToMove = true;
+        }
     } else if (rescueRequested && !nightMode && fear < 58.0f) {
         aiState = NPCAIState::Rescue;
-        MoveToward(rescueTarget, dt);
+        targetGoal = rescueTarget;
+        wantsToMove = (glm::length(targetGoal - transform.position) > 0.4f);
     } else if (nightMode) {
         aiState = NPCAIState::Shelter;
         routeWaitRemaining = 0.0f;
-        if (glm::length(transform.position - homePosition) > 0.2f) {
-            MoveToward(homePosition, dt);
-        }
+        targetGoal = homePosition;
+        wantsToMove = (glm::length(targetGoal - transform.position) > 0.2f);
     } else {
         aiState = NPCAIState::Routine;
         if (routePoints.empty()) {
@@ -56,20 +90,93 @@ void NPC::Update(float dt) {
         if (routeWaitRemaining > 0.0f) {
             routeWaitRemaining -= dt;
         } else {
-            const glm::vec3 target = GetCurrentRouteTarget();
-            glm::vec3 toTarget = target - transform.position;
+            targetGoal = GetCurrentRouteTarget();
+            glm::vec3 toTarget = targetGoal - transform.position;
             toTarget.y = 0.0f;
 
             if (glm::length(toTarget) < 0.4f) {
                 AdvanceRoute();
                 routeWaitRemaining = 0.65f + static_cast<float>(routeIndex % 3) * 0.35f;
             } else if (glm::length(toTarget) > 0.001f) {
-                MoveToward(target, dt);
+                wantsToMove = true;
             }
         }
     }
 
+    glm::vec3 startPos = transform.position;
+
+    if (wantsToMove) {
+        // Stuck mitigation logic
+        if (wanderTimer > 0.0f) {
+            wanderTimer -= dt;
+
+            // Wandering direction XZ plane
+            glm::vec3 wanderDir(std::sin(wanderAngle), 0.0f, std::cos(wanderAngle));
+            wanderDir = glm::normalize(wanderDir);
+
+            // Slower wander speed (1.2f for NPCs)
+            float defaultMoveSpeedScaled = GetMoveSpeed() * 0.6f;
+            float scale = 1.2f / defaultMoveSpeedScaled;
+            Move(wanderDir.x * scale, wanderDir.z * scale, dt);
+            transform.rotation.y = glm::degrees(std::atan2(wanderDir.x, wanderDir.z));
+            SetCurrentSpeed(1.2f);
+        } else {
+            // Standard direct path toward targetGoal
+            glm::vec3 direction = targetGoal - transform.position;
+            direction.y = 0.0f;
+            direction = glm::normalize(direction);
+
+            Move(direction.x, direction.z, dt);
+            transform.rotation.y = glm::degrees(std::atan2(direction.x, direction.z));
+            SetCurrentSpeed(GetMoveSpeed() * 0.6f);
+        }
+
+        // Stuck detection
+        float distMoved = glm::length(glm::vec3(transform.position.x - startPos.x, 0.0f, transform.position.z - startPos.z));
+        if (distMoved < dt * 0.05f) {
+            stuckTimer += dt;
+            if (stuckTimer > stuckThreshold) {
+                wanderAngle = static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * 2.0f * glm::pi<float>();
+                wanderTimer = wanderChangeInterval;
+                stuckTimer = 0.0f;
+            }
+        } else {
+            stuckTimer = 0.0f;
+        }
+    } else {
+        stuckTimer = 0.0f;
+        SetCurrentSpeed(0.0f);
+    }
+
+    lastPosition = transform.position;
+
     ApplyPhysics(dt);
+}
+
+void NPC::UpdateAnimation(float dt) {
+    if (!meshLoaded || !animator) return;
+
+    Animation* targetAnim = nullptr;
+    if (currentSpeed > 4.0f && runningAnimation && runningAnimation->GetDuration() > 0.0f) {
+        targetAnim = runningAnimation.get();
+    } else if (currentSpeed > 0.3f && walkingAnimation && walkingAnimation->GetDuration() > 0.0f) {
+        targetAnim = walkingAnimation.get();
+    } else if (idleAnimation && idleAnimation->GetDuration() > 0.0f) {
+        targetAnim = idleAnimation.get();
+    }
+
+    if (targetAnim) {
+        float animSpeedMultiplier = 1.0f;
+        if (targetAnim == runningAnimation.get()) {
+            animSpeedMultiplier = currentSpeed / 8.0f;
+        } else if (targetAnim == walkingAnimation.get()) {
+            animSpeedMultiplier = currentSpeed / 2.0f;
+        }
+        animSpeedMultiplier = glm::clamp(animSpeedMultiplier, 0.0f, 2.5f);
+
+        animator->SetAnimation(targetAnim);
+        animator->UpdateAnimation(dt * animSpeedMultiplier);
+    }
 }
 
 void NPC::SetPOIs(const std::vector<glm::vec3>& pois) {

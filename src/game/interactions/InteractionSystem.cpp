@@ -97,6 +97,10 @@ void InteractionSystem::Initialize() {
     if (!LoadFromConfig("assets/config/interaction_nodes.txt")) {
         LoadFallbackNodes();
     }
+
+    for (auto& node : nodes) {
+        node.originalPosition = node.position;
+    }
 }
 
 std::string InteractionSystem::GetPromptFor(const Character& character, const QuestSystem& questSystem, bool hasActiveQuest, CharacterType activeQuestCharacter) const {
@@ -237,9 +241,20 @@ void InteractionSystem::MarkQuestStepSolved(CharacterType characterType, int obj
     }
 }
 
-void InteractionSystem::Update(float dt, QuestSystem& questSystem) {
+void InteractionSystem::Update(float dt, QuestSystem& questSystem, const glm::vec3& activeCharPos, float activeCharRotY) {
     (void)dt;
     (void)questSystem;
+
+    // Attach followsActiveCharacter nodes 3.0f units in front of the active character
+    float rad = glm::radians(activeCharRotY);
+    glm::vec3 lookDir(std::sin(rad), 0.0f, std::cos(rad));
+    glm::vec3 offset = lookDir * 3.0f;
+
+    for (auto& node : nodes) {
+        if (node.followsActiveCharacter) {
+            node.position = activeCharPos + offset;
+        }
+    }
 }
 
 bool InteractionSystem::LoadFromConfig(const std::string& path) {
@@ -270,7 +285,9 @@ bool InteractionSystem::LoadFromConfig(const std::string& path) {
 }
 
 void InteractionSystem::AddNode(const InteractionNode& node) {
-    nodes.push_back(node);
+    InteractionNode copied = node;
+    copied.originalPosition = copied.position;
+    nodes.push_back(copied);
 }
 
 bool InteractionSystem::TryPickup(Character& character, QuestSystem& questSystem, bool hasActiveQuest, CharacterType activeQuestCharacter) {

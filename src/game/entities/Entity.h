@@ -1,16 +1,25 @@
 #pragma once
 
 #include <string>
+#include <memory>
 
 #include "engine/physics/Collision.h"
 #include "game/entities/BaseEntity.h"
 
 class CollisionWorld;
+class AnimatedMesh;
+class Animation;
+class Animator;
+class Shader;
+class Camera;
+class DayNightCycle;
 
 class Entity : public BaseEntity {
 public:
     explicit Entity(std::string entityName = "Entity");
-    virtual ~Entity() = default;
+    virtual ~Entity();
+    Entity(Entity&&) noexcept;
+    Entity& operator=(Entity&&) noexcept;
 
     virtual void Update(float dt) = 0;
 
@@ -23,8 +32,11 @@ public:
     virtual glm::vec3 GetDebugColor() const;
     bool IsCrouching() const { return isCrouching; }
     bool IsSprinting() const { return isSprinting; }
+    void SetCurrentSpeed(float speed) { currentSpeed = speed; }
+    float GetCurrentSpeed() const { return currentSpeed; }
+    virtual bool IsEnemy() const { return false; }
+    virtual void UpdateAnimation(float dt);
 
-protected:
     // Movement profile hooks for derived character types.
     virtual float GetMoveSpeed() const;
     virtual float GetSprintSpeed() const;
@@ -37,6 +49,11 @@ protected:
     virtual float GetCoyoteTime() const;
     virtual float GetJumpCutMultiplier() const;
 
+    // 3D animated mesh pipeline methods
+    void LoadMesh(const std::string& fbxPath, const std::string& animFbxPath);
+    void RenderMesh(const Camera& camera, float aspectRatio, const DayNightCycle& dayNight, float fogDensity);
+
+protected:
     // Current state variables
     float velocityY = 0.0f;
     bool isGrounded = true;
@@ -44,6 +61,7 @@ protected:
     bool isSprinting = false;
     float jumpBufferRemaining = 0.0f;
     float coyoteTimeRemaining = 0.0f;
+    float currentSpeed = 0.0f;
 
     // Collision system
     CollisionWorld* collisionWorld = nullptr;
@@ -63,4 +81,16 @@ protected:
     // Helper function to handle gravity and falling
     void ApplyPhysics(float dt);
     void TryConsumeJump();
+
+    // 3D animated mesh rendering variables
+    std::unique_ptr<AnimatedMesh> mesh;
+    std::unique_ptr<Animation> walkingAnimation;
+    std::unique_ptr<Animation> runningAnimation;
+    std::unique_ptr<Animation> idleAnimation;
+    std::unique_ptr<Animator> animator;
+    std::unique_ptr<Shader> shader;
+    bool meshLoaded = false;
+    float animSpeedMultiplier = 1.0f;
+    std::string lastLoadedAnimationPath;
+    glm::vec3 lastFramePosition = glm::vec3(0.0f);
 };

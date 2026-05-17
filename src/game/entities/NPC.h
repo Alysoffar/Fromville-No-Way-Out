@@ -17,8 +17,11 @@ class NPC : public Entity {
 public:
     explicit NPC(std::string displayName = "NPC", glm::vec3 homePosition = glm::vec3(0.0f));
     virtual ~NPC() = default;
+    NPC(NPC&&) noexcept = default;
+    NPC& operator=(NPC&&) noexcept = default;
 
     void Update(float dt) override;
+    void UpdateAnimation(float dt) override;
     void SetNight(bool night);
     void SetPOIs(const std::vector<glm::vec3>& pois);
     void StartConversation(float seconds);
@@ -27,6 +30,14 @@ public:
     bool IsInDanger() const;
     float GetFear() const { return fear; }
     NPCAIState GetAIState() const { return aiState; }
+
+    // Stuck detection accessors
+    float& GetStuckTimer() { return stuckTimer; }
+    float GetStuckThreshold() const { return stuckThreshold; }
+    glm::vec3& GetLastPosition() { return lastPosition; }
+    float& GetWanderAngle() { return wanderAngle; }
+    float& GetWanderTimer() { return wanderTimer; }
+    float GetWanderChangeInterval() const { return wanderChangeInterval; }
 
     glm::vec3 GetDebugColor() const override;
 
@@ -48,6 +59,14 @@ private:
     glm::vec3 rescueTarget = glm::vec3(0.0f);
     std::vector<glm::vec3> poiPoints;
     float conversingTimer = 0.0f;
+
+    // Stuck and wandering state for offscreen AI
+    float stuckTimer = 0.0f;
+    float stuckThreshold = 0.15f;
+    glm::vec3 lastPosition = glm::vec3(0.0f);
+    float wanderAngle = 0.0f;
+    float wanderTimer = 0.0f;
+    float wanderChangeInterval = 2.5f;
 
     void BuildRoute();
     void AdvanceRoute();

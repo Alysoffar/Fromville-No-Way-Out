@@ -5,6 +5,7 @@
 
 Victor::Victor(glm::vec3 startPos)
     : Character(CharacterType::Victor, "Victor", startPos) {
+    LoadMesh("assets/models/characters/victor/victor.fbx", "assets/models/characters/victor/victor_Walking.fbx");
 }
 
 void Victor::UpdateCharacterState(float dt) {

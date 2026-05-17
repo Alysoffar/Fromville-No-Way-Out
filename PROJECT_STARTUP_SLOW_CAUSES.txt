@@ -1,0 +1,105 @@
+PROJECT STARTUP SLOW CAUSES (Fromville)
+====================================
+
+What “slow startup” usually means here
+- The time between launching the executable and the first visible/interactive frame.
+- In this codebase, that time is dominated by synchronous initialization inside Engine::Initialize/Game::Initialize/World::Initialize and renderer init() calls.
+
+Most likely causes (ranked by how strongly they match your current code)
+
+1) Collision BVH build on many triangles
+- Code paths:
+  - World::Initialize() -> LoadBuildingMeshes(&collisionWorld, doors)
+  - World::Initialize() -> collisionWorld.BuildBVH()
+- Why it’s heavy:
+  - Building meshes are loaded from OBJ and their triangles are inserted into CollisionWorld.
+  - BVH construction cost grows quickly with triangle count.
+- Where to look:
+  - src/game/world/World.cpp (BuildBVH call + building mesh loading)
+  - src/engine/physics/CollisionWorld.cpp
+  - src/engine/physics/BVH.cpp
+
+2) Eager loading/decoding of all voice WAV files at boot
+- Code paths:
+  - World::Initialize(): creates AudioManager, loads some fixed cues, then calls InitializeVoiceCueLibrary(*audioManager)
+  - InitializeVoiceCueLibrary() scans entire folders:
+    - assets/audio/voice/monster
+    - assets/audio/voice/npc_female
+    - assets/audio/voice/npc_male
+    - assets/audio/voice/responses
+    - assets/audio/voice/panic_female
+    - assets/audio/voice/panic_male
+  - For each .wav file, it calls audio.LoadSound(...)
+- Why it’s heavy:
+  - If each LoadSound fully decodes WAV into memory buffers, startup cost becomes “number of WAV files” × “decode time”.
+  - Even if decoding is fast, hundreds/thousands of files create heavy disk IO and CPU work.
+- Where to look:
+  - src/engine/audio/AudioManager.cpp (LoadSound + PlaySound strategy)
+
+3) FBX parsing/import for animated character
+- Code paths:
+  - Game::Initialize():
+    - AnimatedMesh("assets/models/Character 1/character.fbx")
+    - Animation("assets/models/Character 1/Standing Idle.fbx", characterMesh.get())
+- Why it’s heavy:
+  - FBX parsing and skeleton/mesh extraction via Assimp can take noticeable time.
+  - Materials/textures referenced by FBX may also be loaded during import.
+- Where to look:
+  - src/engine/renderer/AnimatedMesh.cpp
+  - src/engine/renderer/Animation.h/.cpp (if present)
+
+4) Terrain renderer init (grass/trees/shaders/possible procedural buffers)
+- Code paths:
+  - Game::Initialize():
+    - groundRenderer.init();
+    - grassRenderer.init();
+    - treeRenderer.init(world->GetCollisionWorld());
+    - skydomeRenderer.init();
+- Why it’s heavy:
+  - init() commonly compiles shader programs, uploads big buffers, loads textures, and may procedurally generate terrain/foliage data.
+  - treeRenderer.init() receives CollisionWorld*, so it may query terrain height/collision to place trees (extra CPU work).
+- Where to look:
+  - src/engine/renderer/GrassRenderer.cpp
+  - src/engine/renderer/TreeRenderer.cpp
+  - src/engine/renderer/TerrainRenderer.cpp / terrain.cpp
+  - src/engine/renderer/SkydomeRenderer.cpp
+
+5) Shader compilation/linking at startup
+- Code paths:
+  - Many Shader::Load calls happen during initialization (world model shader, character shaders, animated shader, terrain/shader init inside renderers).
+- Why it’s heavy:
+  - glCompileShader + glLinkProgram can be slow, especially if many programs are built synchronously.
+- Where to look:
+  - src/engine/renderer/Shader.cpp
+
+6) General disk IO load volume + Windows Defender
+- Why it can matter a lot on Windows:
+  - Large number of small files (many wavs, many textures) can be slower if real-time protection scans them.
+  - Running from HDD instead of SSD can make this much worse.
+
+7) Unintended “fallback loops” due to missing assets
+- If a file path is wrong, code may fall back (e.g., to cube meshes) but still repeatedly tries to load.
+- In your repo, main.cpp sets current_path to the executable directory, so asset paths should normally resolve.
+- Still, verify asset existence if you see repeated logs like “Missing cue file”.
+
+The most probable “true root cause” in this specific repo
+- Voice: InitializeVoiceCueLibrary loads every WAV in multiple folders.
+- Collision: LoadBuildingMeshes + CollisionWorld::BuildBVH.
+
+Recommended verification (quick measurements)
+Add timing logs around these blocks (each one prints milliseconds):
+A) World::Initialize() in this order:
+- after LoadBuildingMeshes
+- after collisionWorld.BuildBVH
+- after InitializeVoiceCueLibrary
+
+B) Game::Initialize():
+- each renderer init(): groundRenderer.init / grassRenderer.init / treeRenderer.init / skydomeRenderer.init
+- AnimatedMesh constructor time
+- Animation constructor time
+
+C) Shader::Load:
+- print compile+link durations per shader program
+
+If you want the exact timings, tell me and I’ll patch the code to print a startup “timeline” (log.txt style) automatically.
+

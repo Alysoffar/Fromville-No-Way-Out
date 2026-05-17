@@ -33,6 +33,9 @@ public:
     // Position to teleport the player to when entering
     glm::vec3 GetInsidePosition() const { return insidePosition; }
     void SetInsidePosition(glm::vec3 pos) { insidePosition = pos; }
+    
+    glm::vec3 GetOutsidePosition() const { return outsidePosition; }
+    void SetOutsidePosition(glm::vec3 pos) { outsidePosition = pos; }
 
 private:
     std::string name;
@@ -41,7 +44,9 @@ private:
     float baseRotation; // Building rotation
     glm::vec3 hingeOffset;
     glm::vec3 insidePosition;
+    glm::vec3 outsidePosition;
     glm::vec3 interactPosition;
 
     glm::mat4 GetModelMatrix() const;
 };
+

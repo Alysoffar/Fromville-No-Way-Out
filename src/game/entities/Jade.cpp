@@ -5,6 +5,7 @@
 
 Jade::Jade(glm::vec3 startPos)
     : Character(CharacterType::Jade, "Jade", startPos) {
+    LoadMesh("assets/models/characters/jade/jade.fbx", "assets/models/characters/jade/jade_Walking.fbx");
 }
 
 void Jade::UpdateCharacterState(float dt) {

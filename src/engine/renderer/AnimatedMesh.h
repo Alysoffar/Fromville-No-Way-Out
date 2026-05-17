@@ -28,6 +28,7 @@ public:
     int getBoneCount() const { return m_BoneCounter; }
     const AssimpNodeData& getRootNode() const { return m_RootNode; }
     const glm::mat4& getGlobalInverseTransform() const { return m_GlobalInverseTransform; }
+    bool IsValid() const { return m_VAO != 0 && !m_Indices.empty(); }
 
 private:
     std::vector<Vertex>    m_Vertices;

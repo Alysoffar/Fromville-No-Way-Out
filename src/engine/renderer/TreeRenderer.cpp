@@ -57,13 +57,28 @@ void TreeRenderer::init(CollisionWorld* cw) {
                 x = (static_cast<float>(std::rand()) / RAND_MAX) * 1000.0f - 500.0f;
                 z = (static_cast<float>(std::rand()) / RAND_MAX) * 1000.0f - 500.0f;
 
-                bool inHouse1 = (x > -45.0f && x < -13.0f && z > -16.0f && z < 16.0f);
-                bool inHouse2 = (x > 13.0f && x < 45.0f && z > -16.0f && z < 16.0f);
-                bool inDinner = (x > -48.0f && x < -22.0f && z > -48.0f && z < -22.0f);
+                bool inAnyHouse = false;
+                glm::vec2 houseCenters[] = {
+                    {-29.0f, 0.0f},
+                    {29.0f, 0.0f},
+                    {-29.0f, 20.0f},
+                    {29.0f, 20.0f},
+                    {-29.0f, -20.0f},
+                    {29.0f, -20.0f},
+                    {0.0f, 24.0f},
+                    {9.0f, 12.0f}
+                };
+                for (const auto& center : houseCenters) {
+                    if (glm::distance(glm::vec2(x, z), center) < 17.0f) {
+                        inAnyHouse = true;
+                        break;
+                    }
+                }
+                bool inDinner = glm::distance(glm::vec2(x, z), glm::vec2(-19.32f, -42.84f)) < 17.18f;
                 bool inColony = (x > 4.0f && x < 14.0f && z > 2.0f && z < 14.0f);
-                bool inPolice = (x > -70.0f && x < -43.0f && z > 30.0f && z < 58.0f);
+                bool inPolice = glm::distance(glm::vec2(x, z), glm::vec2(-65.84f, 15.84f)) < 11.3f;
 
-                if (!inHouse1 && !inHouse2 && !inDinner && !inColony && !inPolice) {
+                if (!inAnyHouse && !inDinner && !inColony && !inPolice) {
                     inHouseArea = false;
                 }
             }

@@ -51,6 +51,32 @@ private:
     std::unique_ptr<Animation> walkingAnimation;
     std::unique_ptr<Animator> animator;
 
+    enum class CharSwitchState {
+        None,
+        ZoomOut,
+        Sweep,
+        ZoomIn
+    };
+
+    struct CharacterSwitchTransition {
+        CharSwitchState state = CharSwitchState::None;
+        float timer = 0.0f;
+        float zoomOutDuration = 0.6f;
+        float sweepDuration = 1.2f;
+        float zoomInDuration = 0.6f;
+        int pendingCharacterIndex = -1;
+        glm::vec3 sweepStartPos = glm::vec3(0.0f);
+        glm::vec3 sweepTargetPos = glm::vec3(0.0f);
+        float sweepHeight = 18.0f;
+        float sweepFovBoost = 20.0f;
+        float baseFov = 60.0f; // Sits perfectly with Camera's 60.0f default FOV
+    };
+
+    CharacterSwitchTransition switchTransition;
+
+    void BeginCharacterSwitchTransition(int newIndex);
+    void UpdateCharacterSwitchTransition(float dt);
+
     void HandleGlobalInput(Engine& engine);
     void HandleGameplayInput(float dt, Engine& engine);
     void HandleCharacterInput(float dt, Engine& engine);

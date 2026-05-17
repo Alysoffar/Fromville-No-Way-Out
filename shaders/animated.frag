@@ -14,15 +14,25 @@ uniform vec3 viewPos;
 uniform sampler2D diffuseMap;
 uniform bool u_UseTexture;
 
+uniform bool uHasTexture;
+uniform sampler2D uTexture;
+uniform vec3 uFlatColor;
+
 void main()
 {
-    vec4 texColor;
-    if (u_UseTexture) {
-        texColor = texture(diffuseMap, TexCoords);
-        if(texColor.a < 0.1)
+    vec3 baseColor;
+    if (uHasTexture) {
+        vec4 texColor = texture(uTexture, TexCoords);
+        if (texColor.a < 0.1)
             discard;
+        baseColor = texColor.rgb;
+    } else if (u_UseTexture) {
+        vec4 texColor = texture(diffuseMap, TexCoords);
+        if (texColor.a < 0.1)
+            discard;
+        baseColor = texColor.rgb;
     } else {
-        texColor = vec4(0.8, 0.8, 0.8, 1.0); // Light gray fallback
+        baseColor = uFlatColor;
     }
         
     vec3 norm = normalize(Normal);
@@ -41,7 +51,7 @@ void main()
     float spec = pow(max(dot(norm, halfwayDir), 0.0), 32.0);
     vec3 specular = 0.5 * spec * lightColor;
     
-    vec3 finalLighting = (ambient + diffuse + specular) * texColor.rgb;
+    vec3 finalLighting = (ambient + diffuse + specular) * baseColor;
     
     // Fog calculation (exponential distance fog)
     float distance = length(viewPos - FragPos);

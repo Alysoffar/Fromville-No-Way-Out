@@ -72,7 +72,7 @@ public:
 
     void Initialize();
     void Update(const Camera& camera, float dt);
-    void Render(const Camera& camera, float aspectRatio);
+    void Render(const Camera& camera, float aspectRatio, const DayNightCycle& dayNight, float fogDensity);
     float GetWorldClock() const { return worldClock; }
 
     // === Terrain project: building/door rendering with day/night ===
@@ -87,6 +87,8 @@ public:
     Character* GetActiveCharacter();
     const Character* GetActiveCharacter() const;
     void SwitchCharacter(int index);
+    int GetActiveCharacterIndex() const;
+    Character* GetCharacter(int index);
     Player& GetPlayer() { return player; }
     CollisionWorld* GetCollisionWorld() { return &collisionWorld; }
 

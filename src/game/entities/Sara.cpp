@@ -3,8 +3,15 @@
 #include <iostream>
 #include "game/quest/Quest.h"
 
+#include <filesystem>
+
 Sara::Sara(glm::vec3 startPos)
     : Character(CharacterType::Sara, "Sara", startPos) {
+    if (std::filesystem::exists("assets/models/characters/sara/sara.fbx")) {
+        LoadMesh("assets/models/characters/sara/sara.fbx", "assets/models/characters/sara/sara_Walking.fbx");
+    } else {
+        LoadMesh("assets/models/characters/jade/jade.fbx", "assets/models/characters/jade/jade_Walking.fbx");
+    }
 }
 
 void Sara::UpdateCharacterState(float dt) {

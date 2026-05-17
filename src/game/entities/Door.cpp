@@ -15,6 +15,7 @@ void Door::Initialize(const std::string& doorName,
     baseRotation = baseRot;
     hingeOffset = hingeLocalPos;
     interactPosition = interactPos;
+    outsidePosition = interactPos;
     mesh.Create(vertices, indices);
 }
 

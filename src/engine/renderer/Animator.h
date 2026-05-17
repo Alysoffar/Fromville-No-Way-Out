@@ -10,26 +10,40 @@
 
 class Animator {
 public:
-    Animator(Animation* animation) {
+    Animator(Animation* animation, bool applyGlobalInverse = false) {
         m_CurrentTime = 0.0;
         m_CurrentAnimation = animation;
+        m_ApplyGlobalInverse = applyGlobalInverse;
 
         m_FinalBoneMatrices.reserve(100);
         for (int i = 0; i < 100; i++)
             m_FinalBoneMatrices.push_back(glm::mat4(1.0f));
     }
 
+    void SetAnimation(Animation* animation) {
+        m_CurrentAnimation = animation;
+        if (!m_CurrentAnimation || m_CurrentAnimation->GetDuration() <= 0.0f) {
+            for (int i = 0; i < 100; i++) {
+                m_FinalBoneMatrices[i] = glm::mat4(1.0f);
+            }
+        }
+    }
+
     void UpdateAnimation(float dt) {
         m_DeltaTime = dt;
-        if (m_CurrentAnimation) {
+        if (m_CurrentAnimation && m_CurrentAnimation->GetDuration() > 0.0f) {
             m_CurrentTime += m_CurrentAnimation->GetTicksPerSecond() * dt;
             m_CurrentTime = fmod(m_CurrentTime, m_CurrentAnimation->GetDuration());
             CalculateBoneTransform(&m_CurrentAnimation->GetRootNode(), glm::mat4(1.0f));
+        } else {
+            for (int i = 0; i < 100; i++) {
+                m_FinalBoneMatrices[i] = glm::mat4(1.0f);
+            }
         }
     }
 
     void PlayAnimation(Animation* pAnimation) {
-        m_CurrentAnimation = pAnimation;
+        SetAnimation(pAnimation);
         m_CurrentTime = 0.0f;
     }
 
@@ -50,14 +64,24 @@ public:
         if (boneInfoMap.find(nodeName) != boneInfoMap.end()) {
             int index = boneInfoMap[nodeName].id;
             glm::mat4 offset = boneInfoMap[nodeName].offset;
-            m_FinalBoneMatrices[index] = globalTransformation * offset;
+            glm::mat4 finalMatrix = globalTransformation * offset;
+            if (m_ApplyGlobalInverse) {
+                finalMatrix = m_CurrentAnimation->GetGlobalInverseTransform() * finalMatrix;
+            }
+            m_FinalBoneMatrices[index] = finalMatrix;
         }
 
         for (int i = 0; i < node->childrenCount; i++)
             CalculateBoneTransform(&node->children[i], globalTransformation);
     }
 
+    Animation* GetCurrentAnimation() const { return m_CurrentAnimation; }
+
     const std::vector<glm::mat4>& GetFinalBoneMatrices() const {
+        if (!m_CurrentAnimation || m_CurrentAnimation->GetDuration() <= 0.0f) {
+            static const std::vector<glm::mat4> identity(100, glm::mat4(1.0f));
+            return identity;
+        }
         return m_FinalBoneMatrices;
     }
 
@@ -66,4 +90,5 @@ private:
     Animation* m_CurrentAnimation;
     float m_CurrentTime;
     float m_DeltaTime;
+    bool m_ApplyGlobalInverse = false;
 };

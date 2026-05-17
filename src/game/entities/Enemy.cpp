@@ -14,6 +14,11 @@ Enemy::Enemy(glm::vec3 spawnPosition)
     : Entity("Monster"), spawnPosition(spawnPosition), lastKnownTargetPosition(spawnPosition) {
     transform.position = spawnPosition;
     BuildPatrolRoute();
+
+    // Dynamically assign enemy1 or enemy2 based on spawn coordinates for great visual variety
+    std::string enemyDir = (static_cast<int>(std::abs(spawnPosition.x) + std::abs(spawnPosition.z)) % 2 == 0) ? "enemy1" : "enemy2";
+    LoadMesh("assets/models/characters/" + enemyDir + "/" + enemyDir + ".fbx",
+             "assets/models/characters/" + enemyDir + "/" + enemyDir + "_walk.fbx");
 }
 
 void Enemy::Update(float dt) {
