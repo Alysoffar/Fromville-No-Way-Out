@@ -6,6 +6,7 @@
 
 enum class NPCAIState {
     Routine,
+    Conversing,
     Shelter,
     Afraid,
     Panic,
@@ -19,6 +20,8 @@ public:
 
     void Update(float dt) override;
     void SetNight(bool night);
+    void SetPOIs(const std::vector<glm::vec3>& pois);
+    void StartConversation(float seconds);
     void SetThreatPosition(const glm::vec3& enemyPosition, bool threatVisible);
     void SetRescueTarget(const glm::vec3& targetPosition, bool shouldRescue);
     bool IsInDanger() const;
@@ -43,6 +46,8 @@ private:
     NPCAIState aiState = NPCAIState::Routine;
     glm::vec3 threatPosition = glm::vec3(0.0f);
     glm::vec3 rescueTarget = glm::vec3(0.0f);
+    std::vector<glm::vec3> poiPoints;
+    float conversingTimer = 0.0f;
 
     void BuildRoute();
     void AdvanceRoute();

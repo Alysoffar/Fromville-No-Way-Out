@@ -15,6 +15,15 @@ NPC::NPC(std::string displayName, glm::vec3 home)
 void NPC::Update(float dt) {
     routineTimer -= dt;
 
+    if (conversingTimer > 0.0f) {
+        conversingTimer = std::max(0.0f, conversingTimer - dt);
+        aiState = NPCAIState::Conversing;
+        // minimal movement while conversing
+        routeWaitRemaining = 0.0f;
+        ApplyPhysics(dt);
+        return;
+    }
+
     if (threatVisible) {
         fear = std::min(100.0f, fear + dt * 34.0f);
     } else if (nightMode) {
@@ -63,6 +72,14 @@ void NPC::Update(float dt) {
     ApplyPhysics(dt);
 }
 
+void NPC::SetPOIs(const std::vector<glm::vec3>& pois) {
+    poiPoints = pois;
+}
+
+void NPC::StartConversation(float seconds) {
+    conversingTimer = seconds;
+}
+
 void NPC::SetNight(bool night) {
     nightMode = night;
     if (nightMode) {
@@ -94,6 +111,7 @@ float NPC::GetMoveSpeed() const {
         case NPCAIState::Rescue: return 3.0f;
         case NPCAIState::Shelter: return 1.65f;
         case NPCAIState::Routine: return 2.0f;
+        case NPCAIState::Conversing: return 0.2f;
     }
 
     return 2.0f;
@@ -106,6 +124,7 @@ glm::vec3 NPC::GetDebugColor() const {
         case NPCAIState::Rescue: return glm::vec3(0.55f, 0.92f, 1.0f);
         case NPCAIState::Shelter: return glm::vec3(0.35f, 0.55f, 0.95f);
         case NPCAIState::Routine: return glm::vec3(0.25f, 0.90f, 0.65f);
+        case NPCAIState::Conversing: return glm::vec3(0.8f, 0.7f, 0.4f);
     }
 
     return glm::vec3(0.25f, 0.90f, 0.65f);
@@ -126,6 +145,21 @@ void NPC::BuildRoute() {
     routeIndex = 0;
     routineTimer = 0.0f;
     routeWaitRemaining = 0.35f;
+
+    // If there are town POIs, mix a few into the route for daytime wandering
+    if (!poiPoints.empty()) {
+        // pick up to 3 nearest POIs
+        std::vector<std::pair<float, glm::vec3>> distances;
+        for (const auto& p : poiPoints) {
+            float d = glm::length(p - homePosition);
+            distances.emplace_back(d, p);
+        }
+        std::sort(distances.begin(), distances.end(), [](const auto& a, const auto& b){ return a.first < b.first; });
+        const size_t take = std::min<size_t>(3, distances.size());
+        for (size_t i = 0; i < take; ++i) {
+            routePoints.push_back(distances[i].second);
+        }
+    }
 }
 
 void NPC::AdvanceRoute() {

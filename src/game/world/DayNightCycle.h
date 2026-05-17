@@ -7,6 +7,7 @@ public:
     explicit DayNightCycle(float cycleSpeedSeconds = 120.0f);
 
     void update(float deltaTime);
+    void syncToWorldClock(float worldClockSeconds);
 
     glm::vec3 getSunDirection() const;
     glm::vec3 getLightColor() const;
@@ -20,4 +21,5 @@ public:
 private:
     float dayTime;     // 0.0 to 1.0
     float cycleSpeed;  // fraction per second = 1.0 / cycleSpeedSeconds
+    float cycleSeconds;
 };

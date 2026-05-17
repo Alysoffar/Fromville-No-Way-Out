@@ -26,16 +26,27 @@ void World::InitializeCharacters() {
 
     // Create NPCs spread across the map near buildings
     if (npcs.empty()) {
-        npcs.emplace_back("Mara", glm::vec3(-22.0f, 0.0f, 5.0f));
-        npcs.emplace_back("Elena", glm::vec3(22.0f, 0.0f, 5.0f));
-        npcs.emplace_back("Tom", glm::vec3(5.0f, 0.0f, -35.0f));
+        // Place NPCs near the town center so they are visible in the main play space.
+        npcs.emplace_back("Mara", glm::vec3(-9.0f, 2.0f, 8.0f));
+        npcs.emplace_back("Elena", glm::vec3(9.0f, 2.0f, 7.5f));
+        npcs.emplace_back("Tom", glm::vec3(-8.5f, 2.0f, -7.0f));
     }
     EnsureNpcDialogueCooldowns();
 
+    // Provide POIs for NPC wandering (story location centers)
+    std::vector<glm::vec3> pois;
+    for (const auto& loc : storyLocations) {
+        pois.push_back(loc.center);
+    }
+    for (NPC& npc : npcs) {
+        npc.SetPOIs(pois);
+    }
+
     // Create enemies in the forest perimeter
     if (enemies.empty()) {
-        enemies.emplace_back(glm::vec3(40.0f, 0.0f, 30.0f));
-        enemies.emplace_back(glm::vec3(-40.0f, 0.0f, -40.0f));
+        // Keep enemies on the outskirts but close enough to see once night falls.
+        enemies.emplace_back(glm::vec3(16.0f, 2.0f, 26.0f));
+        enemies.emplace_back(glm::vec3(-18.0f, 2.0f, -24.0f));
     }
 }
 

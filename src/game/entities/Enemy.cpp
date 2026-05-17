@@ -17,6 +17,10 @@ Enemy::Enemy(glm::vec3 spawnPosition)
 }
 
 void Enemy::Update(float dt) {
+    if (!nightMode) {
+        // Dormant during the day
+        return;
+    }
     if (playerKilled) {
         ApplyPhysics(dt);
         return;
@@ -29,7 +33,18 @@ void Enemy::Update(float dt) {
         0.0f,
         1.0f);
 
-    if (perception.visible || stimulus > kInvestigateThreshold) {
+    if (perception.targetSheltered) {
+        // Targets inside shelters: approach the shelter edge and torment
+        aiState = EnemyAIState::Torment;
+        lastKnownTargetPosition = perception.targetPosition;
+        // Move toward the shelter edge but do not enter
+        glm::vec3 toTarget = lastKnownTargetPosition - transform.position;
+        toTarget.y = 0.0f;
+        const float dist = glm::length(toTarget);
+        if (dist > 1.0f) {
+            MoveToward(lastKnownTargetPosition, dt, 0.06f);
+        }
+    } else if (perception.visible || stimulus > kInvestigateThreshold) {
         lastKnownTargetPosition = perception.targetPosition;
         investigationTimer = 5.0f + stimulus * 4.0f;
         alertness = std::min(1.0f, alertness + dt * (0.45f + stimulus));
@@ -73,6 +88,17 @@ void Enemy::Update(float dt) {
     ApplyPhysics(dt);
 }
 
+void Enemy::SetNight(bool night) {
+    nightMode = night;
+    if (!nightMode) {
+        // Reset to spawn and idle during day
+        aiState = EnemyAIState::Patrol;
+        lastKnownTargetPosition = spawnPosition;
+        targetPosition = spawnPosition;
+        perception = EnemyPerception();
+    }
+}
+
 void Enemy::SetTarget(const glm::vec3& target) {
     targetPosition = target;
 }
@@ -110,6 +136,7 @@ float Enemy::GetMoveSpeed() const {
         case EnemyAIState::Investigate: return 1.95f;
         case EnemyAIState::Stalk: return 1.45f;
         case EnemyAIState::Chase: return 3.15f;
+        case EnemyAIState::Torment: return 0.9f;
         case EnemyAIState::Attack: return 0.0f;
     }
 
@@ -126,6 +153,7 @@ glm::vec3 Enemy::GetDebugColor() const {
         case EnemyAIState::Investigate: return glm::vec3(0.95f, 0.78f, 0.26f);
         case EnemyAIState::Stalk: return glm::vec3(0.95f, 0.42f, 0.18f);
         case EnemyAIState::Chase: return glm::vec3(1.0f, 0.08f, 0.05f);
+        case EnemyAIState::Torment: return glm::vec3(0.6f, 0.1f, 0.7f);
         case EnemyAIState::Attack: return glm::vec3(0.35f);
     }
 

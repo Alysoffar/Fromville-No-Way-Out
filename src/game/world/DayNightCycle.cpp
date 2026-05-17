@@ -7,12 +7,19 @@
 DayNightCycle::DayNightCycle(float cycleSpeedSeconds)
     : dayTime(0.25f)  // start at sunrise
     , cycleSpeed(1.0f / cycleSpeedSeconds)
+    , cycleSeconds(cycleSpeedSeconds)
 {
 }
 
 void DayNightCycle::update(float deltaTime) {
     dayTime += cycleSpeed * deltaTime;
     // Wrap at 1.0
+    dayTime -= std::floor(dayTime);
+}
+
+void DayNightCycle::syncToWorldClock(float worldClockSeconds) {
+    const float cyclePosition = std::fmod(worldClockSeconds, cycleSeconds);
+    dayTime = 0.25f + (cyclePosition / cycleSeconds);
     dayTime -= std::floor(dayTime);
 }
 

@@ -12,6 +12,7 @@ struct EnemyPerception {
     float sound = 0.0f;
     float light = 0.0f;
     float proximity = 0.0f;
+    bool targetSheltered = false;
 };
 
 enum class EnemyAIState {
@@ -19,14 +20,17 @@ enum class EnemyAIState {
     Investigate,
     Stalk,
     Chase,
+    Torment,
     Attack
 };
+
 
 class Enemy : public Entity {
 public:
     explicit Enemy(glm::vec3 spawnPosition = glm::vec3(0.0f));
 
     void Update(float dt) override;
+    void SetNight(bool night);
 
     void SetTarget(const glm::vec3& targetPosition);
     void SetVisibleTarget(const glm::vec3& targetPosition, bool targetVisible);
@@ -53,6 +57,7 @@ private:
     float investigationTimer = 0.0f;
     EnemyPerception perception;
     EnemyAIState aiState = EnemyAIState::Patrol;
+    bool nightMode = true;
 
     void BuildPatrolRoute();
     void MoveToward(const glm::vec3& target, float dt, float swayAmount);

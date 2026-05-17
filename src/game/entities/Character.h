@@ -26,6 +26,8 @@ public:
     CharacterType GetType() const { return type; }
     bool IsActive() const { return isActive; }
     void SetActive(bool active) { isActive = active; }
+    bool IsAbilityReady() const { return abilityTimer <= 0.0f; }
+    void StartAbilityCooldown(float seconds) { abilityTimer = seconds; }
     
     // Persistent stats
     float GetHealth() const { return health; }

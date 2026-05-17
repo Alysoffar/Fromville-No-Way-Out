@@ -73,6 +73,7 @@ public:
     void Initialize();
     void Update(const Camera& camera, float dt);
     void Render(const Camera& camera, float aspectRatio);
+    float GetWorldClock() const { return worldClock; }
 
     // === Terrain project: building/door rendering with day/night ===
     void RenderObjects(const Camera& camera, float aspectRatio, const DayNightCycle& dayNight, float fogDensity);
@@ -93,6 +94,7 @@ public:
     QuestSystem* GetQuestSystem() { return questSystem.get(); }
     const QuestSystem* GetQuestSystem() const { return questSystem.get(); }
     bool TryActiveCharacterInteraction();
+    bool TryActiveCharacterAbility();
     bool TryActiveCharacterPickup();
     std::string GetInteractionPrompt() const;
     bool NearestInteractionIsPickup() const;
@@ -120,6 +122,8 @@ public:
     bool ConsumeSpawnRestartRequest();
     bool SaveToFile(const std::string& path) const;
     bool LoadFromFile(const std::string& path);
+    // Is it currently night in the world cycle?
+    bool IsNight() const { return nightTime; }
 
 private:
     // === Terrain project: buildings and doors ===
@@ -200,6 +204,7 @@ private:
     void UpdateOffscreenCharacters(float dt);
     bool IsProtectedByShelter(const glm::vec3& position) const;
     glm::vec3 GetNearestShelterCenter(const glm::vec3& position) const;
+    bool TryCalmNearbyNpc(Character& activeChar);
     glm::vec3 GetCharacterStoryGoal(CharacterType type) const;
     bool MoveCharacterToward(Character& character, const glm::vec3& target, float dt);
     void TryAdvanceOffscreenStory(Character& character, std::size_t index, float dt, bool atGoal);

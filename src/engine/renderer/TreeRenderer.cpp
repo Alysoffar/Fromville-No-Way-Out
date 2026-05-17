@@ -59,10 +59,11 @@ void TreeRenderer::init(CollisionWorld* cw) {
 
                 bool inHouse1 = (x > -45.0f && x < -13.0f && z > -16.0f && z < 16.0f);
                 bool inHouse2 = (x > 13.0f && x < 45.0f && z > -16.0f && z < 16.0f);
-                bool inDinner = (x > -2.0f && x < 34.0f && z > -58.0f && z < -36.0f);
+                bool inDinner = (x > -48.0f && x < -22.0f && z > -48.0f && z < -22.0f);
+                bool inColony = (x > 4.0f && x < 14.0f && z > 2.0f && z < 14.0f);
                 bool inPolice = (x > -70.0f && x < -43.0f && z > 30.0f && z < 58.0f);
 
-                if (!inHouse1 && !inHouse2 && !inDinner && !inPolice) {
+                if (!inHouse1 && !inHouse2 && !inDinner && !inColony && !inPolice) {
                     inHouseArea = false;
                 }
             }
@@ -129,6 +130,11 @@ void TreeRenderer::init(CollisionWorld* cw) {
         glBindVertexArray(0);
 
         treeModels.push_back(std::move(treeModel));
+    }
+
+    // If we attached triangles to the collision world, rebuild its BVH so collisions include trees
+    if (cw) {
+        cw->BuildBVH();
     }
 
     shaderProgram = ShaderUtils::loadShaderProgram("shaders/tree.vert", "shaders/tree.frag");

@@ -183,8 +183,16 @@ void LoadBuildingMeshes(CollisionWorld* cw, std::vector<Door>& doors) {
 
     LoadBuilding("assets/models/House.obj", gHouseMesh, glm::vec3(-25.0f, 0, 0.0f), 90.0f, 1.0f, "Door_Main", 90.0f);
     LoadBuilding("assets/models/House.obj", gHouseMesh, glm::vec3(25.0f, 0, 0.0f), -90.0f, 1.0f, "Door_Main", 90.0f);
-    LoadBuilding("assets/models/Dinner.obj", gDinnerMesh, glm::vec3(0.0f, 0, -40.0f), 0.0f, 2.0f, "DoorGlass", -90.0f);
-    LoadBuilding("assets/models/Police.obj", gPoliceMesh, glm::vec3(0.0f, 0, 40.0f), 180.0f, 2.0f, "Door", 90.0f);
+    LoadBuilding("assets/models/House.obj", gHouseMesh, glm::vec3(-25.0f, 0, 20.0f), 90.0f, 1.0f, "Door_Main", 90.0f);
+    LoadBuilding("assets/models/House.obj", gHouseMesh, glm::vec3(25.0f, 0, 20.0f), -90.0f, 1.0f, "Door_Main", 90.0f);
+    LoadBuilding("assets/models/House.obj", gHouseMesh, glm::vec3(-25.0f, 0, -20.0f), 90.0f, 1.0f, "Door_Main", 90.0f);
+    LoadBuilding("assets/models/House.obj", gHouseMesh, glm::vec3(25.0f, 0, -20.0f), -90.0f, 1.0f, "Door_Main", 90.0f);
+    LoadBuilding("assets/models/House.obj", gHouseMesh, glm::vec3(0.0f, 0, 20.0f), 0.0f, 1.0f, "Door_Main", 90.0f);
+
+    // Align the main landmarks with the story-location coordinates used by quests and shelters.
+    LoadBuilding("assets/models/Dinner.obj", gDinnerMesh, glm::vec3(-35.0f, 0, -35.0f), 0.0f, 1.0f, "DoorGlass", -90.0f);
+    LoadBuilding("assets/models/House.obj", gHouseMesh, glm::vec3(9.0f, 0, 8.0f), 0.0f, 1.0f, "Door_Main", 90.0f);
+    LoadBuilding("assets/models/Police.obj", gPoliceMesh, glm::vec3(-9.0f, 0, 8.0f), 180.0f, 2.0f, "Door", 90.0f);
 
     gBuildingShader.Load("assets/shaders/model_lit.vert", "assets/shaders/model_lit.frag");
     gBuildingReady = true;
@@ -1238,11 +1246,25 @@ void World::Update(const Camera& camera, float dt) {
                 playerLight);
             bestPerception.playerTarget = true;
             if (IsProtectedByShelter(activeChar->transform.position)) {
-                bestPerception.hasTarget = false;
+                // If the active character is sheltered, set a sheltered perception so monsters
+                // can approach and torment the shelter edge rather than enter it.
+                const glm::vec3 shelterCenter = GetNearestShelterCenter(activeChar->transform.position);
+                glm::vec3 dir = shelterCenter - enemy.transform.position;
+                dir.y = 0.0f;
+                if (glm::length(dir) > 0.001f) dir = glm::normalize(dir);
+                const ShelterZone* rz = nullptr;
+                for (const ShelterZone& s : shelterZones) {
+                    if (HorizontalDistance(activeChar->transform.position, s.center) <= s.radius) { rz = &s; break; }
+                }
+                glm::vec3 edgePos = shelterCenter;
+                if (rz) edgePos = shelterCenter + dir * (rz->radius + 0.8f);
+                bestPerception.hasTarget = true;
                 bestPerception.visible = false;
                 bestPerception.sound = 0.0f;
                 bestPerception.light = 0.0f;
-                bestPerception.proximity = 0.0f;
+                bestPerception.proximity = Clamp01(1.0f - (HorizontalDistance(enemy.transform.position, edgePos) / kEnemySightRange));
+                bestPerception.targetPosition = edgePos;
+                bestPerception.targetSheltered = true;
             }
 
             float bestScore = ScorePerception(bestPerception);
@@ -1254,6 +1276,36 @@ void World::Update(const Camera& camera, float dt) {
 
                 const Character& offscreenCharacter = *characters[i];
                 if (IsProtectedByShelter(offscreenCharacter.transform.position)) {
+                    // Turn sheltered offscreen characters into sheltered perceptions
+                    const glm::vec3 shelterCenter = GetNearestShelterCenter(offscreenCharacter.transform.position);
+                    glm::vec3 dir = shelterCenter - enemy.transform.position;
+                    dir.y = 0.0f;
+                    if (glm::length(dir) > 0.001f) dir = glm::normalize(dir);
+                    const ShelterZone* rz = nullptr;
+                    for (const ShelterZone& s : shelterZones) {
+                        if (HorizontalDistance(offscreenCharacter.transform.position, s.center) <= s.radius) { rz = &s; break; }
+                    }
+                    glm::vec3 edgePos = shelterCenter;
+                    if (rz) edgePos = shelterCenter + dir * (rz->radius + 0.8f);
+                    const EnemyPerception characterPerception = EvaluateTargetStimulus(
+                        enemy.transform.position,
+                        edgePos,
+                        kEnemySightRange,
+                        kEnemyHearingRange,
+                        kEnemyLightRange,
+                        0.18f,
+                        0.32f);
+                    EnemyPerception shelved = characterPerception;
+                    shelved.hasTarget = true;
+                    shelved.visible = false;
+                    shelved.playerTarget = true;
+                    shelved.targetPosition = edgePos;
+                    shelved.targetSheltered = true;
+                    const float characterScore = ScorePerception(shelved);
+                    if (!bestPerception.hasTarget || characterScore > bestScore) {
+                        bestPerception = shelved;
+                        bestScore = characterScore;
+                    }
                     continue;
                 }
 
@@ -1277,6 +1329,37 @@ void World::Update(const Camera& camera, float dt) {
 
             for (const NPC& npc : npcs) {
                 if (IsProtectedByShelter(npc.transform.position)) {
+                    const glm::vec3 shelterCenter = GetNearestShelterCenter(npc.transform.position);
+                    glm::vec3 dir = shelterCenter - enemy.transform.position;
+                    dir.y = 0.0f;
+                    if (glm::length(dir) > 0.001f) dir = glm::normalize(dir);
+                    const ShelterZone* rz = nullptr;
+                    for (const ShelterZone& s : shelterZones) {
+                        if (HorizontalDistance(npc.transform.position, s.center) <= s.radius) { rz = &s; break; }
+                    }
+                    glm::vec3 edgePos = shelterCenter;
+                    if (rz) edgePos = shelterCenter + dir * (rz->radius + 0.8f);
+                    const float npcSound = npc.IsInDanger() ? 0.78f : (nightTime ? 0.16f : 0.28f);
+                    const float npcLight = nightTime ? 0.35f : 0.08f;
+                    const EnemyPerception npcPerception = EvaluateTargetStimulus(
+                        enemy.transform.position,
+                        edgePos,
+                        kEnemySightRange,
+                        kEnemyHearingRange,
+                        kEnemyLightRange,
+                        npcSound,
+                        npcLight);
+                    EnemyPerception shelved = npcPerception;
+                    shelved.hasTarget = true;
+                    shelved.visible = false;
+                    shelved.playerTarget = false;
+                    shelved.targetPosition = edgePos;
+                    shelved.targetSheltered = true;
+                    const float npcScore = ScorePerception(shelved);
+                    if (npcPerception.hasTarget && (!bestPerception.hasTarget || npcScore > bestScore)) {
+                        bestPerception = shelved;
+                        bestScore = npcScore;
+                    }
                     continue;
                 }
 
@@ -1301,33 +1384,35 @@ void World::Update(const Camera& camera, float dt) {
             enemy.SetPerception(bestPerception);
             enemy.Update(dt);
             
-            // Apply damage to any character in attack range (with cooldown to prevent spam)
-            for (std::size_t charIdx = 0; charIdx < characters.size(); ++charIdx) {
-                Character& character = *characters[charIdx];
-                if (enemy.IsInAttackRange(character.transform.position) && characterDamageCooldowns[charIdx] <= 0.0f) {
-                    // Apply damage to this character
-                    const float damageAmount = 15.0f;
-                    character.TakeDamage(damageAmount);
-                    characterDamageCooldowns[charIdx] = 1.5f;  // 1.5 second cooldown between hits
-                    
-                    // Update HUD feedback if this is the active character
-                    if (static_cast<int>(charIdx) == activeCharacterIndex) {
-                        lastDamageAmount = damageAmount;
-                        lastDamageDisplayTimer.Start(kDamageDisplayDuration);
-                        if (audioManager) {
-                            audioManager->PlaySound("player_hurt", 0.90f);
+            if (nightTime) {
+                // Apply damage to any character in attack range (with cooldown to prevent spam)
+                for (std::size_t charIdx = 0; charIdx < characters.size(); ++charIdx) {
+                    Character& character = *characters[charIdx];
+                    if (enemy.IsInAttackRange(character.transform.position) && characterDamageCooldowns[charIdx] <= 0.0f) {
+                        // Apply damage to this character
+                        const float damageAmount = 15.0f;
+                        character.TakeDamage(damageAmount);
+                        characterDamageCooldowns[charIdx] = 1.5f;  // 1.5 second cooldown between hits
+                        
+                        // Update HUD feedback if this is the active character
+                        if (static_cast<int>(charIdx) == activeCharacterIndex) {
+                            lastDamageAmount = damageAmount;
+                            lastDamageDisplayTimer.Start(kDamageDisplayDuration);
+                            if (audioManager) {
+                                audioManager->PlaySound("player_hurt", 0.90f);
+                            }
+                            
+                            // Trigger monster scream
+                            const float distance = HorizontalDistance(character.transform.position, enemy.transform.position);
+                            lastMonsterScream = GetMonsterScreamLine(static_cast<int>(enemies.size()), distance);
+                            monsterScreamDisplayTimer.Start(kScreamDisplayDuration);
+                            PlayVoiceLine(audioManager.get(), "monster", lastMonsterScream, 0.95f);
                         }
                         
-                        // Trigger monster scream
-                        const float distance = HorizontalDistance(character.transform.position, enemy.transform.position);
-                        lastMonsterScream = GetMonsterScreamLine(static_cast<int>(enemies.size()), distance);
-                        monsterScreamDisplayTimer.Start(kScreamDisplayDuration);
-                        PlayVoiceLine(audioManager.get(), "monster", lastMonsterScream, 0.95f);
-                    }
-                    
-                    std::cout << "[Damage] " << character.GetName() << " takes " << damageAmount << " damage! HP: " << character.GetHealth() << "\n";
-                    if (static_cast<int>(charIdx) == activeCharacterIndex) {
-                        std::cout << lastMonsterScream << "\n";
+                        std::cout << "[Damage] " << character.GetName() << " takes " << damageAmount << " damage! HP: " << character.GetHealth() << "\n";
+                        if (static_cast<int>(charIdx) == activeCharacterIndex) {
+                            std::cout << lastMonsterScream << "\n";
+                        }
                     }
                 }
             }
@@ -1403,29 +1488,31 @@ void World::Update(const Camera& camera, float dt) {
             }
         }
 
-        for (const Enemy& enemy : enemies) {
-            const float distance = HorizontalDistance(activeChar->transform.position, enemy.transform.position);
-            if (distance < 8.0f && characterMonsterInteractionCooldowns[activeIndex] <= 0.0f) {
-                lastMonsterScream = GetMonsterTauntLine(*activeChar, distance, worldClock);
-                monsterScreamDisplayTimer.Start(kScreamDisplayDuration);
-                lastNpcDialogue = GetCharacterMonsterResponseLine(*activeChar, worldClock);
-                npcDialogueDisplayTimer.Start(kNpcDialogueDisplayDuration);
-                std::cout << lastMonsterScream << "\n";
-                std::cout << "[Monster Response] " << lastNpcDialogue << "\n";
-                PlayVoiceLine(audioManager.get(), "monster", lastMonsterScream, 0.95f);
-                PlayVoiceLine(audioManager.get(), "responses", lastNpcDialogue, 0.88f);
-                characterMonsterInteractionCooldowns[activeIndex] = 7.5f;
-                break;
-            }
+        if (nightTime) {
+            for (const Enemy& enemy : enemies) {
+                const float distance = HorizontalDistance(activeChar->transform.position, enemy.transform.position);
+                if (distance < 8.0f && characterMonsterInteractionCooldowns[activeIndex] <= 0.0f) {
+                    lastMonsterScream = GetMonsterTauntLine(*activeChar, distance, worldClock);
+                    monsterScreamDisplayTimer.Start(kScreamDisplayDuration);
+                    lastNpcDialogue = GetCharacterMonsterResponseLine(*activeChar, worldClock);
+                    npcDialogueDisplayTimer.Start(kNpcDialogueDisplayDuration);
+                    std::cout << lastMonsterScream << "\n";
+                    std::cout << "[Monster Response] " << lastNpcDialogue << "\n";
+                    PlayVoiceLine(audioManager.get(), "monster", lastMonsterScream, 0.95f);
+                    PlayVoiceLine(audioManager.get(), "responses", lastNpcDialogue, 0.88f);
+                    characterMonsterInteractionCooldowns[activeIndex] = 7.5f;
+                    break;
+                }
 
-            if (distance < 6.5f && characterReactionCooldowns[activeCharacterIndex] <= 0.0f) {
-                lastNpcDialogue = activeChar->GetName() + ": " + GetPanicLine(*activeChar);
-                npcDialogueDisplayTimer.Start(kNpcDialogueDisplayDuration);
-                std::cout << "[Panic] " << lastNpcDialogue << "\n";
-                const std::string activePanicGroup = IsFemaleSpeaker(activeChar->GetName()) ? "panic_female" : "panic_male";
-                PlayVoiceLine(audioManager.get(), activePanicGroup, GetPanicLine(*activeChar), 0.95f);
-                characterReactionCooldowns[activeCharacterIndex] = 4.0f;
-                break;
+                if (distance < 6.5f && characterReactionCooldowns[activeCharacterIndex] <= 0.0f) {
+                    lastNpcDialogue = activeChar->GetName() + ": " + GetPanicLine(*activeChar);
+                    npcDialogueDisplayTimer.Start(kNpcDialogueDisplayDuration);
+                    std::cout << "[Panic] " << lastNpcDialogue << "\n";
+                    const std::string activePanicGroup = IsFemaleSpeaker(activeChar->GetName()) ? "panic_female" : "panic_male";
+                    PlayVoiceLine(audioManager.get(), activePanicGroup, GetPanicLine(*activeChar), 0.95f);
+                    characterReactionCooldowns[activeCharacterIndex] = 4.0f;
+                    break;
+                }
             }
         }
     }
@@ -1445,6 +1532,9 @@ void World::Update(const Camera& camera, float dt) {
                 const std::string speaker = GetSpeakerName(lastNpcDialogue);
                 const std::string neighborVoiceGroup = IsFemaleSpeaker(speaker) ? "npc_female" : "npc_male";
                 PlayVoiceLine(audioManager.get(), neighborVoiceGroup, lastNpcDialogue, 0.80f);
+                // mark the NPCs as conversing for a short time
+                npcs[npcIndex].StartConversation(4.0f);
+                npcs[otherNpcIndex].StartConversation(4.0f);
                 break;
             }
         }
@@ -1489,6 +1579,17 @@ void World::UpdateTimersAndCooldownsPhase(float dt) {
 
 void World::UpdateQuestAndInteractionPhase(float dt) {
     if (!questSystem) {
+        return;
+    }
+
+    // If it's night and the active character is exposed (not inside a talisman shelter),
+    // pause quest progression and cancel any active puzzles until morning.
+    Character* activeChar = GetActiveCharacter();
+    if (nightTime && activeChar && !IsProtectedByShelter(activeChar->transform.position)) {
+        if (puzzleManager.IsActive()) {
+            puzzleManager.CancelActivePuzzle();
+        }
+        // Skip quest updates while exposed at night
         return;
     }
 
@@ -1619,12 +1720,14 @@ void World::Render(const Camera& camera, float aspectRatio) {
         
         // Render NPCs
         for (const NPC& npc : npcs) {
-            RenderCharacterCube(gCharacterShader, gNpcMesh, camera, aspectRatio, npc.transform.position, glm::vec3(0.25f, 0.45f, 0.25f), npc.GetDebugColor());
+            RenderCharacterCube(gCharacterShader, gNpcMesh, camera, aspectRatio, npc.transform.position, glm::vec3(0.50f, 0.90f, 0.50f), npc.GetDebugColor());
         }
 
         // Render Enemies
-        for (const Enemy& enemy : enemies) {
-            RenderCharacterCube(gCharacterShader, gEnemyMesh, camera, aspectRatio, enemy.transform.position, glm::vec3(0.30f, 0.55f, 0.30f), enemy.GetDebugColor());
+        if (nightTime) {
+            for (const Enemy& enemy : enemies) {
+                RenderCharacterCube(gCharacterShader, gEnemyMesh, camera, aspectRatio, enemy.transform.position, glm::vec3(0.60f, 1.05f, 0.60f), enemy.GetDebugColor());
+            }
         }
 
         const Quest* activeQuest = nullptr;
@@ -1657,6 +1760,11 @@ void World::Render(const Camera& camera, float aspectRatio) {
                 continue;
             }
 
+            const bool isNightOnlyQuest = !nightTime && (activeQuestCharacter == CharacterType::Jade || activeQuestCharacter == CharacterType::Tabitha);
+            if (isNightOnlyQuest) {
+                continue;
+            }
+
             const bool isActiveStep = activeQuest && node.questObjectiveIndex == activeObjectiveIndex;
             const glm::vec3 offsetPosition = node.position;
             renderQuestBeacon(offsetPosition, isActiveStep && node.questObjectiveIndex >= 0);
@@ -1682,19 +1790,28 @@ void World::InitializePlaceholderWorldRules() {
     if (storyLocations.empty()) {
         // Spread story locations across the full map area
         storyLocations.push_back({"sheriff_station", glm::vec3(-9.0f, 0.0f, 8.0f), 3.0f});      // NW
-        storyLocations.push_back({"diner", glm::vec3(9.0f, 0.0f, 7.5f), 3.0f});                 // NE
+        storyLocations.push_back({"diner", glm::vec3(-35.0f, 0.0f, -35.0f), 3.0f});             // South-west edge
         storyLocations.push_back({"church", glm::vec3(-8.5f, 0.0f, -7.0f), 3.0f});              // SW
         storyLocations.push_back({"tunnel_entrance", glm::vec3(0.0f, 0.0f, -9.5f), 3.0f});      // South center
-        storyLocations.push_back({"colony_house", glm::vec3(9.5f, 0.0f, -8.5f), 3.0f});         // SE
+        storyLocations.push_back({"colony_house", glm::vec3(9.0f, 0.0f, 8.0f), 3.0f});         // Colony house (moved into visible area)
         storyLocations.push_back({"victor_hideout", glm::vec3(-11.0f, 0.0f, -1.0f), 3.0f});     // West
     }
 
     if (shelterZones.empty()) {
         // Shelter zones co-located with story locations
         shelterZones.push_back({"sheriff_station_shelter", glm::vec3(-9.0f, 0.0f, 8.0f), 3.0f, true, true});
-        shelterZones.push_back({"diner_shelter", glm::vec3(9.0f, 0.0f, 7.5f), 3.0f, true, true});
-        shelterZones.push_back({"colony_house_shelter", glm::vec3(9.5f, 0.0f, -8.5f), 3.0f, true, true});
+        shelterZones.push_back({"diner_shelter", glm::vec3(-35.0f, 0.0f, -35.0f), 3.0f, true, true});
+        shelterZones.push_back({"colony_house_shelter", glm::vec3(9.0f, 0.0f, 8.0f), 3.0f, true, true});
         shelterZones.push_back({"church_shelter", glm::vec3(-8.5f, 0.0f, -7.0f), 3.0f, true, true});
+        
+        // House shelters
+        shelterZones.push_back({"house_1_shelter", glm::vec3(-25.0f, 0.0f, 0.0f), 5.0f, true, true});
+        shelterZones.push_back({"house_2_shelter", glm::vec3(25.0f, 0.0f, 0.0f), 5.0f, true, true});
+        shelterZones.push_back({"house_3_shelter", glm::vec3(-25.0f, 0.0f, 20.0f), 5.0f, true, true});
+        shelterZones.push_back({"house_4_shelter", glm::vec3(25.0f, 0.0f, 20.0f), 5.0f, true, true});
+        shelterZones.push_back({"house_5_shelter", glm::vec3(-25.0f, 0.0f, -20.0f), 5.0f, true, true});
+        shelterZones.push_back({"house_6_shelter", glm::vec3(25.0f, 0.0f, -20.0f), 5.0f, true, true});
+        shelterZones.push_back({"house_7_shelter", glm::vec3(0.0f, 0.0f, 20.0f), 5.0f, true, true});
     }
 
     std::cout << "[World] Placeholder story locations and talisman shelter zones initialized.\n";
@@ -1754,7 +1871,28 @@ bool World::HandleInteractionOutcome(Character& activeChar, bool didInteract, co
         eventBus.Publish(InteractionTriggeredEvent{activeChar.GetType(), "world_interaction"});
 
         if (interactionSystem.HasLastQuestObjective()) {
-            SetActiveQuest(interactionSystem.GetLastInteractionQuestCharacter());
+            // Prevent starting/continuing quests or puzzles at night if the active character is exposed
+            if (nightTime && !IsProtectedByShelter(activeChar.transform.position)) {
+                lastInteractionFeedback = "Quests and puzzles are paused until morning.";
+                lastInteractionFeedbackTimer.Start(2.5f);
+                return true;
+            }
+
+            CharacterType questChar = interactionSystem.GetLastInteractionQuestCharacter();
+            
+            // Check day/night puzzle restrictions
+            if (nightTime && (questChar == CharacterType::Boyd || questChar == CharacterType::Victor)) {
+                lastInteractionFeedback = "It's too dangerous to focus on this at night.";
+                lastInteractionFeedbackTimer.Start(2.5f);
+                return true;
+            }
+            if (!nightTime && (questChar == CharacterType::Tabitha || questChar == CharacterType::Jade)) {
+                lastInteractionFeedback = "The clues only reveal themselves in the dark.";
+                lastInteractionFeedbackTimer.Start(2.5f);
+                return true;
+            }
+
+            SetActiveQuest(questChar);
 
             Quest* quest = questSystem->GetCharacterQuest(interactionSystem.GetLastInteractionQuestCharacter());
             const int objectiveIndex = interactionSystem.GetLastInteractionQuestObjectiveIndex();
@@ -1819,8 +1957,41 @@ bool World::TryActiveCharacterInteraction() {
         return false;
     }
 
+    if (TryCalmNearbyNpc(*activeChar)) {
+        return true;
+    }
+
+    if (nightTime && activeChar->GetType() == CharacterType::Victor) {
+        lastInteractionFeedback = "Victor needs to stay inside and sleep.";
+        lastInteractionFeedbackTimer.Start(2.5f);
+        return false;
+    }
+
     const bool didInteract = interactionSystem.TryInteract(*activeChar, *questSystem, hasActiveQuest, activeQuestCharacter);
     return HandleInteractionOutcome(*activeChar, didInteract, "[Interaction] Nothing nearby to interact with.");
+}
+
+bool World::TryActiveCharacterAbility() {
+    if (!questSystem) {
+        return false;
+    }
+
+    Character* activeChar = GetActiveCharacter();
+    if (!activeChar) {
+        return false;
+    }
+
+    if (activeChar->GetType() == CharacterType::Boyd && nightTime) {
+        if (TryCalmNearbyNpc(*activeChar)) {
+            activeChar->StartAbilityCooldown(8.0f);
+            return true;
+        }
+
+        return false;
+    }
+
+    activeChar->ActivateAbility();
+    return true;
 }
 
 bool World::TryActiveCharacterPickup() {
@@ -1835,6 +2006,27 @@ bool World::TryActiveCharacterPickup() {
 
     const bool didInteract = interactionSystem.TryPickup(*activeChar, *questSystem, hasActiveQuest, activeQuestCharacter);
     return HandleInteractionOutcome(*activeChar, didInteract, "[Interaction] Nothing nearby to pick up.");
+}
+
+bool World::TryCalmNearbyNpc(Character& activeChar) {
+    if (!nightTime || activeChar.GetType() != CharacterType::Boyd) {
+        return false;
+    }
+
+    for (NPC& npc : npcs) {
+        if (npc.GetFear() > 50.0f || npc.GetAIState() == NPCAIState::Panic) {
+            const float distance = HorizontalDistance(activeChar.transform.position, npc.transform.position);
+            if (distance < 3.0f) {
+                npc.SetThreatPosition(glm::vec3(0.0f), false);
+                std::cout << "[Boyd] Calmed down " << npc.GetName() << ".\n";
+                lastInteractionFeedback = "You calmed down " + npc.GetName() + ".";
+                lastInteractionFeedbackTimer.Start(2.5f);
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 std::string World::GetInteractionPrompt() const {
@@ -2137,6 +2329,10 @@ std::string World::GetQuestHelperText() const {
         return "";
     }
 
+    if (!nightTime && (questCharacter == CharacterType::Jade || questCharacter == CharacterType::Tabitha)) {
+        return "";
+    }
+
     const int nextObjectiveIndex = quest->GetNextIncompleteObjectiveIndex();
     const auto& objectives = quest->GetObjectives();
     if (nextObjectiveIndex < 0 || nextObjectiveIndex >= static_cast<int>(objectives.size())) {
@@ -2189,6 +2385,10 @@ std::string World::GetQuestWaypointText() const {
 
     const Quest* quest = questSystem->GetCharacterQuest(questCharacter);
     if (!quest || quest->IsComplete()) {
+        return "";
+    }
+
+    if (!nightTime && (questCharacter == CharacterType::Jade || questCharacter == CharacterType::Tabitha)) {
         return "";
     }
 
@@ -2305,12 +2505,20 @@ bool World::ConsumeSpawnRestartRequest() {
 void World::UpdateTimeOfDay(float dt) {
     worldClock += dt;
     constexpr float dayNightCycle = 120.0f;
+    constexpr float sunsetTime = 60.0f; // DayNightCycle starts at sunrise, so sunset is halfway through the loop.
     const float cyclePosition = std::fmod(worldClock, dayNightCycle);
     const bool wasNight = nightTime;
-    nightTime = cyclePosition >= 72.0f;
+    nightTime = cyclePosition >= sunsetTime;
     if (nightTime != wasNight) {
-        std::cout << (nightTime ? "[World] Night has fallen. Talisman shelters are active.\n"
+        std::cout << (nightTime ? "[World] Sunset falls. Talisman shelters are active.\n"
                                 : "[World] Morning breaks. Town routines resume.\n");
+        // Notify NPCs and enemies of time change
+        for (NPC& npc : npcs) {
+            npc.SetNight(nightTime);
+        }
+        for (Enemy& enemy : enemies) {
+            enemy.SetNight(nightTime);
+        }
     }
 }
 
@@ -2488,10 +2696,17 @@ void World::RenderObjects(const Camera& camera, float aspectRatio, const DayNigh
         wm.mesh.Draw();
     };
 
+    // Render all loaded house instances so the town actually shows multiple houses
     RenderBuilding(gHouseMesh, glm::vec3(-25.0f, 0, 0.0f), 90.0f, 1.0f);
     RenderBuilding(gHouseMesh, glm::vec3(25.0f, 0, 0.0f), -90.0f, 1.0f);
-    RenderBuilding(gDinnerMesh, glm::vec3(0.0f, 0, -40.0f), 0.0f, 2.0f);
-    RenderBuilding(gPoliceMesh, glm::vec3(0.0f, 0, 40.0f), 180.0f, 2.0f);
+    RenderBuilding(gHouseMesh, glm::vec3(-25.0f, 0, 20.0f), 90.0f, 1.0f);
+    RenderBuilding(gHouseMesh, glm::vec3(25.0f, 0, 20.0f), -90.0f, 1.0f);
+    RenderBuilding(gHouseMesh, glm::vec3(-25.0f, 0, -20.0f), 90.0f, 1.0f);
+    RenderBuilding(gHouseMesh, glm::vec3(25.0f, 0, -20.0f), -90.0f, 1.0f);
+    RenderBuilding(gHouseMesh, glm::vec3(0.0f, 0, 20.0f), 0.0f, 1.0f);
+    RenderBuilding(gDinnerMesh, glm::vec3(-35.0f, 0, -35.0f), 0.0f, 1.0f);
+    RenderBuilding(gHouseMesh, glm::vec3(9.0f, 0, 8.0f), 0.0f, 1.0f);
+    RenderBuilding(gPoliceMesh, glm::vec3(-9.0f, 0, 8.0f), 180.0f, 2.0f);
 
     // Render doors
     for (auto& door : doors) {
