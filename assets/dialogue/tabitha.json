@@ -1,0 +1,16 @@
+{
+  "id": "tabitha_conversation",
+  "title": "Tabitha",
+  "startNode": "start",
+  "nodes": [
+    {"id":"start","speaker":"Tabitha","voiceGroup":"npc_female","text":"The walls are breathing again. Not much. Just enough.","choices":[
+      {"id":"tunnel","text":"You found another route?","nextNodeId":"tunnel_reply","trustDelta":1},
+      {"id":"steady","text":"Keep breathing. Tell me what changed.","nextNodeId":"steady_reply","trustDelta":2},
+      {"id":"hidden","text":"Something moved under the house.","nextNodeId":"hidden_reply","trustDelta":0}
+    ]},
+    {"id":"tunnel_reply","speaker":"Tabitha","voiceGroup":"npc_female","text":"A narrow one. Fresh cut stone. Someone wanted it forgotten.","nextNodeId":"end","autoAdvance":true},
+    {"id":"steady_reply","speaker":"Tabitha","voiceGroup":"npc_female","text":"It stopped when I listened. That is the part I do not like.","nextNodeId":"end","autoAdvance":true},
+    {"id":"hidden_reply","speaker":"Tabitha","voiceGroup":"npc_female","text":"Then we do not go there alone.","nextNodeId":"end","autoAdvance":true},
+    {"id":"end","speaker":"Tabitha","voiceGroup":"npc_female","text":"If the house starts humming, leave the room. I mean that literally."}
+  ]
+}

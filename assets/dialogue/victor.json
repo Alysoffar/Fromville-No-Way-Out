@@ -1,0 +1,16 @@
+{
+  "id": "victor_conversation",
+  "title": "Victor",
+  "startNode": "start",
+  "nodes": [
+    {"id":"start","speaker":"Victor","voiceGroup":"npc_male","text":"I remembered a room. I wish I hadn't.","choices":[
+      {"id":"memory","text":"What did you see?","nextNodeId":"memory_reply","trustDelta":1},
+      {"id":"kind","text":"You don't have to say it all.","nextNodeId":"kind_reply","trustDelta":2},
+      {"id":"blunt","text":"Was someone there?","nextNodeId":"blunt_reply","trustDelta":0}
+    ]},
+    {"id":"memory_reply","speaker":"Victor","voiceGroup":"npc_male","text":"A table. A drawing. And someone pretending not to be afraid.","nextNodeId":"end","autoAdvance":true},
+    {"id":"kind_reply","speaker":"Victor","voiceGroup":"npc_male","text":"I know. It still hurts when I stop pretending.","nextNodeId":"end","autoAdvance":true},
+    {"id":"blunt_reply","speaker":"Victor","voiceGroup":"npc_male","text":"Yes. They told me not to look back.","nextNodeId":"end","autoAdvance":true},
+    {"id":"end","speaker":"Victor","voiceGroup":"npc_male","text":"If I remember more later, I will tell you. I just need a minute first."}
+  ]
+}
