@@ -20,6 +20,7 @@ public:
     bool LoadSound(const std::string& cueName, const std::string& filePath);
     bool HasSound(const std::string& cueName) const;
     bool PlaySound(const std::string& cueName, float gain = 1.0f);
+    void StopSound(const std::string& cueName);
 
 private:
     struct SoundInstance {

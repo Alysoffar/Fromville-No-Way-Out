@@ -30,6 +30,11 @@ void World::InitializeCharacters() {
         npcs.emplace_back("Mara", glm::vec3(-9.0f, 2.0f, 8.0f));
         npcs.emplace_back("Elena", glm::vec3(9.0f, 2.0f, 7.5f));
         npcs.emplace_back("Tom", glm::vec3(-8.5f, 2.0f, -7.0f));
+        npcs.emplace_back("Kenny", glm::vec3(-34.0f, 2.0f, -34.0f));
+        npcs.emplace_back("Kristi", glm::vec3(-10.0f, 2.0f, -2.0f));
+        npcs.emplace_back("Ellis", glm::vec3(10.0f, 2.0f, 9.0f));
+        npcs.emplace_back("Fatima", glm::vec3(8.0f, 2.0f, 9.0f));
+        npcs.emplace_back("Donna", glm::vec3(7.0f, 2.0f, 7.0f));
     }
     EnsureNpcDialogueCooldowns();
 
@@ -47,6 +52,11 @@ void World::InitializeCharacters() {
         // Keep enemies on the outskirts but close enough to see once night falls.
         enemies.emplace_back(glm::vec3(16.0f, 2.0f, 26.0f));
         enemies.emplace_back(glm::vec3(-18.0f, 2.0f, -24.0f));
+        enemies.emplace_back(glm::vec3(22.0f, 2.0f, -20.0f));
+        enemies.emplace_back(glm::vec3(-24.0f, 2.0f, 20.0f));
+        enemies.emplace_back(glm::vec3(10.0f, 2.0f, -28.0f));
+        enemies.emplace_back(glm::vec3(-15.0f, 2.0f, 26.0f));
+        enemies.emplace_back(glm::vec3(25.0f, 2.0f, -14.0f));
     }
 }
 
@@ -75,6 +85,14 @@ void World::SwitchCharacter(int index) {
         characters[previousIndex]->GetType(),
         characters[activeCharacterIndex]->GetType()
     });
+
+    if (questSystem) {
+        activeQuestCharacter = characters[activeCharacterIndex]->GetType();
+        const Quest* activeQuest = questSystem->GetCharacterQuest(activeQuestCharacter);
+        hasActiveQuest = activeQuest && !activeQuest->IsComplete() && !activeQuest->IsFailed();
+    } else {
+        hasActiveQuest = false;
+    }
 
     hasPreviousActivePosition = false;
     previousActivePosition = characters[activeCharacterIndex]->transform.position;

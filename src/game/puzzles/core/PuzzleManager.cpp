@@ -454,7 +454,7 @@ void PuzzleManager::Update(float dt, const InputContext& input) {
     }
 }
 
-void PuzzleManager::Render(TextRenderer& textRenderer, int screenWidth, int screenHeight) const {
+void PuzzleManager::Render(TextRenderer& textRenderer, int screenWidth, int screenHeight, bool isNight, float nightTimer) const {
     const float previousTextScale = textRenderer.GetScaleMultiplier();
     const float previousMinimumScale = textRenderer.GetMinimumScale();
     if (activePuzzle || solvedMessageTimer > 0.0f) {
@@ -468,7 +468,7 @@ void PuzzleManager::Render(TextRenderer& textRenderer, int screenWidth, int scre
         glDisable(GL_DEPTH_TEST);
 
         overlayShader.Bind();
-        overlayShader.SetFloat("uAlpha", 0.82f * overlayAlpha);
+        overlayShader.SetFloat("uAlpha", 0.88f * overlayAlpha);
         overlayShader.SetFloat("uInvestigationMode", activePuzzle ? 1.0f : 0.0f);
         overlayShader.SetFloat("uTerrorLevel", StoryManager::Instance().GetGlobalTension());
         overlayShader.SetFloat("uModalAge", modalAge);
@@ -487,7 +487,7 @@ void PuzzleManager::Render(TextRenderer& textRenderer, int screenWidth, int scre
         overlayShader.SetFloat("u_SymbolVisibility", symbolVis);
         overlayShader.SetFloat("u_SketchOverlayAlpha", sketchOverlayAlpha);
         overlayShader.SetFloat("u_InvisibilityDistortion", invisibilityDistortion);
-        overlayShader.SetVec3("uTint", glm::vec3(0.02f, 0.02f, 0.03f));
+        overlayShader.SetVec3("uTint", glm::vec3(0.015f, 0.015f, 0.022f));
         overlayMesh.Draw();
         overlayShader.Unbind();
 
@@ -495,88 +495,131 @@ void PuzzleManager::Render(TextRenderer& textRenderer, int screenWidth, int scre
     }
 
     if (activePuzzle) {
-        // Draw a centered modal UI box header and controls with distinct shapes
         const float centerX = static_cast<float>(screenWidth) * 0.5f;
-        const float topY = static_cast<float>(screenHeight) - 100.0f;
+        const float topY = static_cast<float>(screenHeight) - 80.0f;
         const std::string title = activePuzzle->GetTitle();
         const bool decayHints = StoryManager::Instance().ShouldDecayHintText();
         const std::string objective = decayHints && !hintText.empty() ? hintText : activePuzzle->GetClueText();
         const float jitter = decayHints ? std::sin(modalAge * 17.0f) * 6.0f : 0.0f;
         const PuzzleType puzzleType = GetPuzzleTypeForObjective(activeContext.questCharacter, activeContext.objectiveIndex, activeContext.subObjectiveIndex);
 
-        // ◆ PUZZLE HEADER (circle marker)
-        textRenderer.RenderText("◆ PUZZLE ◆", centerX - 200.0f + jitter, topY + 40.0f, 1.0f, glm::vec3(1.0f, 0.7f, 0.3f) * overlayAlpha, screenWidth, screenHeight);
+        // Predecessor premium colors
+        const glm::vec3 goldColor(1.0f, 0.72f, 0.18f);
+        const glm::vec3 whiteColor(0.95f, 0.95f, 0.92f);
+        const glm::vec3 greyColor(0.72f, 0.75f, 0.78f);
+        const glm::vec3 mutedColor(0.42f, 0.44f, 0.46f);
+        const glm::vec3 dangerColor(0.92f, 0.32f, 0.32f);
+        const glm::vec3 successColor(0.38f, 0.92f, 0.48f);
+
+        // 1. TOP HEADER PANEL (with diamonds and centered text)
+        std::string headerLabel = "♦  F R O M V I L L E   I N V E S T I G A T I O N  ♦";
+        float headerX = centerX - (static_cast<float>(headerLabel.length()) * 4.4f);
+        textRenderer.RenderText(headerLabel, headerX + jitter, topY + 45.0f, 0.72f, goldColor * overlayAlpha, screenWidth, screenHeight);
         
-        // Puzzle title (in center, spaced down)
-        textRenderer.RenderText(title, centerX - 280.0f + jitter, topY, 1.55f, glm::vec3(1.0f, 0.95f, 0.8f) * overlayAlpha, screenWidth, screenHeight);
-        
-        // Blank line for spacing
-        textRenderer.RenderText("", centerX, topY - 30.0f, 0.5f, glm::vec3(1.0f, 1.0f, 1.0f), screenWidth, screenHeight);
-        
-        // Objective / instructions (clearly labeled)
-        textRenderer.RenderText("INSTRUCTIONS:", centerX - 280.0f + jitter, topY - 50.0f, 0.88f, glm::vec3(0.9f, 0.9f, 0.7f) * overlayAlpha, screenWidth, screenHeight);
-        textRenderer.RenderText(objective, centerX - 280.0f + jitter, topY - 85.0f, 0.8f, glm::vec3(0.85f, 0.85f, 0.85f) * overlayAlpha, screenWidth, screenHeight);
-        
-        // Blank line for spacing
-        textRenderer.RenderText("", centerX, topY - 130.0f, 0.5f, glm::vec3(1.0f, 1.0f, 1.0f), screenWidth, screenHeight);
+        std::string topDivider = "──────────────────────────────────────────────────────";
+        float divX = centerX - (static_cast<float>(topDivider.length()) * 4.4f);
+        textRenderer.RenderText(topDivider, divX + jitter, topY + 30.0f, 0.72f, mutedColor * overlayAlpha, screenWidth, screenHeight);
 
-        // Controls line (diamond marker for distinction)
-        textRenderer.RenderText("◇ CONTROLS: [CTRL] = Show Controls  |  [ESC] = Close Puzzle", centerX - 280.0f + jitter, topY - 145.0f, 0.68f, glm::vec3(0.8f, 0.8f, 0.8f) * overlayAlpha, screenWidth, screenHeight);
+        // Centered Puzzle Name (huge & elegant)
+        float titleX = centerX - (static_cast<float>(title.length()) * 6.4f);
+        textRenderer.RenderText(title, titleX + jitter, topY - 5.0f, 1.25f, whiteColor * overlayAlpha, screenWidth, screenHeight);
 
-        if (showControls) {
-            const float helpX = centerX + 20.0f + jitter;
-            const float helpY = topY - 50.0f;
-            const glm::vec3 helpTitleColor(0.75f, 0.95f, 1.0f);
-            const glm::vec3 helpLineColor(0.9f, 0.9f, 0.84f);
+        // 2. NIGHT TIMER (if active)
+        if (isNight) {
+            float remaining = std::max(0.0f, 60.0f - nightTimer);
+            std::ostringstream timeStream;
+            timeStream << std::fixed << std::setprecision(1) << remaining << "s";
+            std::string timerText = "♦ BREACH TIME REMAINING: " + timeStream.str() + " ♦";
+            glm::vec3 timerCol = (remaining < 15.0f) ? dangerColor : goldColor;
+            
+            float timerX = centerX - (static_cast<float>(timerText.length()) * 5.2f);
+            textRenderer.RenderText(timerText, timerX + jitter, topY - 42.0f, 0.82f, timerCol * overlayAlpha, screenWidth, screenHeight);
 
-            textRenderer.RenderText("HELP / CONTROLS", helpX, helpY, 0.9f, helpTitleColor * overlayAlpha, screenWidth, screenHeight);
-            textRenderer.RenderText("GLOBAL", helpX, helpY - 26.0f, 0.56f, glm::vec3(1.0f, 0.75f, 0.35f) * overlayAlpha, screenWidth, screenHeight);
-            textRenderer.RenderText("[WASD] move", helpX, helpY - 54.0f, 0.52f, helpLineColor * overlayAlpha, screenWidth, screenHeight);
-            textRenderer.RenderText("[SPACE] jump", helpX, helpY - 80.0f, 0.52f, helpLineColor * overlayAlpha, screenWidth, screenHeight);
-            textRenderer.RenderText("[C] crouch   [SHIFT] sprint", helpX, helpY - 106.0f, 0.52f, helpLineColor * overlayAlpha, screenWidth, screenHeight);
-            textRenderer.RenderText("[E] interact  [F] pickup", helpX, helpY - 132.0f, 0.52f, helpLineColor * overlayAlpha, screenWidth, screenHeight);
-            textRenderer.RenderText("[Q] abandon quest   [1-5] switch character", helpX, helpY - 158.0f, 0.5f, helpLineColor * overlayAlpha, screenWidth, screenHeight);
+            // Timer Progress Bar
+            int totalSegments = 24;
+            int filledSegments = static_cast<int>((remaining / 60.0f) * totalSegments);
+            filledSegments = std::clamp(filledSegments, 0, totalSegments);
+            std::string progressStr = "[" + std::string(filledSegments, '=') + std::string(totalSegments - filledSegments, '.') + "]";
+            float progressX = centerX - (static_cast<float>(progressStr.length()) * 5.0f);
+            textRenderer.RenderText(progressStr, progressX + jitter, topY - 62.0f, 0.78f, timerCol * overlayAlpha, screenWidth, screenHeight);
 
-            textRenderer.RenderText("PUZZLE", helpX, helpY - 196.0f, 0.58f, glm::vec3(1.0f, 0.75f, 0.35f) * overlayAlpha, screenWidth, screenHeight);
-            textRenderer.RenderText("[CTRL] show / hide this sheet   [ESC] close puzzle", helpX, helpY - 224.0f, 0.5f, helpLineColor * overlayAlpha, screenWidth, screenHeight);
-
-            if (puzzleType == PuzzleType::JadeSymbolPuzzle) {
-                textRenderer.RenderText("JADE PUZZLE", helpX, helpY - 262.0f, 0.58f, glm::vec3(0.55f, 0.85f, 1.0f) * overlayAlpha, screenWidth, screenHeight);
-                textRenderer.RenderText("[A/D] azimuth", helpX, helpY - 290.0f, 0.5f, helpLineColor * overlayAlpha, screenWidth, screenHeight);
-                textRenderer.RenderText("[W/S] tilt", helpX, helpY - 316.0f, 0.5f, helpLineColor * overlayAlpha, screenWidth, screenHeight);
-                textRenderer.RenderText("[Q/E] focus", helpX, helpY - 342.0f, 0.5f, helpLineColor * overlayAlpha, screenWidth, screenHeight);
-                textRenderer.RenderText("[ENTER] or [SPACE] confirm", helpX, helpY - 368.0f, 0.5f, helpLineColor * overlayAlpha, screenWidth, screenHeight);
-                textRenderer.RenderText("[R] reset", helpX, helpY - 394.0f, 0.5f, helpLineColor * overlayAlpha, screenWidth, screenHeight);
+            if (remaining < 15.0f) {
+                std::string warnMsg = "[ CRITICAL WARNING: MONSTERS OUTSIDE ARE BREAKING IN! ]";
+                float warnX = centerX - (static_cast<float>(warnMsg.length()) * 4.2f);
+                float blink = 0.5f + 0.5f * std::sin(modalAge * 14.0f);
+                textRenderer.RenderText(warnMsg, warnX + jitter, topY - 82.0f, 0.58f, dangerColor * blink * overlayAlpha, screenWidth, screenHeight);
             }
         }
 
-        // Draw the puzzle itself with good spacing below
+        // 3. LEFT PANEL (Intel, Lore, and Objective metadata)
+        float leftX = 72.0f;
+        float leftY = static_cast<float>(screenHeight) - 220.0f;
+        textRenderer.RenderText("◇ INTEL & METADATA", leftX, leftY, 0.54f, goldColor * overlayAlpha, screenWidth, screenHeight);
+        textRenderer.RenderText("──────────────────────", leftX, leftY - 14.0f, 0.50f, mutedColor * overlayAlpha, screenWidth, screenHeight);
+        
+        // Clean wrapped/spaced objective text
+        textRenderer.RenderText("INSTRUCTION CLUE:", leftX, leftY - 40.0f, 0.48f, goldColor * overlayAlpha, screenWidth, screenHeight);
+        
+        // Render objective (wrap slightly or display cleanly)
+        if (objective.length() > 34) {
+            std::string line1 = objective.substr(0, 32) + "...";
+            std::string line2 = "..." + objective.substr(32);
+            textRenderer.RenderText(line1, leftX, leftY - 66.0f, 0.44f, whiteColor * overlayAlpha, screenWidth, screenHeight);
+            textRenderer.RenderText(line2, leftX, leftY - 88.0f, 0.44f, whiteColor * overlayAlpha, screenWidth, screenHeight);
+        } else {
+            textRenderer.RenderText(objective, leftX, leftY - 66.0f, 0.44f, whiteColor * overlayAlpha, screenWidth, screenHeight);
+        }
+
+        // 4. RIGHT PANEL (High-fidelity Keybind list, aligned to right column)
+        float rightX = static_cast<float>(screenWidth) - 340.0f;
+        float rightY = static_cast<float>(screenHeight) - 220.0f;
+        textRenderer.RenderText("◇ INVESTIGATION KEYMAP", rightX, rightY, 0.54f, goldColor * overlayAlpha, screenWidth, screenHeight);
+        textRenderer.RenderText("──────────────────────", rightX, rightY - 14.0f, 0.50f, mutedColor * overlayAlpha, screenWidth, screenHeight);
+
+        float bindY = rightY - 40.0f;
+        textRenderer.RenderText("[1 - 4] Choose Option", rightX, bindY, 0.48f, whiteColor * overlayAlpha, screenWidth, screenHeight);
+        textRenderer.RenderText("[ENTER] Submit Decipher", rightX, bindY - 24.0f, 0.48f, whiteColor * overlayAlpha, screenWidth, screenHeight);
+        textRenderer.RenderText("[ESC]   Steady Mind (Exit)", rightX, bindY - 48.0f, 0.48f, whiteColor * overlayAlpha, screenWidth, screenHeight);
+        textRenderer.RenderText("[R]     Reset Board", rightX, bindY - 72.0f, 0.48f, whiteColor * overlayAlpha, screenWidth, screenHeight);
+        textRenderer.RenderText("[CTRL]  Toggle Controls Overlay", rightX, bindY - 96.0f, 0.48f, whiteColor * overlayAlpha, screenWidth, screenHeight);
+
+        if (showControls) {
+            float helpY = rightY - 158.0f;
+            textRenderer.RenderText("◇ CHARACTER NAVIGATION", rightX, helpY, 0.50f, goldColor * overlayAlpha, screenWidth, screenHeight);
+            textRenderer.RenderText("[WASD]  Move Character", rightX, helpY - 24.0f, 0.44f, greyColor * overlayAlpha, screenWidth, screenHeight);
+            textRenderer.RenderText("[SPACE] Jump Obstacle", rightX, helpY - 44.0f, 0.44f, greyColor * overlayAlpha, screenWidth, screenHeight);
+            textRenderer.RenderText("[C]     Crouch / Stealth", rightX, helpY - 64.0f, 0.44f, greyColor * overlayAlpha, screenWidth, screenHeight);
+            textRenderer.RenderText("[1 - 5] Swap Active Hero", rightX, helpY - 84.0f, 0.44f, greyColor * overlayAlpha, screenWidth, screenHeight);
+        }
+
+        // Draw the puzzle itself (which handles its own beautiful centered layout)
         activePuzzle->Render(textRenderer, screenWidth, screenHeight, overlayAlpha);
 
-        // Unified big selector UI for puzzles that support selection
+        // Unified selector UI (highly optimized, centered selector brackets)
         const int sel = activePuzzle->GetSelectedIndex();
         if (sel >= 1 && sel <= 3) {
-            const float selY = static_cast<float>(screenHeight) * 0.6f;
+            const float selY = static_cast<float>(screenHeight) * 0.58f;
             const float selX = static_cast<float>(screenWidth) * 0.5f;
             const float boxSpacing = 120.0f;
             for (int i = 1; i <= 3; ++i) {
                 const bool isSel = (i == sel);
-                const glm::vec3 boxBg = isSel ? glm::vec3(0.16f, 0.12f, 0.08f) : glm::vec3(0.1f, 0.12f, 0.14f);
-                const glm::vec3 boxFg = isSel ? glm::vec3(1.0f, 0.9f, 0.75f) : glm::vec3(0.9f, 0.9f, 0.86f);
+                const glm::vec3 boxBg = isSel ? glm::vec3(0.24f, 0.18f, 0.08f) : glm::vec3(0.08f, 0.09f, 0.11f);
+                const glm::vec3 boxFg = isSel ? goldColor : greyColor;
                 const float x = selX + (static_cast<float>(i) - 2.0f) * boxSpacing;
+                
                 textRenderer.RenderText("[ ", x - 48.0f, selY + 18.0f, 2.4f, boxBg * overlayAlpha, screenWidth, screenHeight);
                 std::ostringstream label;
                 label << i;
                 textRenderer.RenderText(label.str(), x - 8.0f, selY - 12.0f, 2.6f, boxFg * overlayAlpha, screenWidth, screenHeight);
                 textRenderer.RenderText(" ]", x + 32.0f, selY + 18.0f, 2.4f, boxBg * overlayAlpha, screenWidth, screenHeight);
             }
-            textRenderer.RenderText("Press number keys to change selection", selX - 320.0f, selY + 120.0f, 0.7f, glm::vec3(0.92f,0.92f,0.88f) * overlayAlpha, screenWidth, screenHeight);
+            textRenderer.RenderText("Press number keys to swap your selection", selX - 160.0f, selY + 90.0f, 0.48f, greyColor * overlayAlpha, screenWidth, screenHeight);
         }
 
         if (overlayAlpha > 0.0f) {
             const std::string solvedBanner = "★ PUZZLE SOLVED ★";
             if (solvedMessageTimer > 0.0f) {
-                textRenderer.RenderText(solvedBanner, centerX - 220.0f, static_cast<float>(screenHeight) * 0.45f, 1.8f, glm::vec3(0.3f, 1.0f, 0.3f), screenWidth, screenHeight);
+                textRenderer.RenderText(solvedBanner, centerX - 180.0f, static_cast<float>(screenHeight) * 0.45f, 1.6f, successColor, screenWidth, screenHeight);
             }
         }
     }

@@ -37,6 +37,28 @@
 
 namespace {
 
+static glm::vec3 GetPrimaryWorkplace(const std::string& name) {
+    std::string lower = name;
+    std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c){ return std::tolower(c); });
+    
+    if (lower == "mara" || lower == "elena" || lower == "tom") {
+        return glm::vec3(-35.0f, 2.0f, -35.0f); // Diner
+    } else if (lower == "boyd" || lower == "kenny") {
+        return glm::vec3(-9.0f, 2.0f, 8.0f); // Sheriff Station
+    } else if (lower == "kristi" || lower == "sara") {
+        return glm::vec3(-10.0f, 2.0f, -2.0f); // Church/Clinic
+    } else if (lower == "ellis" || lower == "fatima" || lower == "donna") {
+        return glm::vec3(9.0f, 2.0f, 8.0f); // Colony House
+    } else if (lower == "victor") {
+        return glm::vec3(9.0f, 2.0f, 8.0f); // Colony House
+    } else if (lower == "jade") {
+        return glm::vec3(-11.0f, 2.0f, -1.0f); // Victor's Hideout
+    } else if (lower == "tabitha") {
+        return glm::vec3(-9.0f, 2.0f, 8.0f); // House near Sheriff Station
+    }
+    return glm::vec3(-35.0f, 2.0f, -35.0f); // Default to Diner
+}
+
 // ====== Terrain project: building mesh system ======
 struct WorldMesh {
     Mesh mesh;
@@ -1048,7 +1070,7 @@ void World::Initialize() {
     puzzleManager.Initialize();
     audioManager = std::make_unique<AudioManager>();
     if (audioManager->Initialize()) {
-        const std::array<std::pair<const char*, const char*>, 10> cueFiles = {{
+        const std::array<std::pair<const char*, const char*>, 11> cueFiles = {{
             {"puzzle_tick", "assets/audio/sfx/puzzle_tick.wav"},
             {"puzzle_complete", "assets/audio/sfx/puzzle_complete.wav"},
             {"puzzle_fail", "assets/audio/sfx/puzzle_fail.wav"},
@@ -1058,7 +1080,8 @@ void World::Initialize() {
             {"footstep_stone", "assets/audio/sfx/footsteps/footstep_stone.wav"},
             {"ambient_tension_low", "assets/audio/music/ambient_tension_low.wav"},
             {"ambient_tension_high", "assets/audio/music/ambient_tension_high.wav"},
-            {"cinematic_event_sting", "assets/audio/music/cinematic_event_sting.wav"}
+            {"cinematic_event_sting", "assets/audio/music/cinematic_event_sting.wav"},
+            {"intro_music", "assets/audio/music/The Pixies - Que Sera_ Sera (Whatever Will Be_ Will Be) - Lyrics_ Audio quality.wav"}
         }};
 
         for (const auto& [cueName, relativePath] : cueFiles) {
@@ -1070,7 +1093,6 @@ void World::Initialize() {
         }
 
         InitializeVoiceCueLibrary(*audioManager);
-        audioManager->PlaySound("ambient_tension_low", 0.30f);
     }
 
     puzzleManager.SetSoundHook([this](const std::string& cue) {
@@ -1208,10 +1230,103 @@ void World::Update(const Camera& camera, float dt) {
 
     UpdateWorldSystemsPhase(dt);
 
+    if (!puzzleManager.IsActive()) {
+        m_puzzleNightTimer = 0.0f;
+        m_puzzleTauntTimer = 0.0f;
+    }
+
     if (puzzleManager.IsActive()) {
         if (questSystem) {
             questSystem->Update(dt);
         }
+
+        // Handle special monster behavior during nighttime puzzles
+        if (nightTime) {
+            m_puzzleNightTimer += dt;
+            m_puzzleTauntTimer += dt;
+
+            Character* activeChar = GetActiveCharacter();
+            if (activeChar) {
+                // Update character damage cooldown
+                if (activeCharacterIndex >= 0 && activeCharacterIndex < 5) {
+                    characterDamageCooldowns[activeCharacterIndex] = std::max(0.0f, characterDamageCooldowns[activeCharacterIndex] - dt);
+                }
+
+                // Play taunts/screams periodically
+                if (m_puzzleTauntTimer >= 8.0f) {
+                    m_puzzleTauntTimer = 0.0f;
+                    lastMonsterScream = GetMonsterTauntLine(*activeChar, 10.0f, worldClock);
+                    monsterScreamDisplayTimer.Start(kScreamDisplayDuration);
+                    lastNpcDialogue = GetCharacterMonsterResponseLine(*activeChar, worldClock);
+                    npcDialogueDisplayTimer.Start(kNpcDialogueDisplayDuration);
+                    if (audioManager) {
+                        audioManager->PlaySound("cinematic_event_sting", 0.60f);
+                    }
+                    PlayVoiceLine(audioManager.get(), "monster", lastMonsterScream, 0.95f);
+                    PlayVoiceLine(audioManager.get(), "responses", lastNpcDialogue, 0.88f);
+                }
+
+                // Update enemies
+                for (Enemy& enemy : enemies) {
+                    EnemyPerception bestPerception;
+                    bestPerception.targetPosition = activeChar->transform.position;
+                    bestPerception.hasTarget = true;
+                    bestPerception.playerTarget = true;
+                    bestPerception.visible = true;
+                    bestPerception.proximity = 1.0f;
+                    bestPerception.sound = 1.0f;
+                    bestPerception.light = 1.0f;
+
+                    enemy.SetPerception(bestPerception);
+                    enemy.Update(dt);
+                    enemy.transform.position = ClampArenaPosition(enemy.transform.position);
+
+                    // Specific puzzle behavioral restrictions
+                    if (m_puzzleNightTimer < 60.0f) {
+                        // Safe period: Cannot go near the player (pushed back to at least 15.0f meters)
+                        glm::vec3 toPlayer = activeChar->transform.position - enemy.transform.position;
+                        toPlayer.y = 0.0f;
+                        float dist = glm::length(toPlayer);
+                        if (dist < 15.0f && dist > 0.001f) {
+                            enemy.transform.position = activeChar->transform.position - glm::normalize(toPlayer) * 15.0f;
+                        }
+                    } else {
+                        // Time ran out: Go near and attack the player!
+                        if (enemy.IsInAttackRange(activeChar->transform.position) && characterDamageCooldowns[activeCharacterIndex] <= 0.0f) {
+                            const float damageAmount = 20.0f;
+                            activeChar->TakeDamage(damageAmount);
+                            characterDamageCooldowns[activeCharacterIndex] = 1.5f;
+
+                            lastDamageAmount = damageAmount;
+                            lastDamageDisplayTimer.Start(kDamageDisplayDuration);
+                            if (audioManager) {
+                                audioManager->PlaySound("player_hurt", 0.90f);
+                            }
+
+                            const float distance = HorizontalDistance(activeChar->transform.position, enemy.transform.position);
+                            lastMonsterScream = GetMonsterScreamLine(static_cast<int>(enemies.size()), distance);
+                            monsterScreamDisplayTimer.Start(kScreamDisplayDuration);
+                            PlayVoiceLine(audioManager.get(), "monster", lastMonsterScream, 0.95f);
+
+                            std::cout << "[Puzzle Attack] Monster attacks player during puzzle! HP: " << activeChar->GetHealth() << "\n";
+
+                            // Cancel/fail the puzzle since the player got attacked!
+                            puzzleManager.CancelActivePuzzle();
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Still tick standard display feedback timers
+            monsterScreamDisplayTimer.Tick(dt);
+            lastDamageDisplayTimer.Tick(dt);
+            npcDialogueDisplayTimer.Tick(dt);
+        } else {
+            m_puzzleNightTimer = 0.0f;
+            m_puzzleTauntTimer = 0.0f;
+        }
+
         return;
     }
 
@@ -1627,15 +1742,22 @@ void World::UpdateQuestAndInteractionPhase(float dt) {
         return;
     }
 
-    // If it's night and the active character is exposed (not inside a talisman shelter),
-    // pause quest progression and cancel any active puzzles until morning, unless started before night.
+    // Time-gated quest/puzzle rules:
+    // - Boyd and Victor: day-only (paused at night)
+    // - Jade and Tabitha: night-only (paused during day)
     Character* activeChar = GetActiveCharacter();
-    if (nightTime && activeChar && !IsProtectedByShelter(activeChar->transform.position) && !m_puzzleStartedBeforeNight) {
-        if (puzzleManager.IsActive()) {
-            puzzleManager.CancelActivePuzzle();
+    if (activeChar) {
+        const CharacterType activeType = activeChar->GetType();
+        const bool pauseForTimeWindow =
+            (nightTime && (activeType == CharacterType::Boyd || activeType == CharacterType::Victor)) ||
+            (!nightTime && (activeType == CharacterType::Jade || activeType == CharacterType::Tabitha));
+
+        if (pauseForTimeWindow) {
+            if (puzzleManager.IsActive()) {
+                puzzleManager.CancelActivePuzzle();
+            }
+            return;
         }
-        // Skip quest updates while exposed at night
-        return;
     }
 
     questSystem->Update(dt);
@@ -1951,13 +2073,6 @@ bool World::HandleInteractionOutcome(Character& activeChar, bool didInteract, co
                 return true;
             }
 
-            // Prevent starting/continuing quests or puzzles at night if the active character is exposed
-            if (nightTime && !IsProtectedByShelter(activeChar.transform.position)) {
-                lastInteractionFeedback = "Quests and puzzles are paused until morning.";
-                lastInteractionFeedbackTimer.Start(2.5f);
-                return true;
-            }
-
             SetActiveQuest(questChar);
 
             Quest* quest = questSystem->GetCharacterQuest(interactionSystem.GetLastInteractionQuestCharacter());
@@ -2026,12 +2141,6 @@ bool World::TryActiveCharacterInteraction() {
 
     if (TryCalmNearbyNpc(*activeChar)) {
         return true;
-    }
-
-    if (nightTime && activeChar->GetType() == CharacterType::Victor) {
-        lastInteractionFeedback = "Victor needs to stay inside and sleep.";
-        lastInteractionFeedbackTimer.Start(2.5f);
-        return false;
     }
 
     const bool didInteract = interactionSystem.TryInteract(*activeChar, *questSystem, hasActiveQuest, activeQuestCharacter);
@@ -2533,10 +2642,10 @@ void World::UpdatePuzzle(float dt, const InputContext& input) {
 }
 
 void World::RenderPuzzleOverlay(TextRenderer& textRenderer, int screenWidth, int screenHeight) const {
-    puzzleManager.Render(textRenderer, screenWidth, screenHeight);
+    puzzleManager.Render(textRenderer, screenWidth, screenHeight, nightTime, m_puzzleNightTimer);
 }
 
-void World::RenderNarrativeOverlays(TextRenderer& textRenderer, int screenWidth, int screenHeight) const {
+void World::RenderNarrativeOverlays(TextRenderer& textRenderer, int screenWidth, int screenHeight, bool showDiagnostics) const {
     const AtmosphereManager& atmosphere = AtmosphereManager::Instance();
     const float tension = atmosphere.GetGlobalTension();
     const float corruption = atmosphere.GetCorruptionLevel();
@@ -2546,16 +2655,77 @@ void World::RenderNarrativeOverlays(TextRenderer& textRenderer, int screenWidth,
     const float mercy = MoralCorruptionSystem::Instance().GetMercyScore();
     const float vengeance = MoralCorruptionSystem::Instance().GetVengeanceScore();
 
-    std::ostringstream line1;
-    line1 << "TENSION " << static_cast<int>(tension * 100.0f) << "%  CORRUPTION " << static_cast<int>(corruption * 100.0f) << "%";
-    std::ostringstream line2;
-    line2 << "DECODING " << static_cast<int>(symbolProgress * 100.0f) << "%  MAPPING " << static_cast<int>(tunnelProgress * 100.0f) << "%";
-    std::ostringstream line3;
-    line3 << "TRAUMA " << static_cast<int>(trauma * 100.0f) << "%  MERCY " << static_cast<int>(mercy * 100.0f) << "%  REVENGE " << static_cast<int>(vengeance * 100.0f) << "%";
+    if (showDiagnostics) {
+        float x = 50.0f;
+        float startY = static_cast<float>(screenHeight) / 2.0f + 160.0f;
+        glm::vec3 goldColor = glm::vec3(1.0f, 0.72f, 0.18f);
+        glm::vec3 whiteColor = glm::vec3(0.95f, 0.96f, 0.98f);
+        glm::vec3 greyColor = glm::vec3(0.55f, 0.58f, 0.62f);
 
-    textRenderer.RenderText(line1.str(), 24.0f, 34.0f, 0.42f, glm::vec3(0.80f, 0.92f, 1.0f), screenWidth, screenHeight);
-    textRenderer.RenderText(line2.str(), 24.0f, 56.0f, 0.42f, glm::vec3(0.86f, 0.78f, 1.0f), screenWidth, screenHeight);
-    textRenderer.RenderText(line3.str(), 24.0f, 78.0f, 0.38f, glm::vec3(1.0f, 0.72f, 0.58f), screenWidth, screenHeight);
+        textRenderer.RenderText("┌────────────────────────────────────────────────────────────┐", x, startY, 0.46f, goldColor, screenWidth, screenHeight);
+        textRenderer.RenderText("│         ♦  SYSTEM DIAGNOSTICS & BIOMETRIC TELEMETRY  ♦     │", x, startY - 20.0f, 0.46f, goldColor, screenWidth, screenHeight);
+        textRenderer.RenderText("├────────────────────────────────────────────────────────────┤", x, startY - 40.0f, 0.46f, goldColor, screenWidth, screenHeight);
+
+        // Global Tension
+        int tensionPct = static_cast<int>(tension * 100.0f);
+        std::string tensionBar = "│  GLOBAL TENSION:  [";
+        int tFilled = tensionPct / 5;
+        for (int i = 0; i < 20; ++i) tensionBar += (i < tFilled) ? "I" : ".";
+        tensionBar += "] " + std::to_string(tensionPct) + "%";
+        while (tensionBar.length() < 61) tensionBar += " ";
+        tensionBar += "│";
+        textRenderer.RenderText(tensionBar, x, startY - 65.0f, 0.44f, whiteColor, screenWidth, screenHeight);
+
+        // Corruption Level
+        int corruptionPct = static_cast<int>(corruption * 100.0f);
+        std::string corruptionBar = "│  CORRUPTION:      [";
+        int cFilled = corruptionPct / 5;
+        for (int i = 0; i < 20; ++i) corruptionBar += (i < cFilled) ? "I" : ".";
+        corruptionBar += "] " + std::to_string(corruptionPct) + "%";
+        while (corruptionBar.length() < 61) corruptionBar += " ";
+        corruptionBar += "│";
+        textRenderer.RenderText(corruptionBar, x, startY - 85.0f, 0.44f, whiteColor, screenWidth, screenHeight);
+
+        // Trauma Level
+        int traumaPct = static_cast<int>(trauma * 100.0f);
+        std::string traumaBar = "│  TRAUMA INDEX:    [";
+        int trFilled = traumaPct / 5;
+        for (int i = 0; i < 20; ++i) traumaBar += (i < trFilled) ? "I" : ".";
+        traumaBar += "] " + std::to_string(traumaPct) + "%";
+        while (traumaBar.length() < 61) traumaBar += " ";
+        traumaBar += "│";
+        textRenderer.RenderText(traumaBar, x, startY - 105.0f, 0.44f, glm::vec3(1.0f, 0.35f, 0.35f), screenWidth, screenHeight);
+
+        // Decoding Progress
+        int decPct = static_cast<int>(symbolProgress * 100.0f);
+        std::string decBar = "│  SYMBOL DECODING: [";
+        int dFilled = decPct / 5;
+        for (int i = 0; i < 20; ++i) decBar += (i < dFilled) ? "I" : ".";
+        decBar += "] " + std::to_string(decPct) + "%";
+        while (decBar.length() < 61) decBar += " ";
+        decBar += "│";
+        textRenderer.RenderText(decBar, x, startY - 135.0f, 0.44f, glm::vec3(0.86f, 0.78f, 1.0f), screenWidth, screenHeight);
+
+        // Tunnel Mapping Progress
+        int mapPct = static_cast<int>(tunnelProgress * 100.0f);
+        std::string mapBar = "│  TUNNEL MAPPING:  [";
+        int mFilled = mapPct / 5;
+        for (int i = 0; i < 20; ++i) mapBar += (i < mFilled) ? "I" : ".";
+        mapBar += "] " + std::to_string(mapPct) + "%";
+        while (mapBar.length() < 61) mapBar += " ";
+        mapBar += "│";
+        textRenderer.RenderText(mapBar, x, startY - 155.0f, 0.44f, glm::vec3(0.7f, 0.95f, 1.0f), screenWidth, screenHeight);
+
+        // Mercy & Revenge Score
+        int mercyPct = static_cast<int>(mercy * 100.0f);
+        int vengeancePct = static_cast<int>(vengeance * 100.0f);
+        std::string moralStr = "│  MERCY SYNERGY: " + std::to_string(mercyPct) + "%  |  VENGEANCE INDEX: " + std::to_string(vengeancePct) + "%";
+        while (moralStr.length() < 61) moralStr += " ";
+        moralStr += "│";
+        textRenderer.RenderText(moralStr, x, startY - 185.0f, 0.44f, greyColor, screenWidth, screenHeight);
+
+        textRenderer.RenderText("└────────────────────────────────────────────────────────────┘", x, startY - 205.0f, 0.46f, goldColor, screenWidth, screenHeight);
+    }
 
     AtmosphereManager::Instance().Render(textRenderer, screenWidth, screenHeight);
     MemoryReplaySystem::Instance().Render();
@@ -2572,6 +2742,13 @@ void World::RestartFromSpawn() {
     lastInteractionFeedbackTimer.Start(2.5f);
 }
 
+void World::AdvanceWorldClock(float seconds) {
+    worldClock += seconds;
+    // Re-evaluate day/night immediately
+    UpdateTimeOfDay(0.0f);
+    std::cout << "[World] Debug: advanced world clock by " << seconds << "s. worldClock=" << worldClock << "\n";
+}
+
 bool World::ConsumeSpawnRestartRequest() {
     const bool requested = spawnRestartRequested;
     spawnRestartRequested = false;
@@ -2586,6 +2763,24 @@ void World::UpdateTimeOfDay(float dt) {
     const bool wasNight = nightTime;
     nightTime = cyclePosition >= sunsetTime;
     if (nightTime != wasNight) {
+        auto findClosestDoor = [this](const glm::vec3& position) -> const Door* {
+            if (doors.empty()) {
+                return nullptr;
+            }
+
+            const Door* bestDoor = &doors.front();
+            float bestDistance = HorizontalDistance(position, bestDoor->GetInsidePosition());
+            for (const Door& door : doors) {
+                const float distance = HorizontalDistance(position, door.GetInsidePosition());
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    bestDoor = &door;
+                }
+            }
+
+            return bestDoor;
+        };
+
         std::cout << (nightTime ? "[World] Sunset falls. Talisman shelters are active.\n"
                                 : "[World] Morning breaks. Town routines resume.\n");
         // Notify NPCs and enemies of time change
@@ -2594,6 +2789,49 @@ void World::UpdateTimeOfDay(float dt) {
         }
         for (Enemy& enemy : enemies) {
             enemy.SetNight(nightTime);
+        }
+
+        if (nightTime) {
+            Character* activeChar = GetActiveCharacter();
+            for (auto& character : characters) {
+                if (!character) {
+                    continue;
+                }
+                if (character.get() == activeChar) {
+                    std::cout << "[World] Nightfall: Active character " << character->GetName() << " remains outside.\n";
+                    continue;
+                }
+                const Door* closestDoor = findClosestDoor(character->transform.position);
+                if (closestDoor) {
+                    character->SetPositionAndResetPhysics(closestDoor->GetInsidePosition());
+                } else {
+                    const glm::vec3 shelterCenter = GetNearestShelterCenter(character->transform.position);
+                    character->SetPositionAndResetPhysics(shelterCenter);
+                }
+            }
+
+            for (NPC& npc : npcs) {
+                const Door* closestDoor = findClosestDoor(npc.transform.position);
+                if (closestDoor) {
+                    npc.SetPositionAndResetPhysics(closestDoor->GetInsidePosition());
+                } else {
+                    const glm::vec3 shelterCenter = GetNearestShelterCenter(npc.transform.position);
+                    npc.SetPositionAndResetPhysics(shelterCenter);
+                }
+                npc.SetNight(true);
+            }
+
+            hasPreviousActivePosition = false;
+            previousActivePosition = glm::vec3(0.0f);
+            std::cout << "[World] Nightfall respawn: characters and NPCs moved to shelter.\n";
+        } else {
+            for (NPC& npc : npcs) {
+                const Door* closestDoor = findClosestDoor(npc.transform.position);
+                if (closestDoor) {
+                    npc.SetPositionAndResetPhysics(closestDoor->GetOutsidePosition());
+                }
+                npc.SetNight(false);
+            }
         }
     }
 }
@@ -2605,43 +2843,86 @@ void World::UpdateOffscreenCharacters(float dt) {
         }
 
         Character& character = *characters[i];
-        const glm::vec3 goal = nightTime ? GetNearestShelterCenter(character.transform.position)
-                                         : GetCharacterStoryGoal(character.GetType());
+        glm::vec3 goal = GetCharacterStoryGoal(character.GetType());
+        if (!nightTime && !storyLocations.empty()) {
+            std::string charName = character.GetName();
+            glm::vec3 workplace = GetPrimaryWorkplace(charName);
+            
+            // Stagger cycle offset so they switch states at different times!
+            int totalCycleSeconds = 50; 
+            int cycleOffset = static_cast<int>(i) * 12;
+            int timeInCycle = (static_cast<int>(worldClock) + cycleOffset) % totalCycleSeconds;
+            
+            if (timeInCycle < 35) {
+                // WORK state: stay near workplace
+                int subInterval = timeInCycle / 10;
+                float angle = static_cast<float>(subInterval) * 1.57f + static_cast<float>(i) * 0.8f;
+                float dist = 2.0f + static_cast<float>(i % 3) * 0.75f;
+                goal = workplace + glm::vec3(std::cos(angle) * dist, 0.0f, std::sin(angle) * dist);
+            } else {
+                // CHORE state: visit a random other building!
+                int locIndex = (static_cast<int>(i) + timeInCycle) % storyLocations.size();
+                glm::vec3 choreTarget = storyLocations[locIndex].center;
+                if (glm::distance(choreTarget, workplace) < 4.0f) {
+                    choreTarget = storyLocations[(locIndex + 1) % storyLocations.size()].center;
+                }
+                goal = choreTarget;
+            }
+        } else if (nightTime) {
+            const glm::vec3 shelterCenter = GetNearestShelterCenter(character.transform.position);
+            const float phase = worldClock * 0.32f + static_cast<float>(i) * 1.7f;
+            const float roamRadius = 2.1f + 0.35f * static_cast<float>(i % 3);
+            goal = shelterCenter + glm::vec3(
+                std::cos(phase) * roamRadius,
+                0.0f,
+                std::sin(phase * 1.13f) * roamRadius);
+        }
 
         glm::vec3 toGoal = goal - character.transform.position;
         toGoal.y = 0.0f;
-
-        bool wantsToMove = (glm::length(toGoal) > 0.55f);
+        const float distanceToGoal = glm::length(toGoal);
+        const float arrivalRadius = nightTime ? 0.65f : 0.55f;
+        const bool wantsToMove = distanceToGoal > arrivalRadius;
         glm::vec3 startPos = character.transform.position;
 
         if (wantsToMove) {
+            glm::vec3 moveDirection = toGoal / distanceToGoal;
+
             if (character.GetWanderTimer() > 0.0f) {
-                character.GetWanderTimer() -= dt;
+                character.GetWanderTimer() = std::max(0.0f, character.GetWanderTimer() - dt);
 
-                float angle = character.GetWanderAngle();
-                glm::vec3 wanderDir(std::sin(angle), 0.0f, std::cos(angle));
-                wanderDir = glm::normalize(wanderDir);
-
-                // Slower wander speed (2.0f for playable characters)
-                float defaultMoveSpeedScaled = character.GetMoveSpeed() * 0.6f;
-                float scale = 2.0f / defaultMoveSpeedScaled;
-                character.Move(wanderDir.x * scale, wanderDir.z * scale, dt);
-                character.transform.rotation.y = glm::degrees(std::atan2(wanderDir.x, wanderDir.z));
-                character.SetCurrentSpeed(2.0f);
-            } else {
-                glm::vec3 direction = glm::normalize(toGoal);
-                character.Move(direction.x, direction.z, dt);
-                character.transform.rotation.y = glm::degrees(std::atan2(direction.x, direction.z));
-                character.SetCurrentSpeed(character.GetMoveSpeed() * 0.6f);
+                glm::vec3 wanderDir(std::sin(character.GetWanderAngle()), 0.0f, std::cos(character.GetWanderAngle()));
+                if (glm::length(wanderDir) > 0.001f) {
+                    moveDirection = glm::normalize(wanderDir);
+                }
             }
 
-            // Stuck detection
+            const float baseSpeed = character.GetMoveSpeed() * 0.6f;
+            const float maxStep = baseSpeed * dt;
+            float moveScale = 1.0f;
+            if (maxStep > 0.0001f) {
+                moveScale = glm::clamp(distanceToGoal / maxStep, 0.0f, 1.0f);
+            }
+
+            character.Move(moveDirection.x * moveScale, moveDirection.z * moveScale, dt);
+            if (glm::length(moveDirection) > 0.001f) {
+                float targetAngle = glm::degrees(std::atan2(moveDirection.x, moveDirection.z));
+                float currentAngle = character.transform.rotation.y;
+                float diff = targetAngle - currentAngle;
+                while (diff < -180.0f) diff += 360.0f;
+                while (diff > 180.0f) diff -= 360.0f;
+                character.transform.rotation.y = currentAngle + diff * glm::clamp(8.0f * dt, 0.0f, 1.0f);
+            }
+            character.SetCurrentSpeed(baseSpeed * moveScale);
+
             float distMoved = glm::length(glm::vec3(character.transform.position.x - startPos.x, 0.0f, character.transform.position.z - startPos.z));
-            if (distMoved < dt * 0.05f) {
+            if (distMoved < dt * 0.1f) {
                 character.GetStuckTimer() += dt;
                 if (character.GetStuckTimer() > character.GetStuckThreshold()) {
-                    character.GetWanderAngle() = static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * 2.0f * glm::pi<float>();
-                    character.GetWanderTimer() = character.GetWanderChangeInterval();
+                    float desiredAngle = std::atan2(toGoal.x, toGoal.z);
+                    float sideSign = ((rand() % 2) == 0) ? 1.0f : -1.0f;
+                    character.GetWanderAngle() = desiredAngle + sideSign * (3.14159f * 0.5f); // 90 degrees offset
+                    character.GetWanderTimer() = 0.50f; // Wander sideways for 0.50 seconds
                     character.GetStuckTimer() = 0.0f;
                 }
             } else {
@@ -2649,7 +2930,13 @@ void World::UpdateOffscreenCharacters(float dt) {
             }
         } else {
             character.GetStuckTimer() = 0.0f;
-            character.SetCurrentSpeed(0.0f);
+            if (!nightTime) {
+                character.GetWanderTimer() = 0.0f;
+                character.SetCurrentSpeed(0.0f);
+            } else {
+                character.GetWanderTimer() = 0.25f;
+                character.SetCurrentSpeed(character.GetMoveSpeed() * 0.18f);
+            }
         }
 
         character.GetLastPosition() = character.transform.position;
@@ -2722,13 +3009,24 @@ glm::vec3 World::GetCharacterStoryGoal(CharacterType type) const {
 bool World::MoveCharacterToward(Character& character, const glm::vec3& target, float dt) {
     glm::vec3 direction = target - character.transform.position;
     direction.y = 0.0f;
-    if (glm::length(direction) <= 0.55f) {
+    const float distance = glm::length(direction);
+    if (distance <= 0.55f || dt <= 0.0f) {
+        character.SetCurrentSpeed(0.0f);
         return false;
     }
 
-    direction = glm::normalize(direction);
-    character.Move(direction.x, direction.z, dt);
+    direction = direction / distance;
+
+    const float baseSpeed = character.GetMoveSpeed() * 0.6f;
+    const float maxStep = baseSpeed * dt;
+    float moveScale = 1.0f;
+    if (maxStep > 0.0001f) {
+        moveScale = glm::clamp(distance / maxStep, 0.0f, 1.0f);
+    }
+
+    character.Move(direction.x * moveScale, direction.z * moveScale, dt);
     character.transform.rotation.y = glm::degrees(std::atan2(direction.x, direction.z));
+    character.SetCurrentSpeed(baseSpeed * moveScale);
     return true;
 }
 
@@ -2849,13 +3147,13 @@ void World::TryInteract() {
         bool nearDoor = (dist < 3.0f) || (isInsideBuilding && distInside < 3.0f);
         if (nearDoor) {
             if (isInsideBuilding) {
-                activeChar->transform.position = door.GetOutsidePosition();
+                activeChar->SetPositionAndResetPhysics(door.GetOutsidePosition());
                 isInsideBuilding = false;
                 door.Interact();
                 std::cout << "[World] Exited building: " << door.GetName() << "\n";
             } else {
                 previousOutsidePosition = charPos;
-                activeChar->transform.position = door.GetInsidePosition();
+                activeChar->SetPositionAndResetPhysics(door.GetInsidePosition());
                 isInsideBuilding = true;
                 door.Interact();
                 std::cout << "[World] Entered building: " << door.GetName() << "\n";
@@ -2883,9 +3181,9 @@ void World::TryExit() {
     }
     
     if (closestDoor) {
-        activeChar->transform.position = closestDoor->GetOutsidePosition();
+        activeChar->SetPositionAndResetPhysics(closestDoor->GetOutsidePosition());
     } else {
-        activeChar->transform.position = previousOutsidePosition;
+        activeChar->SetPositionAndResetPhysics(previousOutsidePosition);
     }
     isInsideBuilding = false;
     std::cout << "[World] Exited building.\n";

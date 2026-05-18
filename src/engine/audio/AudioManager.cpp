@@ -199,3 +199,16 @@ bool AudioManager::PlaySound(const std::string& cueName, float gain) {
     alSourcePlay(source);
     return true;
 }
+
+void AudioManager::StopSound(const std::string& cueName) {
+    if (!initialized) {
+        return;
+    }
+    auto found = sounds.find(cueName);
+    if (found != sounds.end()) {
+        SoundInstance& instance = found->second;
+        if (instance.loaded && instance.source != 0) {
+            alSourceStop(instance.source);
+        }
+    }
+}

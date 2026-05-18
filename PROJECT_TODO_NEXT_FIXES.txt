@@ -119,4 +119,8 @@ Execution order (recommended)
 Done marker
 - As each section is fixed, append a line:
   - [DONE] Section #X — <date> — <note>
+- [DONE] Section #1 — 2026-05-18 — Quest UI now follows the active character on switch
+- [DONE] Section #2 — 2026-05-18 — Offscreen character movement now uses smoother arrival and stuck recovery
+- [DONE] Section #3 — 2026-05-18 — Nightfall now respawns characters and NPCs to shelter with physics reset
+- [DONE] Section #4 — 2026-05-18 — Day/night lighting now matches the world clock and horizon boundaries
 

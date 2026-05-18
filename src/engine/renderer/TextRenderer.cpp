@@ -22,7 +22,7 @@ std::string ToUpperAscii(std::string value) {
 }
 
 TextRenderer::TextRenderer()
-	: shader("HUDText") {
+	: shader("HUDText"), whiteTextureID(0) {
 }
 
 TextRenderer::~TextRenderer() {
@@ -39,6 +39,11 @@ void TextRenderer::Destroy() {
 	}
 	glyphs.clear();
 
+	if (whiteTextureID != 0) {
+		glDeleteTextures(1, &whiteTextureID);
+		whiteTextureID = 0;
+	}
+
 	if (vbo != 0) {
 		glDeleteBuffers(1, &vbo);
 		vbo = 0;
@@ -52,10 +57,10 @@ void TextRenderer::Destroy() {
 
 std::string TextRenderer::ResolveFontPath() {
 	const std::array<std::filesystem::path, 4> candidates = {
+		std::filesystem::path("C:/Windows/Fonts/georgia.ttf"),
+		std::filesystem::path("C:/Windows/Fonts/times.ttf"),
 		std::filesystem::path("C:/Windows/Fonts/segoeui.ttf"),
-		std::filesystem::path("C:/Windows/Fonts/arial.ttf"),
-		std::filesystem::path("C:/Windows/Fonts/calibri.ttf"),
-		std::filesystem::path("C:/Windows/Fonts/tahoma.ttf")
+		std::filesystem::path("C:/Windows/Fonts/arial.ttf")
 	};
 
 	for (const auto& candidate : candidates) {
@@ -133,7 +138,18 @@ bool TextRenderer::Initialize(const std::string& fontPath, unsigned int pixelSiz
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
 
-	ready = !glyphs.empty() && vao != 0 && vbo != 0;
+	// Generate a 1x1 solid white texture for rendering solid background planes
+	unsigned char whitePixel[] = { 255 };
+	glGenTextures(1, &whiteTextureID);
+	glBindTexture(GL_TEXTURE_2D, whiteTextureID);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, 1, 1, 0, GL_RED, GL_UNSIGNED_BYTE, whitePixel);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	ready = !glyphs.empty() && vao != 0 && vbo != 0 && whiteTextureID != 0;
 	if (!ready) {
 		Destroy();
 		std::cerr << "[HUD] Text renderer not ready\n";
@@ -142,7 +158,7 @@ bool TextRenderer::Initialize(const std::string& fontPath, unsigned int pixelSiz
 	return ready;
 }
 
-void TextRenderer::RenderText(const std::string& inputText, float x, float y, float scale, glm::vec3 color, int screenWidth, int screenHeight) {
+void TextRenderer::RenderText(const std::string& inputText, float x, float y, float scale, glm::vec3 color, int screenWidth, int screenHeight, float alpha) {
 	if (!ready || inputText.empty()) {
 		return;
 	}
@@ -158,6 +174,7 @@ void TextRenderer::RenderText(const std::string& inputText, float x, float y, fl
 	shader.Bind();
 	shader.SetMat4("projection", projection);
 	shader.SetVec3("textColor", color);
+	shader.SetFloat("textAlpha", alpha);
 	shader.SetInt("text", 0);
 
 	glActiveTexture(GL_TEXTURE0);
@@ -199,6 +216,45 @@ void TextRenderer::RenderText(const std::string& inputText, float x, float y, fl
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		x += static_cast<float>(glyph.advance >> 6) * scale;
 	}
+
+	glBindVertexArray(0);
+	glBindTexture(GL_TEXTURE_2D, 0);
+	shader.Unbind();
+	glEnable(GL_DEPTH_TEST);
+}
+
+void TextRenderer::RenderQuad(float x, float y, float w, float h, glm::vec3 color, int screenWidth, int screenHeight) {
+	if (!ready || whiteTextureID == 0) {
+		return;
+	}
+
+	const glm::mat4 projection = glm::ortho(0.0f, static_cast<float>(screenWidth), 0.0f, static_cast<float>(screenHeight));
+
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glDisable(GL_DEPTH_TEST);
+
+	shader.Bind();
+	shader.SetMat4("projection", projection);
+	shader.SetVec3("textColor", color);
+	shader.SetInt("text", 0);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, whiteTextureID);
+	glBindVertexArray(vao);
+
+	const float vertices[6][4] = {
+		{x,     y + h, 0.0f, 0.0f},
+		{x,     y,     0.0f, 1.0f},
+		{x + w, y,     1.0f, 1.0f},
+		{x,     y + h, 0.0f, 0.0f},
+		{x + w, y,     1.0f, 1.0f},
+		{x + w, y + h, 1.0f, 0.0f}
+	};
+
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
+	glDrawArrays(GL_TRIANGLES, 0, 6);
 
 	glBindVertexArray(0);
 	glBindTexture(GL_TEXTURE_2D, 0);

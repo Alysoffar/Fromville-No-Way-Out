@@ -30,6 +30,7 @@ public:
     virtual void ReleaseJump();
     virtual void Crouch(bool crouch);
     virtual void Sprint(bool sprint);
+    void SetPositionAndResetPhysics(const glm::vec3& position);
     virtual glm::vec3 GetDebugColor() const;
     bool IsCrouching() const { return isCrouching; }
     bool IsSprinting() const { return isSprinting; }
@@ -58,7 +59,10 @@ public:
 
 protected:
     // Current state variables
+    float velocityX = 0.0f;
+    float velocityZ = 0.0f;
     float velocityY = 0.0f;
+    bool wasMoveCalledThisFrame = false;
     bool isGrounded = true;
     bool isCrouching = false;
     bool isSprinting = false;

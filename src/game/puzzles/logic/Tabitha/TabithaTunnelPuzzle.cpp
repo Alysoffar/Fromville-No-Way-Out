@@ -111,41 +111,59 @@ void TabithaTunnelPuzzle::Update(float dt, const InputContext& input) {
 }
 
 void TabithaTunnelPuzzle::Render(TextRenderer& textRenderer, int screenWidth, int screenHeight, float alpha) const {
-    const float topY = static_cast<float>(screenHeight) * 0.18f;
+    const float centerX = static_cast<float>(screenWidth) * 0.5f;
+    const float baseY = static_cast<float>(screenHeight) * 0.28f;
     const glm::vec3 titleColor(0.82f, 0.95f, 0.72f);
     const glm::vec3 warnColor(1.0f, 0.8f, 0.5f);
     const glm::vec3 calmColor(0.7f, 0.95f, 1.0f);
+    const glm::vec3 okColor(0.65f, 1.0f, 0.7f);
 
-    textRenderer.RenderText(GetTitle(), 72.0f, topY, 0.72f, titleColor * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText(title, 72.0f, topY + 34.0f, 0.34f, warnColor * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText(clue, 72.0f, topY + 62.0f, 0.32f, calmColor * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText("Track the fake breath signature before it leads you into the dark.", 72.0f, topY + 96.0f, 0.32f, warnColor * alpha, screenWidth, screenHeight);
+    // Left Panel status & paranoia
+    const float leftPanelX = 72.0f;
+    const float leftPanelY = static_cast<float>(screenHeight) - 340.0f;
 
-    const VoiceSample& sample = samples[static_cast<std::size_t>(currentSample)];
-    textRenderer.RenderText("Sample " + std::to_string(currentSample + 1) + ": " + sample.speaker, 72.0f, topY + 142.0f, 0.40f, titleColor * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText("Line: " + sample.line, 72.0f, topY + 178.0f, 0.32f, calmColor * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText("Breath: " + sample.breathPattern, 72.0f, topY + 210.0f, 0.32f, warnColor * alpha, screenWidth, screenHeight);
-
-    for (int i = 0; i < 4; ++i) {
-        const glm::vec3 color = (selectedSuspect == i) ? glm::vec3(1.0f, 0.96f, 0.5f) : calmColor;
-        const std::string mark = identified[static_cast<std::size_t>(i)] ? " [MIMIC FOUND]" : "";
-        textRenderer.RenderText(std::to_string(i + 1) + ". " + samples[static_cast<std::size_t>(i)].speaker + mark,
-                                72.0f, topY + 256.0f + static_cast<float>(i) * 28.0f, 0.31f, color * alpha, screenWidth, screenHeight);
-    }
-
-    textRenderer.RenderText("Correct mimics: " + std::to_string(correctIdentifications) + "/" + std::to_string(MimicCount()), 72.0f, static_cast<float>(screenHeight) - 160.0f, 0.36f, titleColor * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText("Paranoia: " + std::string(static_cast<int>(paranoia * 20.0f), '!'), 72.0f, static_cast<float>(screenHeight) - 128.0f, 0.32f, warnColor * alpha, screenWidth, screenHeight);
+    textRenderer.RenderText("◇ MIMIC DETECTION", leftPanelX, leftPanelY, 0.54f, warnColor * alpha, screenWidth, screenHeight);
+    textRenderer.RenderText("──────────────────────", leftPanelX, leftPanelY - 14.0f, 0.50f, glm::vec3(0.5f) * alpha, screenWidth, screenHeight);
+    
+    textRenderer.RenderText("Mimics Exposed: " + std::to_string(correctIdentifications) + "/" + std::to_string(MimicCount()), leftPanelX, leftPanelY - 40.0f, 0.52f, titleColor * alpha, screenWidth, screenHeight);
+    textRenderer.RenderText("Paranoia: " + std::string(static_cast<int>(paranoia * 20.0f), '!'), leftPanelX, leftPanelY - 76.0f, 0.52f, warnColor * alpha, screenWidth, screenHeight);
 
     if (!statusLine.empty() && statusTimer > 0.0f) {
-        textRenderer.RenderText(statusLine, 72.0f, static_cast<float>(screenHeight) - 92.0f, 0.34f, warnColor * alpha, screenWidth, screenHeight);
+        textRenderer.RenderText("AUDIO LOGS:", leftPanelX, leftPanelY - 140.0f, 0.50f, calmColor * alpha, screenWidth, screenHeight);
+        textRenderer.RenderText(statusLine, leftPanelX, leftPanelY - 164.0f, 0.46f, warnColor * alpha, screenWidth, screenHeight);
     }
 
-    if (solved) {
-        textRenderer.RenderText("THE MIMIC LOSES ITS HOLD ON THE SURVIVOR VOICES", 72.0f, static_cast<float>(screenHeight) * 0.82f, 0.42f, titleColor * alpha, screenWidth, screenHeight);
-    }
+    // Centered active voice sample and multiple-choice list
+    if (!solved) {
+        const VoiceSample& sample = samples[static_cast<std::size_t>(currentSample)];
+        std::string sampleTitle = "◇ ACTIVE AUDIO SAMPLE ◇";
+        float titleX = centerX - (static_cast<float>(sampleTitle.length()) * 5.0f);
+        textRenderer.RenderText(sampleTitle, titleX, baseY + 180.0f, 0.65f, titleColor * alpha, screenWidth, screenHeight);
 
-    textRenderer.RenderText("[1-4] choose voice  [ENTER] accuse mimic  [ESC] steady yourself  [R] restart",
-                           72.0f, static_cast<float>(screenHeight) - 42.0f, 0.30f, calmColor * alpha, screenWidth, screenHeight);
+        std::string speakerStr = "Speaker: " + sample.speaker;
+        float speakerX = centerX - (static_cast<float>(speakerStr.length()) * 5.0f);
+        textRenderer.RenderText(speakerStr, speakerX, baseY + 140.0f, 0.54f, titleColor * alpha, screenWidth, screenHeight);
+
+        std::string lineStr = "\"" + sample.line + "\"";
+        float lineX = centerX - (static_cast<float>(lineStr.length()) * 4.5f);
+        textRenderer.RenderText(lineStr, lineX, baseY + 106.0f, 0.52f, calmColor * alpha, screenWidth, screenHeight);
+
+        std::string breathStr = "Breath Rhythm: " + sample.breathPattern;
+        float breathX = centerX - (static_cast<float>(breathStr.length()) * 4.5f);
+        textRenderer.RenderText(breathStr, breathX, baseY + 76.0f, 0.52f, warnColor * alpha, screenWidth, screenHeight);
+
+        // Options centered below
+        float optionsY = baseY + 20.0f;
+        for (int i = 0; i < 4; ++i) {
+            const glm::vec3 color = (selectedSuspect == i) ? glm::vec3(1.0f, 0.96f, 0.5f) : calmColor;
+            const std::string mark = identified[static_cast<std::size_t>(i)] ? " [MIMIC FOUND]" : "";
+            std::string optionText = std::to_string(i + 1) + ". " + samples[static_cast<std::size_t>(i)].speaker + mark;
+            float optX = centerX - 120.0f;
+            textRenderer.RenderText(optionText, optX, optionsY - static_cast<float>(i) * 26.0f, 0.52f, color * alpha, screenWidth, screenHeight);
+        }
+    } else {
+        textRenderer.RenderText("★ SIGNAL SECURED ★", centerX - 140.0f, baseY + 40.0f, 1.25f, okColor * alpha, screenWidth, screenHeight);
+    }
 }
 
 std::string TabithaTunnelPuzzle::SerializeState() const {

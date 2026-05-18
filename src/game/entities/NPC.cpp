@@ -12,6 +12,28 @@
 #include <algorithm>
 #include <cctype>
 
+static glm::vec3 GetPrimaryWorkplace(const std::string& name) {
+    std::string lower = name;
+    std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c){ return std::tolower(c); });
+    
+    if (lower == "mara" || lower == "elena" || lower == "tom") {
+        return glm::vec3(-35.0f, 2.0f, -35.0f); // Diner
+    } else if (lower == "boyd" || lower == "kenny") {
+        return glm::vec3(-9.0f, 2.0f, 8.0f); // Sheriff Station
+    } else if (lower == "kristi" || lower == "sara") {
+        return glm::vec3(-10.0f, 2.0f, -2.0f); // Church/Clinic
+    } else if (lower == "ellis" || lower == "fatima" || lower == "donna") {
+        return glm::vec3(9.0f, 2.0f, 8.0f); // Colony House
+    } else if (lower == "victor") {
+        return glm::vec3(9.0f, 2.0f, 8.0f); // Colony House
+    } else if (lower == "jade") {
+        return glm::vec3(-11.0f, 2.0f, -1.0f); // Victor's Hideout
+    } else if (lower == "tabitha") {
+        return glm::vec3(-9.0f, 2.0f, 8.0f); // House near Sheriff Station
+    }
+    return glm::vec3(-35.0f, 2.0f, -35.0f); // Default to Diner
+}
+
 NPC::NPC(std::string displayName, glm::vec3 home)
     : Entity(std::move(displayName)), homePosition(home) {
     transform.position = homePosition;
@@ -21,8 +43,23 @@ NPC::NPC(std::string displayName, glm::vec3 home)
 void NPC::LoadDeferredMesh() {
     std::string lowerName = name;
     std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(), [](unsigned char c){ return std::tolower(c); });
-    LoadMesh("assets/models/characters/" + lowerName + "/" + lowerName + ".fbx",
-             "assets/models/characters/" + lowerName + "/" + lowerName + "_Walking.fbx");
+    
+    // Map missing NPC assets to existing character/NPC folders in assets/models/characters/
+    std::string modelName = lowerName;
+    if (lowerName == "kenny") {
+        modelName = "tom";
+    } else if (lowerName == "kristi") {
+        modelName = "mara";
+    } else if (lowerName == "ellis") {
+        modelName = "jade";
+    } else if (lowerName == "fatima") {
+        modelName = "elena";
+    } else if (lowerName == "donna") {
+        modelName = "tabitha";
+    }
+
+    LoadMesh("assets/models/characters/" + modelName + "/" + modelName + ".fbx",
+             "assets/models/characters/" + modelName + "/" + modelName + "_Walking.fbx");
 }
 
 void NPC::Update(float dt) {
@@ -90,17 +127,66 @@ void NPC::Update(float dt) {
             BuildRoute();
         }
 
+        // State update using routineTimer as countdown and routeIndex as state selector:
+        // - routeIndex % 2 == 0: WORK state. Stay near workplace.
+        // - routeIndex % 2 == 1: CHORE state. Travel to another POI.
+
+        if (routineTimer <= 0.0f) {
+            // Switch state!
+            routeIndex++;
+            if (routeIndex % 2 == 0) {
+                // Switch to WORK: stay at workplace for 25 to 40 seconds
+                routineTimer = 25.0f + static_cast<float>(rand() % 15);
+                // Choose a random spot near workplace
+                glm::vec3 workplace = GetPrimaryWorkplace(name);
+                float angle = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * 2.0f * 3.14159f;
+                float dist = 2.0f + (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * 4.5f;
+                targetGoal = workplace + glm::vec3(std::cos(angle) * dist, 0.0f, std::sin(angle) * dist);
+            } else {
+                // Switch to CHORE: choose a random other POI to visit for 15 to 25 seconds
+                routineTimer = 15.0f + static_cast<float>(rand() % 10);
+                if (!poiPoints.empty()) {
+                    glm::vec3 workplace = GetPrimaryWorkplace(name);
+                    std::vector<glm::vec3> validPois;
+                    for (const auto& p : poiPoints) {
+                        if (glm::distance(p, workplace) > 5.0f) {
+                            validPois.push_back(p);
+                        }
+                    }
+                    if (!validPois.empty()) {
+                        targetGoal = validPois[rand() % validPois.size()];
+                    } else {
+                        targetGoal = poiPoints[rand() % poiPoints.size()];
+                    }
+                } else {
+                    targetGoal = GetPrimaryWorkplace(name);
+                }
+            }
+            routeWaitRemaining = 0.5f + static_cast<float>(rand() % 3) * 0.4f;
+            wantsToMove = false;
+        } else {
+            routineTimer -= dt;
+        }
+
         if (routeWaitRemaining > 0.0f) {
             routeWaitRemaining -= dt;
+            wantsToMove = false;
         } else {
-            targetGoal = GetCurrentRouteTarget();
-            glm::vec3 toTarget = targetGoal - transform.position;
-            toTarget.y = 0.0f;
-
-            if (glm::length(toTarget) < 0.4f) {
-                AdvanceRoute();
-                routeWaitRemaining = 0.65f + static_cast<float>(routeIndex % 3) * 0.35f;
-            } else if (glm::length(toTarget) > 0.001f) {
+            float distToGoal = glm::distance(transform.position, targetGoal);
+            if (distToGoal < 0.55f) {
+                if (routeIndex % 2 == 0) {
+                    // Pick another spot near workplace to simulate active tasks!
+                    glm::vec3 workplace = GetPrimaryWorkplace(name);
+                    float angle = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * 2.0f * 3.14159f;
+                    float dist = 2.0f + (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * 4.5f;
+                    targetGoal = workplace + glm::vec3(std::cos(angle) * dist, 0.0f, std::sin(angle) * dist);
+                    routeWaitRemaining = 1.0f + static_cast<float>(rand() % 3) * 0.5f;
+                } else {
+                    // Chore completed! Set routineTimer to 0 to trigger WORK state switch
+                    routineTimer = 0.0f;
+                }
+                wantsToMove = false;
+            } else {
                 wantsToMove = true;
             }
         }
@@ -109,38 +195,55 @@ void NPC::Update(float dt) {
     glm::vec3 startPos = transform.position;
 
     if (wantsToMove) {
+        glm::vec3 direction = targetGoal - transform.position;
+        direction.y = 0.0f;
+        if (glm::length(direction) > 0.001f) {
+            direction = glm::normalize(direction);
+        }
+
         // Stuck mitigation logic
         if (wanderTimer > 0.0f) {
             wanderTimer -= dt;
 
             // Wandering direction XZ plane
             glm::vec3 wanderDir(std::sin(wanderAngle), 0.0f, std::cos(wanderAngle));
-            wanderDir = glm::normalize(wanderDir);
+            if (glm::length(wanderDir) > 0.001f) {
+                wanderDir = glm::normalize(wanderDir);
+            }
 
-            // Slower wander speed (1.2f for NPCs)
-            float defaultMoveSpeedScaled = GetMoveSpeed() * 0.6f;
-            float scale = 1.2f / defaultMoveSpeedScaled;
-            Move(wanderDir.x * scale, wanderDir.z * scale, dt);
-            transform.rotation.y = glm::degrees(std::atan2(wanderDir.x, wanderDir.z));
-            SetCurrentSpeed(1.2f);
+            Move(wanderDir.x, wanderDir.z, dt);
+            if (glm::length(wanderDir) > 0.001f) {
+                float targetAngle = glm::degrees(std::atan2(wanderDir.x, wanderDir.z));
+                float currentAngle = transform.rotation.y;
+                float diff = targetAngle - currentAngle;
+                while (diff < -180.0f) diff += 360.0f;
+                while (diff > 180.0f) diff -= 360.0f;
+                transform.rotation.y = currentAngle + diff * glm::clamp(8.0f * dt, 0.0f, 1.0f);
+            }
+            SetCurrentSpeed(GetMoveSpeed() * 0.6f);
         } else {
-            // Standard direct path toward targetGoal
-            glm::vec3 direction = targetGoal - transform.position;
-            direction.y = 0.0f;
-            direction = glm::normalize(direction);
-
             Move(direction.x, direction.z, dt);
-            transform.rotation.y = glm::degrees(std::atan2(direction.x, direction.z));
+            if (glm::length(direction) > 0.001f) {
+                float targetAngle = glm::degrees(std::atan2(direction.x, direction.z));
+                float currentAngle = transform.rotation.y;
+                float diff = targetAngle - currentAngle;
+                while (diff < -180.0f) diff += 360.0f;
+                while (diff > 180.0f) diff -= 360.0f;
+                transform.rotation.y = currentAngle + diff * glm::clamp(8.0f * dt, 0.0f, 1.0f);
+            }
             SetCurrentSpeed(GetMoveSpeed() * 0.6f);
         }
 
         // Stuck detection
         float distMoved = glm::length(glm::vec3(transform.position.x - startPos.x, 0.0f, transform.position.z - startPos.z));
-        if (distMoved < dt * 0.05f) {
+        if (distMoved < dt * 0.1f) {
             stuckTimer += dt;
             if (stuckTimer > stuckThreshold) {
-                wanderAngle = static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * 2.0f * glm::pi<float>();
-                wanderTimer = wanderChangeInterval;
+                // Determine a bypass angle 90 degrees to the left or right of our desired direction
+                float desiredAngle = std::atan2(direction.x, direction.z);
+                float sideSign = ((rand() % 2) == 0) ? 1.0f : -1.0f;
+                wanderAngle = desiredAngle + sideSign * (3.14159f * 0.5f); // 90 degrees offset
+                wanderTimer = 0.50f; // Wander sideways for 0.50 seconds to clear the obstacle
                 stuckTimer = 0.0f;
             }
         } else {
@@ -210,6 +313,12 @@ void NPC::SetNight(bool night) {
     nightMode = night;
     if (nightMode) {
         routeWaitRemaining = 0.0f;
+        wanderAngle = static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * 2.0f * glm::pi<float>();
+    } else {
+        aiState = NPCAIState::Routine;
+        routeWaitRemaining = 0.0f;
+        stuckTimer = 0.0f;
+        wanderTimer = 0.0f;
     }
 }
 
@@ -258,34 +367,11 @@ glm::vec3 NPC::GetDebugColor() const {
 
 void NPC::BuildRoute() {
     routePoints.clear();
-
-    const float lateral = 2.4f + static_cast<float>(homePosition.x * 0.1f);
-    const float depth = 2.0f + static_cast<float>(homePosition.z * 0.1f);
-
-    routePoints.push_back(homePosition + glm::vec3(-lateral, 0.0f, 0.8f));
-    routePoints.push_back(homePosition + glm::vec3(-0.8f, 0.0f, depth));
-    routePoints.push_back(homePosition + glm::vec3(lateral, 0.0f, 0.4f));
-    routePoints.push_back(homePosition + glm::vec3(0.6f, 0.0f, -depth));
-    routePoints.push_back(homePosition + glm::vec3(-1.2f, 0.0f, -0.5f));
-
+    routePoints.push_back(GetPrimaryWorkplace(name));
+    
     routeIndex = 0;
-    routineTimer = 0.0f;
-    routeWaitRemaining = 0.35f;
-
-    // If there are town POIs, mix a few into the route for daytime wandering
-    if (!poiPoints.empty()) {
-        // pick up to 3 nearest POIs
-        std::vector<std::pair<float, glm::vec3>> distances;
-        for (const auto& p : poiPoints) {
-            float d = glm::length(p - homePosition);
-            distances.emplace_back(d, p);
-        }
-        std::sort(distances.begin(), distances.end(), [](const auto& a, const auto& b){ return a.first < b.first; });
-        const size_t take = std::min<size_t>(3, distances.size());
-        for (size_t i = 0; i < take; ++i) {
-            routePoints.push_back(distances[i].second);
-        }
-    }
+    routineTimer = 0.0f; // Force initial state switch
+    routeWaitRemaining = 0.5f;
 }
 
 void NPC::AdvanceRoute() {

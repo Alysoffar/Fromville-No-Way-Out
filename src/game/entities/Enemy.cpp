@@ -158,7 +158,7 @@ float Enemy::GetMoveSpeed() const {
         case EnemyAIState::Patrol: return 1.35f;
         case EnemyAIState::Investigate: return 1.95f;
         case EnemyAIState::Stalk: return 1.45f;
-        case EnemyAIState::Chase: return 3.15f;
+        case EnemyAIState::Chase: return 1.65f;
         case EnemyAIState::Torment: return 0.9f;
         case EnemyAIState::Attack: return 0.0f;
     }

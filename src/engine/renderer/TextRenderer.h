@@ -14,7 +14,8 @@ public:
 	~TextRenderer();
 
 	bool Initialize(const std::string& fontPath, unsigned int pixelSize = 30);
-	void RenderText(const std::string& text, float x, float y, float scale, glm::vec3 color, int screenWidth, int screenHeight);
+	void RenderText(const std::string& text, float x, float y, float scale, glm::vec3 color, int screenWidth, int screenHeight, float alpha = 1.0f);
+	void RenderQuad(float x, float y, float w, float h, glm::vec3 color, int screenWidth, int screenHeight);
 	void SetScaleMultiplier(float multiplier) { scaleMultiplier = multiplier; }
 	float GetScaleMultiplier() const { return scaleMultiplier; }
 	void SetMinimumScale(float minimum) { minimumScale = minimum; }
@@ -33,6 +34,7 @@ private:
 	Shader shader;
 	unsigned int vao = 0;
 	unsigned int vbo = 0;
+	unsigned int whiteTextureID = 0;
 	std::unordered_map<char, Glyph> glyphs;
 	bool ready = false;
 	float scaleMultiplier = 1.0f;

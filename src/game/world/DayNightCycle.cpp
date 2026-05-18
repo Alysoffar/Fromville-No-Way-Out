@@ -5,7 +5,7 @@
 #include <glm/gtc/constants.hpp>
 
 DayNightCycle::DayNightCycle(float cycleSpeedSeconds)
-    : dayTime(0.25f)  // start at sunrise
+    : dayTime(0.375f)  // start at bright morning
     , cycleSpeed(1.0f / cycleSpeedSeconds)
     , cycleSeconds(cycleSpeedSeconds)
 {
@@ -18,29 +18,29 @@ void DayNightCycle::update(float deltaTime) {
 }
 
 void DayNightCycle::syncToWorldClock(float worldClockSeconds) {
-    const float cyclePosition = std::fmod(worldClockSeconds, cycleSeconds);
+    float cyclePosition = std::fmod(worldClockSeconds, cycleSeconds);
+    if (cyclePosition < 0.0f) {
+        cyclePosition += cycleSeconds;
+    }
+
     dayTime = 0.25f + (cyclePosition / cycleSeconds);
     dayTime -= std::floor(dayTime);
 }
 
 glm::vec3 DayNightCycle::getSunDirection() const {
-    // Map dayTime [0,1] to an angle [0, 2*PI]
-    // dayTime 0.0 = midnight, 0.25 = sunrise, 0.5 = noon, 0.75 = sunset
-    float angle = dayTime * 2.0f * glm::pi<float>();
+    // Map dayTime so 0.25 = sunrise, 0.5 = noon, 0.75 = sunset, 0.0 = midnight.
+    float angle = (dayTime - 0.25f) * 2.0f * glm::pi<float>();
     float y = std::sin(angle);
     float x = std::cos(angle);
     return glm::normalize(glm::vec3(x, y, 0.3f));
 }
 
 float DayNightCycle::getDayFactor() const {
-    // Sun is above horizon when Y component of direction is positive
-    // dayTime: 0.0=midnight, 0.25=sunrise, 0.5=noon, 0.75=sunset
-    float angle = dayTime * 2.0f * glm::pi<float>();
+    // Daylight intensity is based on the sun being above the horizon.
+    // 0.25=sunrise, 0.5=noon, 0.75=sunset.
+    float angle = (dayTime - 0.25f) * 2.0f * glm::pi<float>();
     float sunY = std::sin(angle);
-
-    // Smooth transition: map sunY from [-1,1] to [0,1] with a smooth curve
-    float factor = glm::clamp(sunY * 2.0f + 0.5f, 0.0f, 1.0f);
-    return factor;
+    return glm::smoothstep(0.0f, 1.0f, glm::clamp(sunY, 0.0f, 1.0f));
 }
 
 glm::vec3 DayNightCycle::getLightColor() const {
@@ -71,9 +71,10 @@ glm::vec3 DayNightCycle::getFogColor() const {
 
 glm::vec3 DayNightCycle::getActiveLightDir() const {
     glm::vec3 sunDir = getSunDirection();
-    float factor = getDayFactor();
-    // During day, use sun direction; during night, flip to moonlight
-    if (factor > 0.3f) {
+    float angle = (dayTime - 0.25f) * 2.0f * glm::pi<float>();
+    float sunY = std::sin(angle);
+    // During day, use sun direction; during night, flip to moonlight.
+    if (sunY > 0.0f) {
         return sunDir;
     } else {
         return -sunDir;

@@ -91,61 +91,58 @@ void JadeSymbolPuzzle::Update(float dt, const InputContext& input) {
 }
 
 void JadeSymbolPuzzle::Render(TextRenderer& textRenderer, int screenWidth, int screenHeight, float alpha) const {
-    const float baseY = static_cast<float>(screenHeight) * 0.18f;
+    const float centerX = static_cast<float>(screenWidth) * 0.5f;
+    const float baseY = static_cast<float>(screenHeight) * 0.28f;
     const glm::vec3 titleColor(0.8f, 0.95f, 1.0f);
     const glm::vec3 warnColor(1.0f, 0.82f, 0.42f);
     const glm::vec3 okColor(0.65f, 1.0f, 0.7f);
 
-    textRenderer.RenderText(GetTitle(), 72.0f, baseY, 0.88f, titleColor * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText(title, 72.0f, baseY + 34.0f, 0.46f, warnColor * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText(clue, 72.0f, baseY + 62.0f, 0.42f, okColor * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText("Fragment " + std::to_string(currentFragment + 1) + " / 4", 72.0f, baseY + 108.0f, 0.46f, warnColor * alpha, screenWidth, screenHeight);
+    // Left Panel status
+    const float leftPanelX = 72.0f;
+    const float leftPanelY = static_cast<float>(screenHeight) - 340.0f;
 
+    textRenderer.RenderText("◇ TRANSLATION STATUS", leftPanelX, leftPanelY, 0.54f, warnColor * alpha, screenWidth, screenHeight);
+    textRenderer.RenderText("──────────────────────", leftPanelX, leftPanelY - 14.0f, 0.50f, glm::vec3(0.5f) * alpha, screenWidth, screenHeight);
+    textRenderer.RenderText("Progress: Fragment " + std::to_string(currentFragment + 1) + " / 4", leftPanelX, leftPanelY - 40.0f, 0.52f, titleColor * alpha, screenWidth, screenHeight);
+    
+    const float pressureRatio = std::clamp(pressure / 100.0f, 0.0f, 1.0f);
+    textRenderer.RenderText("Decipher Pressure:", leftPanelX, leftPanelY - 76.0f, 0.52f, warnColor * alpha, screenWidth, screenHeight);
+    textRenderer.RenderText("[" + std::string(static_cast<int>(pressureRatio * 20.0f), '#') + std::string(20 - static_cast<int>(pressureRatio * 20.0f), '-') + "]",
+                           leftPanelX, leftPanelY - 100.0f, 0.54f, warnColor * alpha, screenWidth, screenHeight);
+
+    if (!statusLine.empty() && statusTimer > 0.0f) {
+        textRenderer.RenderText("ANALYSIS:", leftPanelX, leftPanelY - 140.0f, 0.50f, okColor * alpha, screenWidth, screenHeight);
+        textRenderer.RenderText(statusLine, leftPanelX, leftPanelY - 164.0f, 0.46f, (solved ? okColor : warnColor) * alpha, screenWidth, screenHeight);
+    }
+
+    // Centered interactive board
     if (!solved) {
         const Fragment& fragment = fragments[static_cast<std::size_t>(currentFragment)];
-        // If fragment has a visual, draw it line-by-line to simulate a drawn symbol
         if (!fragment.visual.empty()) {
-            // show glyph text above the visual for clarity
-            textRenderer.RenderText("Glyph: " + fragment.glyph, 72.0f, baseY + 144.0f, 0.46f, titleColor * alpha, screenWidth, screenHeight);
-            float visualY = baseY + 176.0f;
+            std::string glyphStr = "ACTIVE GLYPH: " + fragment.glyph;
+            float glyphX = centerX - (static_cast<float>(glyphStr.length()) * 5.0f);
+            textRenderer.RenderText(glyphStr, glyphX, baseY + 180.0f, 0.65f, titleColor * alpha, screenWidth, screenHeight);
+
+            float visualY = baseY + 130.0f;
             std::stringstream vs(fragment.visual);
             std::string vline;
             while (std::getline(vs, vline)) {
-                textRenderer.RenderText(vline, 72.0f, visualY, 0.64f, titleColor * alpha, screenWidth, screenHeight);
-                visualY += 34.0f;
+                float lineX = centerX - (static_cast<float>(vline.length()) * 6.5f);
+                textRenderer.RenderText(vline, lineX, visualY, 0.72f, titleColor * alpha, screenWidth, screenHeight);
+                visualY -= 28.0f;
             }
-            // adjust option start below visual
-            float optionsY = visualY + 18.0f;
+
+            float optionsY = visualY - 20.0f;
             for (int i = 0; i < 4; ++i) {
+                std::string optionStr = std::to_string(i + 1) + ". " + fragment.meanings[static_cast<std::size_t>(i)];
                 const glm::vec3 color = (selectedMeaning == i) ? okColor : glm::vec3(0.95f, 0.9f, 0.8f);
-                textRenderer.RenderText(std::to_string(i + 1) + ". " + fragment.meanings[static_cast<std::size_t>(i)],
-                                       72.0f, optionsY + static_cast<float>(i) * 28.0f, 0.40f, color * alpha, screenWidth, screenHeight);
-            }
-        } else {
-            textRenderer.RenderText("Glyph: " + fragment.glyph, 72.0f, baseY + 152.0f, 0.54f, titleColor * alpha, screenWidth, screenHeight);
-            for (int i = 0; i < 4; ++i) {
-                const glm::vec3 color = (selectedMeaning == i) ? okColor : glm::vec3(0.95f, 0.9f, 0.8f);
-                textRenderer.RenderText(std::to_string(i + 1) + ". " + fragment.meanings[static_cast<std::size_t>(i)],
-                                       72.0f, baseY + 196.0f + static_cast<float>(i) * 28.0f, 0.40f, color * alpha, screenWidth, screenHeight);
+                float optX = centerX - 120.0f;
+                textRenderer.RenderText(optionStr, optX, optionsY - static_cast<float>(i) * 26.0f, 0.52f, color * alpha, screenWidth, screenHeight);
             }
         }
+    } else {
+        textRenderer.RenderText("★ DECODING COMPLETE ★", centerX - 160.0f, baseY + 40.0f, 1.25f, okColor * alpha, screenWidth, screenHeight);
     }
-
-    const float pressureRatio = std::clamp(pressure / 100.0f, 0.0f, 1.0f);
-    textRenderer.RenderText("Translation Pressure", 72.0f, static_cast<float>(screenHeight) - 170.0f, 0.46f, warnColor * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText("[" + std::string(static_cast<int>(pressureRatio * 20.0f), '#') + std::string(20 - static_cast<int>(pressureRatio * 20.0f), '-') + "]",
-                           72.0f, static_cast<float>(screenHeight) - 142.0f, 0.48f, warnColor * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText("Wrong meanings create fake lore and lasting hallucinations.", 72.0f, static_cast<float>(screenHeight) - 108.0f, 0.42f, warnColor * alpha, screenWidth, screenHeight);
-
-    if (!statusLine.empty() && statusTimer > 0.0f) {
-        textRenderer.RenderText(statusLine, 72.0f, static_cast<float>(screenHeight) - 70.0f, 0.46f, (solved ? okColor : warnColor) * alpha, screenWidth, screenHeight);
-    }
-
-    if (solved) {
-        textRenderer.RenderText("THE TOWN'S FALSE LANGUAGE FAILS", 72.0f, static_cast<float>(screenHeight) * 0.82f, 0.56f, okColor * alpha, screenWidth, screenHeight);
-    }
-
-    textRenderer.RenderText("[1-4] choose meaning  [ENTER] confirm  [ESC] resist  [R] restart", 72.0f, static_cast<float>(screenHeight) - 42.0f, 0.42f, titleColor * alpha, screenWidth, screenHeight);
 }
 
 std::string JadeSymbolPuzzle::SerializeState() const {

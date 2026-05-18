@@ -26,6 +26,14 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    // Command-line debug: --fast-night advances the world clock by 70s once at startup
+    for (int i = 1; i < argc; ++i) {
+        std::string arg(argv[i]);
+        if (arg == "--fast-night") {
+            game.RequestAdvanceWorldClock(70.0f);
+        }
+    }
+
     while (!engine.ShouldClose()) {
         engine.PollInput();
         const float dt = engine.Tick();

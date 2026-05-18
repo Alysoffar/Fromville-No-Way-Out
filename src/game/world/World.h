@@ -58,7 +58,7 @@ struct CharacterSimState {
 };
 
 struct WorldSaveState {
-    float worldClock = 0.0f;
+    float worldClock = 15.0f;
     int activeCharacterIndex = 0;
     bool playerKilled = false;
     std::string questState;
@@ -75,6 +75,8 @@ public:
     void Update(const Camera& camera, float dt);
     void Render(const Camera& camera, float aspectRatio, const DayNightCycle& dayNight, float fogDensity);
     float GetWorldClock() const { return worldClock; }
+    // Debug: advance the world clock by seconds (useful for fast-forward testing)
+    void AdvanceWorldClock(float seconds);
 
     // === Terrain project: building/door rendering with day/night ===
     void RenderObjects(const Camera& camera, float aspectRatio, const DayNightCycle& dayNight, float fogDensity);
@@ -92,6 +94,8 @@ public:
     Character* GetCharacter(int index);
     Player& GetPlayer() { return player; }
     CollisionWorld* GetCollisionWorld() { return &collisionWorld; }
+    AudioManager* GetAudioManager() { return audioManager.get(); }
+    const AudioManager* GetAudioManager() const { return audioManager.get(); }
 
     // === Complete project: quest/interaction system ===
     QuestSystem* GetQuestSystem() { return questSystem.get(); }
@@ -106,7 +110,7 @@ public:
     bool IsPuzzleActive() const;
     void UpdatePuzzle(float dt, const InputContext& input);
     void RenderPuzzleOverlay(TextRenderer& textRenderer, int screenWidth, int screenHeight) const;
-    void RenderNarrativeOverlays(TextRenderer& textRenderer, int screenWidth, int screenHeight) const;
+    void RenderNarrativeOverlays(TextRenderer& textRenderer, int screenWidth, int screenHeight, bool showDiagnostics = false) const;
     CharacterType GetActiveQuestCharacter() const { return activeQuestCharacter; }
     bool HasActiveQuest() const { return hasActiveQuest; }
     std::string GetLastInteractionFeedback() const { return lastInteractionFeedback; }
@@ -163,7 +167,7 @@ private:
     RuntimeProfiler runtimeProfiler;
     std::unique_ptr<AudioManager> audioManager;
 
-    float worldClock = 0.0f;
+    float worldClock = 15.0f; // Start in bright morning daylight (sunrise is 0.0f)
     bool nightTime = false;
     bool playerKilled = false;
     bool hasPreviousActivePosition = false;
@@ -192,6 +196,8 @@ private:
     bool m_puzzleStartedBeforeNight = false;
     float tabithaWhisperTempRouteTimer = 0.0f;
     float tabithaWhisperFalseChamberTimer = 0.0f;
+    float m_puzzleNightTimer = 0.0f;
+    float m_puzzleTauntTimer = 0.0f;
     static constexpr float kScreamDisplayDuration = 2.5f;
     static constexpr float kDamageDisplayDuration = 1.8f;
     static constexpr float kNpcDialogueDisplayDuration = 4.5f;

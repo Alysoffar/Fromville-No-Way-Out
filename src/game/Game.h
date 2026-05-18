@@ -29,6 +29,8 @@ public:
     void Update(float dt, Engine& engine);
     void Render(Engine& engine) const;
     void Shutdown();
+    // Debug: request advancing world clock by given seconds on next update
+    void RequestAdvanceWorldClock(float seconds);
 
 private:
     std::unique_ptr<Camera> camera;
@@ -85,9 +87,15 @@ private:
 
     enum class GameLoadState {
         LoadingCharacters,
+        StoryIntro,
+        MainMenu,
         ReadyToStart,
         Ready
     };
     GameLoadState loadState = GameLoadState::LoadingCharacters;
+    int selectedMenuIndex = 0;
     float readyToStartTimer = 0.0f;
+    float introElapsed = 0.0f;
+    // Debug: seconds to advance world clock on next update
+    float pendingAdvanceSeconds = 0.0f;
 };

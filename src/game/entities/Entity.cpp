@@ -75,18 +75,15 @@ void Entity::Move(float dirX, float dirZ, float dt) {
     // Scale speed down to feel natural in first person perspective
     currentSpeed *= 0.6f;
     
-    // Build 3D horizontal delta
-    glm::vec3 delta(dirX * currentSpeed * dt, 0.0f, dirZ * currentSpeed * dt);
+    // Smoothly interpolate current horizontal velocity toward target velocity
+    float targetVelX = dirX * currentSpeed;
+    float targetVelZ = dirZ * currentSpeed;
 
-    if (collisionWorld) {
-        // ResolveMovement multiplies velocity*deltaTime internally,
-        // so pass delta as-is with dt=1.0 to avoid double-scaling
-        transform.position = collisionWorld->ResolveMovement(
-            transform.position, delta, localBounds, 1.0f);
-    } else {
-        // Fallback: raw position update
-        transform.position += delta;
-    }
+    float accelRate = (glm::length(glm::vec2(targetVelX, targetVelZ)) > 0.001f) ? 12.0f : 8.5f;
+    velocityX = glm::mix(velocityX, targetVelX, glm::clamp(accelRate * dt, 0.0f, 1.0f));
+    velocityZ = glm::mix(velocityZ, targetVelZ, glm::clamp(accelRate * dt, 0.0f, 1.0f));
+
+    wasMoveCalledThisFrame = true;
 }
 
 void Entity::Jump() {
@@ -115,6 +112,21 @@ void Entity::Sprint(bool sprint) {
     }
 }
 
+void Entity::SetPositionAndResetPhysics(const glm::vec3& position) {
+    transform.position = position;
+    lastFramePosition = position;
+    m_FramePosHistory.clear();
+    velocityX = 0.0f;
+    velocityZ = 0.0f;
+    velocityY = 0.0f;
+    isGrounded = true;
+    jumpBufferRemaining = 0.0f;
+    coyoteTimeRemaining = GetCoyoteTime();
+    currentSpeed = 0.0f;
+    isCrouching = false;
+    isSprinting = false;
+}
+
 void Entity::TryConsumeJump() {
     if (jumpBufferRemaining <= 0.0f) {
         return;
@@ -135,6 +147,25 @@ void Entity::TryConsumeJump() {
 }
 
 void Entity::ApplyPhysics(float dt) {
+    // 1. Decay horizontal velocity if Move was not called on this frame
+    if (!wasMoveCalledThisFrame) {
+        float decayRate = 10.0f;
+        velocityX = glm::mix(velocityX, 0.0f, glm::clamp(decayRate * dt, 0.0f, 1.0f));
+        velocityZ = glm::mix(velocityZ, 0.0f, glm::clamp(decayRate * dt, 0.0f, 1.0f));
+    }
+    wasMoveCalledThisFrame = false; // Reset for next frame
+
+    // 2. Resolve horizontal movement through collision system
+    glm::vec3 horizontalDelta(velocityX * dt, 0.0f, velocityZ * dt);
+    if (glm::length(horizontalDelta) > 0.0001f) {
+        if (collisionWorld) {
+            transform.position = collisionWorld->ResolveMovement(
+                transform.position, horizontalDelta, localBounds, 1.0f);
+        } else {
+            transform.position += horizontalDelta;
+        }
+    }
+
     m_FramePosHistory.push_back(transform.position);
     if (m_FramePosHistory.size() > 12) {
         m_FramePosHistory.erase(m_FramePosHistory.begin());
@@ -158,7 +189,7 @@ void Entity::ApplyPhysics(float dt) {
         }
     }
 
-    // 1. Apply gravity to our vertical velocity over time
+    // 3. Apply gravity to our vertical velocity over time
     if (!isGrounded) {
         if (coyoteTimeRemaining > 0.0f) {
             coyoteTimeRemaining -= dt;
@@ -174,7 +205,7 @@ void Entity::ApplyPhysics(float dt) {
         }
     }
 
-    // 2. Build vertical movement delta
+    // 4. Build vertical movement delta and resolve vertical movement
     glm::vec3 verticalDelta(0.0f, velocityY * dt, 0.0f);
 
     if (collisionWorld) {
@@ -409,7 +440,7 @@ void Entity::RenderMesh(const Camera& camera, float aspectRatio, const DayNightC
 
         // Simple scale mapping for different characters
         glm::vec3 size(0.4f);
-        if (name == "Mara" || name == "Elena" || name == "Tom") {
+        if (name == "Mara" || name == "Elena" || name == "Tom" || name == "Kenny" || name == "Kristi" || name == "Ellis" || name == "Fatima" || name == "Donna") {
             size = glm::vec3(0.50f, 0.90f, 0.50f);
         } else if (name == "Monster") {
             size = glm::vec3(0.60f, 1.05f, 0.60f);

@@ -31,7 +31,7 @@ public:
     bool StartPuzzle(CharacterType questCharacter, int objectiveIndex, const QuestObjective& objective, const std::string& questTitle);
     bool StartPuzzle(CharacterType questCharacter, int objectiveIndex, int subObjectiveIndex, const QuestObjective& objective, const std::string& questTitle);
     void Update(float dt, const InputContext& input);
-    void Render(TextRenderer& textRenderer, int screenWidth, int screenHeight) const;
+    void Render(TextRenderer& textRenderer, int screenWidth, int screenHeight, bool isNight = false, float nightTimer = 0.0f) const;
 
     bool IsActive() const { return activePuzzle != nullptr; }
     bool IsSolved(const std::string& puzzleKey) const;
