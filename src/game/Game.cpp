@@ -1049,4 +1049,4 @@ bool Game::LoadGame() {
 
 void Game::SetCursorLocked(bool locked) {
     cursorLocked = locked;
-}
+}

@@ -34,3 +34,8 @@ Makefile
 
 # Dependencies (vcpkg)
 vcpkg_installed/
+
+
+#file extension
+*.txt
+*.log
