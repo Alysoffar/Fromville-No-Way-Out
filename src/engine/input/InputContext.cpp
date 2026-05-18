@@ -62,12 +62,12 @@ void InputContext::ConfigureGameplayDefaults() {
 
 void InputContext::ConfigureUiDefaults() {
     SetBinding(InputAction::Confirm, {GLFW_KEY_ENTER, GLFW_KEY_SPACE});
-    SetBinding(InputAction::Cancel, {GLFW_KEY_ESCAPE, GLFW_KEY_BACKSPACE});
+    SetBinding(InputAction::Cancel, {GLFW_KEY_L, GLFW_KEY_BACKSPACE});
     SetBinding(InputAction::OpenJournal, {GLFW_KEY_J});
     SetBinding(InputAction::ToggleHint, {GLFW_KEY_LEFT_CONTROL, GLFW_KEY_RIGHT_CONTROL});
     SetBinding(InputAction::PuzzleReset, {GLFW_KEY_R});
     SetBinding(InputAction::PuzzleConfirm, {GLFW_KEY_ENTER, GLFW_KEY_SPACE});
-    SetBinding(InputAction::PuzzleCancel, {GLFW_KEY_ESCAPE, GLFW_KEY_BACKSPACE});
+    SetBinding(InputAction::PuzzleCancel, {GLFW_KEY_L, GLFW_KEY_BACKSPACE});
     SetBinding(InputAction::PuzzleOption1, {GLFW_KEY_1});
     SetBinding(InputAction::PuzzleOption2, {GLFW_KEY_2});
     SetBinding(InputAction::PuzzleOption3, {GLFW_KEY_3});

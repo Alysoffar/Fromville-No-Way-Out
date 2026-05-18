@@ -128,7 +128,7 @@ void GhostWitnessPuzzle::Render(TextRenderer& textRenderer, int screenWidth, int
         textRenderer.RenderText("THE GHOST WITNESS CAN NO LONGER HIDE THE LIE", 72.0f, static_cast<float>(screenHeight) * 0.82f, 0.42f, calmColor * alpha, screenWidth, screenHeight);
     }
 
-    textRenderer.RenderText("[1-4] choose witness  [ENTER] accuse  [E] change testimony  [ESC] steady  [R] restart",
+    textRenderer.RenderText("[1-4] choose witness  [ENTER] accuse  [E] change testimony  [L] steady  [R] restart",
                            72.0f, static_cast<float>(screenHeight) - 42.0f, 0.29f, titleColor * alpha, screenWidth, screenHeight);
 }
 

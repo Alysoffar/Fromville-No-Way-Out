@@ -237,6 +237,7 @@ void TextRenderer::RenderQuad(float x, float y, float w, float h, glm::vec3 colo
 	shader.Bind();
 	shader.SetMat4("projection", projection);
 	shader.SetVec3("textColor", color);
+	shader.SetFloat("textAlpha", 1.0f);
 	shader.SetInt("text", 0);
 
 	glActiveTexture(GL_TEXTURE0);

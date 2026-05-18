@@ -1,11 +1,11 @@
 cmake_minimum_required(VERSION 3.20)
-set(CMAKE_POLICY_VERSION_MINIMUM 3.0)
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
 project(fromville VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_EXTENSIONS ON)
 
 option(FROMVILLE_WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
 option(FROMVILLE_USE_FETCHCONTENT "Use FetchContent fallback for selected libraries" ON)
@@ -19,6 +19,10 @@ else()
     add_compile_options(-Wall -Wextra -Wpedantic)
     if(FROMVILLE_WARNINGS_AS_ERRORS)
         add_compile_options(-Werror)
+    endif()
+    if(MINGW)
+        add_compile_options(-include "${CMAKE_CURRENT_SOURCE_DIR}/include/mingw_workaround.h")
+        add_link_options("-Wl,--reduce-memory-overheads" "-Wl,--no-keep-memory")
     endif()
 endif()
 

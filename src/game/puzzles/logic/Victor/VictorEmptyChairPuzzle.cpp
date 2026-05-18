@@ -140,7 +140,7 @@ void VictorEmptyChairPuzzle::Render(TextRenderer& textRenderer, int screenWidth,
         textRenderer.RenderText("THE ERASED PERSON BREATHES AGAIN", x, static_cast<float>(screenHeight) * 0.82f, 0.54f, textColor * alpha, screenWidth, screenHeight);
     }
 
-    textRenderer.RenderText("[1-4] observe absence  [A/D] choose identity  [ENTER] reconstruct  [ESC] force rewrite  [R] restart",
+    textRenderer.RenderText("[1-4] observe absence  [A/D] choose identity  [ENTER] reconstruct  [L] force rewrite  [R] restart",
                             x, static_cast<float>(screenHeight) - 42.0f, 0.38f, titleColor * alpha, screenWidth, screenHeight);
 }
 

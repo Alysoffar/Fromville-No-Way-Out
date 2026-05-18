@@ -116,7 +116,7 @@ void VictorMemoryPuzzle::Render(TextRenderer& textRenderer, int screenWidth, int
         textRenderer.RenderText("THE MEMORY LOOP STOPS LYING", 72.0f, static_cast<float>(screenHeight) * 0.82f, 0.54f, calmColor * alpha, screenWidth, screenHeight);
     }
 
-    textRenderer.RenderText("[1-4] choose scene  [ENTER] inspect  [ESC] steady  [R] restart", 72.0f, static_cast<float>(screenHeight) - 42.0f, 0.42f, titleColor * alpha, screenWidth, screenHeight);
+    textRenderer.RenderText("[1-4] choose scene  [ENTER] inspect  [L] steady  [R] restart", 72.0f, static_cast<float>(screenHeight) - 42.0f, 0.42f, titleColor * alpha, screenWidth, screenHeight);
 }
 
 std::string VictorMemoryPuzzle::SerializeState() const {

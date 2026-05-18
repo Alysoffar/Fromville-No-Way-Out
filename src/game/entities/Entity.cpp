@@ -449,6 +449,7 @@ void Entity::RenderMesh(const Camera& camera, float aspectRatio, const DayNightC
         glm::mat4 model = glm::translate(glm::mat4(1.0f), transform.position + glm::vec3(0.0f, size.y * 0.5f, 0.0f)) * glm::scale(glm::mat4(1.0f), size);
         fallbackShader->SetMat4("model", model);
         fallbackShader->SetVec3("color", GetDebugColor());
+        fallbackShader->SetBool("uUseFlatColor", true);
         fallbackMesh.Draw();
         fallbackShader->Unbind();
     }

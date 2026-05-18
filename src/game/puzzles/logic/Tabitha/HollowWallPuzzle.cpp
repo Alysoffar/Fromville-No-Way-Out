@@ -123,7 +123,7 @@ void HollowWallPuzzle::Render(TextRenderer& textRenderer, int screenWidth, int s
         textRenderer.RenderText(solvedMessage, 72.0f, static_cast<float>(screenHeight) * 0.82f, 0.42f, resultColor * alpha, screenWidth, screenHeight);
     }
 
-    textRenderer.RenderText("[1-4] choose meaning  [ENTER] guess  [ESC] step back  [R] restart", 72.0f, static_cast<float>(screenHeight) - 42.0f, 0.30f, titleColor * alpha, screenWidth, screenHeight);
+    textRenderer.RenderText("[1-4] choose meaning  [ENTER] guess  [L] step back  [R] restart", 72.0f, static_cast<float>(screenHeight) - 42.0f, 0.30f, titleColor * alpha, screenWidth, screenHeight);
 }
 
 std::string HollowWallPuzzle::SerializeState() const {

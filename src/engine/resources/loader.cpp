@@ -30,6 +30,7 @@ std::string Loader::ReadTextFile(const std::filesystem::path& path) {
 
 bool Loader::LoadImageRGBA(const std::filesystem::path& path, int& width, int& height, std::vector<unsigned char>& pixels) {
     int channels = 0;
+    stbi_set_flip_vertically_on_load(false);
     stbi_uc* data = stbi_load(path.string().c_str(), &width, &height, &channels, STBI_rgb_alpha);
     if (!data) {
         return false;

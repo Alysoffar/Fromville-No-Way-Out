@@ -16,6 +16,10 @@ ALenum ResolveFormat(int channels) {
     }
     return AL_NONE;
 }
+
+static ALCdevice* s_Device = nullptr;
+static ALCcontext* s_Context = nullptr;
+static int s_ActiveInstances = 0;
 }
 
 AudioManager::~AudioManager() {
@@ -27,31 +31,38 @@ bool AudioManager::Initialize() {
         return true;
     }
 
-    device = alcOpenDevice(nullptr);
-    if (!device) {
-        std::cout << "[Audio] Failed to open default OpenAL device\n";
-        return false;
+    s_ActiveInstances++;
+
+    if (!s_Device) {
+        s_Device = alcOpenDevice(nullptr);
+        if (!s_Device) {
+            std::cout << "[Audio] Failed to open default OpenAL device\n";
+            s_ActiveInstances--;
+            return false;
+        }
     }
 
-    context = alcCreateContext(device, nullptr);
-    if (!context) {
-        std::cout << "[Audio] Failed to create OpenAL context\n";
-        alcCloseDevice(device);
-        device = nullptr;
-        return false;
+    if (!s_Context) {
+        s_Context = alcCreateContext(s_Device, nullptr);
+        if (!s_Context) {
+            std::cout << "[Audio] Failed to create OpenAL context\n";
+            s_ActiveInstances--;
+            return false;
+        }
     }
 
-    if (alcMakeContextCurrent(context) == ALC_FALSE) {
-        std::cout << "[Audio] Failed to activate OpenAL context\n";
-        alcDestroyContext(context);
-        context = nullptr;
-        alcCloseDevice(device);
-        device = nullptr;
-        return false;
+    if (alcGetCurrentContext() != s_Context) {
+        if (alcMakeContextCurrent(s_Context) == ALC_FALSE) {
+            std::cout << "[Audio] Failed to activate OpenAL context\n";
+            s_ActiveInstances--;
+            return false;
+        }
     }
 
+    device = s_Device;
+    context = s_Context;
     initialized = true;
-    std::cout << "[Audio] OpenAL initialized\n";
+    std::cout << "[Audio] OpenAL initialized (active instances: " << s_ActiveInstances << ")\n";
     return true;
 }
 
@@ -73,16 +84,28 @@ void AudioManager::Shutdown() {
     }
     sounds.clear();
 
-    alcMakeContextCurrent(nullptr);
-    if (context) {
-        alcDestroyContext(context);
-        context = nullptr;
-    }
-    if (device) {
-        alcCloseDevice(device);
-        device = nullptr;
+    s_ActiveInstances--;
+    if (s_ActiveInstances <= 0) {
+        alcMakeContextCurrent(nullptr);
+        if (s_Context) {
+            alcDestroyContext(s_Context);
+            s_Context = nullptr;
+        }
+        if (s_Device) {
+            alcCloseDevice(s_Device);
+            s_Device = nullptr;
+        }
+        s_ActiveInstances = 0;
+        std::cout << "[Audio] OpenAL completely shutdown\n";
+    } else {
+        if (alcGetCurrentContext() != s_Context && s_Context) {
+            alcMakeContextCurrent(s_Context);
+        }
+        std::cout << "[Audio] Instance shutdown (active instances remaining: " << s_ActiveInstances << ")\n";
     }
 
+    device = nullptr;
+    context = nullptr;
     initialized = false;
 }
 
@@ -212,3 +235,10 @@ void AudioManager::StopSound(const std::string& cueName) {
         }
     }
 }
+
+void AudioManager::SetMasterVolume(float volume) {
+    if (initialized) {
+        alListenerf(AL_GAIN, volume);
+    }
+}
+

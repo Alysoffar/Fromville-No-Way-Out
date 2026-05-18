@@ -86,39 +86,62 @@ void CultDebatePuzzle::Update(float dt, const InputContext& input) {
 }
 
 void CultDebatePuzzle::Render(TextRenderer& textRenderer, int screenWidth, int screenHeight, float alpha) const {
-    const glm::vec3 titleColor(1.0f, 0.25f, 0.25f);
+    const float centerX = static_cast<float>(screenWidth) * 0.5f;
+    const float baseY = static_cast<float>(screenHeight) * 0.28f;
+    const glm::vec3 titleColor(0.8f, 0.95f, 1.0f);
+    const glm::vec3 warnColor(1.0f, 0.82f, 0.42f);
+    const glm::vec3 okColor(0.65f, 1.0f, 0.7f);
     const glm::vec3 textColor(0.92f, 0.92f, 0.86f);
     const glm::vec3 accentColor(0.75f, 0.92f, 1.0f);
-    const float baseY = static_cast<float>(screenHeight) * 0.58f;
 
-    textRenderer.RenderText(title, 74.0f, static_cast<float>(screenHeight) - 92.0f, 0.66f, titleColor * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText(clue, 74.0f, static_cast<float>(screenHeight) - 130.0f, 0.42f, accentColor * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText("DEBATE THE CULT LEADER (pick your words)", 74.0f, static_cast<float>(screenHeight) - 168.0f, 0.38f, textColor * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText("1-3 SELECT RESPONSE  ENTER/SPACE COMMIT  R RESTART", 74.0f, static_cast<float>(screenHeight) - 200.0f, 0.35f, textColor * alpha, screenWidth, screenHeight);
+    // Left Panel status (matching Jade's design)
+    const float leftPanelX = 72.0f;
+    const float leftPanelY = static_cast<float>(screenHeight) - 340.0f;
 
+    textRenderer.RenderText("◇ DEBATE STATUS", leftPanelX, leftPanelY, 0.54f, warnColor * alpha, screenWidth, screenHeight);
+    textRenderer.RenderText("──────────────────────", leftPanelX, leftPanelY - 14.0f, 0.50f, glm::vec3(0.5f) * alpha, screenWidth, screenHeight);
+    
     std::ostringstream score;
-    score << "Strong responses: " << strongResponses << "/" << rounds.size();
-    textRenderer.RenderText(score.str(), 74.0f, static_cast<float>(screenHeight) - 236.0f, 0.36f, glm::vec3(1.0f, 0.86f, 0.62f) * alpha, screenWidth, screenHeight);
+    score << "Strong Response: " << strongResponses << " / " << rounds.size();
+    textRenderer.RenderText(score.str(), leftPanelX, leftPanelY - 40.0f, 0.52f, titleColor * alpha, screenWidth, screenHeight);
 
-    if (!solved && roundIndex < static_cast<int>(rounds.size())) {
-        const DebateRound& round = rounds[roundIndex];
-        std::ostringstream roundLabel;
-        roundLabel << "ROUND " << (roundIndex + 1) << "/" << rounds.size();
-        textRenderer.RenderText(roundLabel.str(), 74.0f, baseY + 54.0f, 0.44f, accentColor * alpha, screenWidth, screenHeight);
-        textRenderer.RenderText(round.accusation, 74.0f, baseY + 18.0f, 0.43f, textColor * alpha, screenWidth, screenHeight);
-
-        for (int i = 0; i < 3; ++i) {
-            std::ostringstream response;
-            response << (i + 1) << ". " << round.responses[i];
-            const glm::vec3 color = (i == selectedOption) ? glm::vec3(1.0f, 0.64f, 0.5f) : glm::vec3(0.86f, 0.86f, 0.78f);
-            textRenderer.RenderText(response.str(), 74.0f, baseY - 30.0f - static_cast<float>(i) * 34.0f, 0.41f, color * alpha, screenWidth, screenHeight);
+    if (!statusLine.empty() && statusTimer > 0.0f) {
+        textRenderer.RenderText("ANALYSIS:", leftPanelX, leftPanelY - 80.0f, 0.50f, okColor * alpha, screenWidth, screenHeight);
+        const glm::vec3 statusColor = solved ? okColor : (failed ? glm::vec3(1.0f, 0.45f, 0.45f) : warnColor);
+        if (statusLine.length() > 34) {
+            std::string line1 = statusLine.substr(0, 32) + "...";
+            std::string line2 = "..." + statusLine.substr(32);
+            textRenderer.RenderText(line1, leftPanelX, leftPanelY - 104.0f, 0.46f, statusColor * alpha, screenWidth, screenHeight);
+            textRenderer.RenderText(line2, leftPanelX, leftPanelY - 126.0f, 0.46f, statusColor * alpha, screenWidth, screenHeight);
+        } else {
+            textRenderer.RenderText(statusLine, leftPanelX, leftPanelY - 104.0f, 0.46f, statusColor * alpha, screenWidth, screenHeight);
         }
     }
 
-    if (!statusLine.empty() && statusTimer > 0.0f) {
-        const glm::vec3 statusColor = solved ? glm::vec3(0.42f, 1.0f, 0.45f)
-                                             : (failed ? glm::vec3(1.0f, 0.45f, 0.45f) : glm::vec3(1.0f, 0.9f, 0.65f));
-        textRenderer.RenderText(statusLine, 74.0f, baseY - 170.0f, 0.44f, statusColor * alpha, screenWidth, screenHeight);
+    // Centered interactive board
+    if (!solved && roundIndex < static_cast<int>(rounds.size())) {
+        const DebateRound& round = rounds[roundIndex];
+        
+        std::ostringstream roundLabel;
+        roundLabel << "✦ DEBATE ROUND " << (roundIndex + 1) << " / " << rounds.size() << " ✦";
+        float labelX = centerX - (static_cast<float>(roundLabel.str().length()) * 5.0f);
+        textRenderer.RenderText(roundLabel.str(), labelX, baseY + 180.0f, 0.65f, warnColor * alpha, screenWidth, screenHeight);
+
+        // Render accusation centered
+        float accusationX = centerX - (static_cast<float>(round.accusation.length()) * 4.2f);
+        textRenderer.RenderText(round.accusation, accusationX, baseY + 130.0f, 0.55f, textColor * alpha, screenWidth, screenHeight);
+
+        // Options centered
+        float optionsY = baseY + 60.0f;
+        for (int i = 0; i < 3; ++i) {
+            std::ostringstream response;
+            response << (i + 1) << ". " << round.responses[i];
+            const glm::vec3 color = (selectedOption == i) ? okColor : glm::vec3(0.95f, 0.9f, 0.8f);
+            float optX = centerX - 240.0f;
+            textRenderer.RenderText(response.str(), optX, optionsY - static_cast<float>(i) * 32.0f, 0.52f, color * alpha, screenWidth, screenHeight);
+        }
+    } else if (solved) {
+        textRenderer.RenderText("★ DEBATE WON ★", centerX - 110.0f, baseY + 60.0f, 1.25f, okColor * alpha, screenWidth, screenHeight);
     }
 }
 

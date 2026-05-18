@@ -41,7 +41,9 @@ public:
     
     // Persistent stats
     float GetHealth() const { return health; }
-    void SetHealth(float h) { health = glm::clamp(h, 0.0f, 100.0f); }
+    float GetMaxHealth() const { return maxHealth; }
+    void SetMaxHealth(float maxH) { maxHealth = maxH; }
+    void SetHealth(float h) { health = glm::clamp(h, 0.0f, maxHealth); }
     void TakeDamage(float dmg) { SetHealth(health - dmg); }
     
     // Quest system
@@ -58,6 +60,7 @@ protected:
     CharacterType type;
     bool isActive = false;
     float health = 100.0f;
+    float maxHealth = 100.0f;
     float abilityTimer = 0.0f;  // Cooldown tracker for abilities
     Quest* quest = nullptr;     // Character's main quest
 

@@ -75,36 +75,38 @@ void LedgerRotationPuzzle::Update(float, const InputContext& input) {
 }
 
 void LedgerRotationPuzzle::Render(TextRenderer& textRenderer, int screenWidth, int screenHeight, float alpha) const {
-    const glm::vec3 titleColor(1.0f, 0.2f, 0.2f);
-    const glm::vec3 textColor(0.92f, 0.92f, 0.85f);
+    const float centerX = static_cast<float>(screenWidth) * 0.5f;
+    const float baseY = static_cast<float>(screenHeight) * 0.28f;
+    const glm::vec3 titleColor(0.8f, 0.95f, 1.0f);
+    const glm::vec3 warnColor(1.0f, 0.82f, 0.42f);
+    const glm::vec3 okColor(0.65f, 1.0f, 0.7f);
     const glm::vec3 accentColor(0.70f, 0.90f, 1.0f);
-    const float baseY = static_cast<float>(screenHeight) * 0.56f;
 
-    textRenderer.RenderText(title, 74.0f, static_cast<float>(screenHeight) - 92.0f, 0.66f, titleColor * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText(clue, 74.0f, static_cast<float>(screenHeight) - 130.0f, 0.42f, accentColor * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText("ROTATE THE LEDGER SEALS", 74.0f, static_cast<float>(screenHeight) - 168.0f, 0.38f, textColor * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText("1-3 SELECT  Q/E ROTATE  R RESET", 74.0f, static_cast<float>(screenHeight) - 200.0f, 0.35f, textColor * alpha, screenWidth, screenHeight);
+    // Left Panel status (matching Jade's design)
+    const float leftPanelX = 72.0f;
+    const float leftPanelY = static_cast<float>(screenHeight) - 340.0f;
 
+    textRenderer.RenderText("◇ DECIPHER STATUS", leftPanelX, leftPanelY, 0.54f, warnColor * alpha, screenWidth, screenHeight);
+    textRenderer.RenderText("──────────────────────", leftPanelX, leftPanelY - 14.0f, 0.50f, glm::vec3(0.5f) * alpha, screenWidth, screenHeight);
+    
     for (int i = 0; i < 3; ++i) {
         std::ostringstream line;
-        line << (i + 1) << ". NODE " << static_cast<char>('A' + i)
-             << "  ROT " << currentRotation[i] * 90 << "°"
-             << (i == selectedNode ? "  <" : "");
-        const glm::vec3 color = (i == selectedNode) ? glm::vec3(1.0f, 0.6f, 0.45f) : glm::vec3(0.86f, 0.86f, 0.78f);
-        textRenderer.RenderText(line.str(), 74.0f, baseY - (static_cast<float>(i) * 34.0f), 0.44f, color * alpha, screenWidth, screenHeight);
+        line << "Node " << static_cast<char>('A' + i) << " Rot: " << currentRotation[i] * 90 << "°";
+        const glm::vec3 color = (i == selectedNode) ? okColor : glm::vec3(0.86f, 0.86f, 0.78f);
+        textRenderer.RenderText(line.str(), leftPanelX, leftPanelY - 40.0f - (static_cast<float>(i) * 24.0f), 0.52f, color * alpha, screenWidth, screenHeight);
     }
 
     std::ostringstream target;
-    target << "TARGET ALIGNMENT: " << targetRotation[0] * 90 << " / " << targetRotation[1] * 90 << " / " << targetRotation[2] * 90;
-    textRenderer.RenderText(target.str(), 74.0f, baseY - 130.0f, 0.40f, accentColor * alpha, screenWidth, screenHeight);
+    target << "Target: " << targetRotation[0] * 90 << "° / " << targetRotation[1] * 90 << "° / " << targetRotation[2] * 90 << "°";
+    textRenderer.RenderText(target.str(), leftPanelX, leftPanelY - 120.0f, 0.50f, accentColor * alpha, screenWidth, screenHeight);
 
     if (solved) {
-        textRenderer.RenderText(solvedMessage, 74.0f, baseY - 170.0f, 0.45f, glm::vec3(1.0f, 0.35f, 0.35f) * alpha, screenWidth, screenHeight);
+        textRenderer.RenderText("Solved:", leftPanelX, leftPanelY - 150.0f, 0.50f, okColor * alpha, screenWidth, screenHeight);
+        textRenderer.RenderText("Alignment verified.", leftPanelX, leftPanelY - 174.0f, 0.46f, okColor * alpha, screenWidth, screenHeight);
     }
 
-    // Draw clear selectable markers for the three ledger seals below the text
-    const float centerX = static_cast<float>(screenWidth) * 0.5f;
-    const float markerY = baseY - 260.0f;
+    // Centered interactive board
+    const float markerY = baseY + 60.0f;
     const float spacing = 140.0f;
     for (int i = 0; i < 3; ++i) {
         const float markerX = centerX + (static_cast<float>(i) - 1.0f) * spacing;
@@ -130,8 +132,9 @@ void LedgerRotationPuzzle::Render(TextRenderer& textRenderer, int screenWidth, i
         }
     }
 
-    // explicit control hint centered
-    textRenderer.RenderText("Press 1-3 to select a seal  |  Q/E rotate  |  R reset", centerX - 360.0f, baseY - 380.0f, 0.48f, glm::vec3(0.95f, 0.95f, 0.9f) * alpha, screenWidth, screenHeight);
+    if (solved) {
+        textRenderer.RenderText("★ LEDGER UNLOCKED ★", centerX - 150.0f, baseY + 200.0f, 1.25f, okColor * alpha, screenWidth, screenHeight);
+    }
 }
 
 std::string LedgerRotationPuzzle::SerializeState() const {

@@ -525,7 +525,7 @@ void PuzzleManager::Render(TextRenderer& textRenderer, int screenWidth, int scre
         textRenderer.RenderText(title, titleX + jitter, topY - 5.0f, 1.25f, whiteColor * overlayAlpha, screenWidth, screenHeight);
 
         // 2. NIGHT TIMER (if active)
-        if (isNight) {
+        if (isNight && activeContext.questCharacter != CharacterType::Boyd) {
             float remaining = std::max(0.0f, 60.0f - nightTimer);
             std::ostringstream timeStream;
             timeStream << std::fixed << std::setprecision(1) << remaining << "s";
@@ -579,7 +579,7 @@ void PuzzleManager::Render(TextRenderer& textRenderer, int screenWidth, int scre
         float bindY = rightY - 40.0f;
         textRenderer.RenderText("[1 - 4] Choose Option", rightX, bindY, 0.48f, whiteColor * overlayAlpha, screenWidth, screenHeight);
         textRenderer.RenderText("[ENTER] Submit Decipher", rightX, bindY - 24.0f, 0.48f, whiteColor * overlayAlpha, screenWidth, screenHeight);
-        textRenderer.RenderText("[ESC]   Steady Mind (Exit)", rightX, bindY - 48.0f, 0.48f, whiteColor * overlayAlpha, screenWidth, screenHeight);
+        textRenderer.RenderText("[L]     Steady Mind (Exit)", rightX, bindY - 48.0f, 0.48f, whiteColor * overlayAlpha, screenWidth, screenHeight);
         textRenderer.RenderText("[R]     Reset Board", rightX, bindY - 72.0f, 0.48f, whiteColor * overlayAlpha, screenWidth, screenHeight);
         textRenderer.RenderText("[CTRL]  Toggle Controls Overlay", rightX, bindY - 96.0f, 0.48f, whiteColor * overlayAlpha, screenWidth, screenHeight);
 
@@ -596,24 +596,26 @@ void PuzzleManager::Render(TextRenderer& textRenderer, int screenWidth, int scre
         activePuzzle->Render(textRenderer, screenWidth, screenHeight, overlayAlpha);
 
         // Unified selector UI (highly optimized, centered selector brackets)
-        const int sel = activePuzzle->GetSelectedIndex();
-        if (sel >= 1 && sel <= 3) {
-            const float selY = static_cast<float>(screenHeight) * 0.58f;
-            const float selX = static_cast<float>(screenWidth) * 0.5f;
-            const float boxSpacing = 120.0f;
-            for (int i = 1; i <= 3; ++i) {
-                const bool isSel = (i == sel);
-                const glm::vec3 boxBg = isSel ? glm::vec3(0.24f, 0.18f, 0.08f) : glm::vec3(0.08f, 0.09f, 0.11f);
-                const glm::vec3 boxFg = isSel ? goldColor : greyColor;
-                const float x = selX + (static_cast<float>(i) - 2.0f) * boxSpacing;
-                
-                textRenderer.RenderText("[ ", x - 48.0f, selY + 18.0f, 2.4f, boxBg * overlayAlpha, screenWidth, screenHeight);
-                std::ostringstream label;
-                label << i;
-                textRenderer.RenderText(label.str(), x - 8.0f, selY - 12.0f, 2.6f, boxFg * overlayAlpha, screenWidth, screenHeight);
-                textRenderer.RenderText(" ]", x + 32.0f, selY + 18.0f, 2.4f, boxBg * overlayAlpha, screenWidth, screenHeight);
+        if (activeContext.questCharacter != CharacterType::Boyd) {
+            const int sel = activePuzzle->GetSelectedIndex();
+            if (sel >= 1 && sel <= 3) {
+                const float selY = static_cast<float>(screenHeight) * 0.58f;
+                const float selX = static_cast<float>(screenWidth) * 0.5f;
+                const float boxSpacing = 120.0f;
+                for (int i = 1; i <= 3; ++i) {
+                    const bool isSel = (i == sel);
+                    const glm::vec3 boxBg = isSel ? glm::vec3(0.24f, 0.18f, 0.08f) : glm::vec3(0.08f, 0.09f, 0.11f);
+                    const glm::vec3 boxFg = isSel ? goldColor : greyColor;
+                    const float x = selX + (static_cast<float>(i) - 2.0f) * boxSpacing;
+                    
+                    textRenderer.RenderText("[ ", x - 48.0f, selY + 18.0f, 2.4f, boxBg * overlayAlpha, screenWidth, screenHeight);
+                    std::ostringstream label;
+                    label << i;
+                    textRenderer.RenderText(label.str(), x - 8.0f, selY - 12.0f, 2.6f, boxFg * overlayAlpha, screenWidth, screenHeight);
+                    textRenderer.RenderText(" ]", x + 32.0f, selY + 18.0f, 2.4f, boxBg * overlayAlpha, screenWidth, screenHeight);
+                }
+                textRenderer.RenderText("Press number keys to swap your selection", selX - 160.0f, selY + 90.0f, 0.48f, greyColor * overlayAlpha, screenWidth, screenHeight);
             }
-            textRenderer.RenderText("Press number keys to swap your selection", selX - 160.0f, selY + 90.0f, 0.48f, greyColor * overlayAlpha, screenWidth, screenHeight);
         }
 
         if (overlayAlpha > 0.0f) {

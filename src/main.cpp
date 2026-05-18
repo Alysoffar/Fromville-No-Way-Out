@@ -1,7 +1,9 @@
 #include "engine/core/Engine.h"
-#include "game/Game.h"
+#include "game/ui/MenuSystem.h"
 
 #include <filesystem>
+#define GLFW_INCLUDE_NONE
+#include <GLFW/glfw3.h>
 
 int main(int argc, char** argv) {
     try {
@@ -17,33 +19,28 @@ int main(int argc, char** argv) {
     }
 
     Engine engine;
-    if (!engine.Initialize(1280, 720, "Fromville: Engine/Game Split")) {
+    if (!engine.Initialize(1280, 720, "Fromville No Way Out")) {
         return 1;
     }
 
-    Game game;
-    if (!game.Initialize(engine)) {
+    MenuSystem menuSystem;
+    if (!menuSystem.Initialize(engine, 1280, 720)) {
         return 1;
-    }
-
-    // Command-line debug: --fast-night advances the world clock by 70s once at startup
-    for (int i = 1; i < argc; ++i) {
-        std::string arg(argv[i]);
-        if (arg == "--fast-night") {
-            game.RequestAdvanceWorldClock(70.0f);
-        }
     }
 
     while (!engine.ShouldClose()) {
         engine.PollInput();
         const float dt = engine.Tick();
-        game.Update(dt, engine);
+        
+        menuSystem.Update(dt, engine);
+
         engine.BeginFrame();
-        game.Render(engine);
+        menuSystem.Render(engine);
         engine.EndFrame();
     }
 
-    game.Shutdown();
+    menuSystem.Shutdown();
     engine.Shutdown();
     return 0;
 }
+

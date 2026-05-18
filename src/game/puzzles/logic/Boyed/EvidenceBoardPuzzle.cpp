@@ -69,47 +69,50 @@ void EvidenceBoardPuzzle::Update(float, const InputContext& input) {
 }
 
 void EvidenceBoardPuzzle::Render(TextRenderer& textRenderer, int screenWidth, int screenHeight, float alpha) const {
-    const glm::vec3 titleColor(1.0f, 0.2f, 0.2f);
-    const glm::vec3 textColor(0.92f, 0.92f, 0.85f);
+    const float centerX = static_cast<float>(screenWidth) * 0.5f;
+    const float baseY = static_cast<float>(screenHeight) * 0.28f;
+    const glm::vec3 titleColor(0.8f, 0.95f, 1.0f);
+    const glm::vec3 warnColor(1.0f, 0.82f, 0.42f);
+    const glm::vec3 okColor(0.65f, 1.0f, 0.7f);
     const glm::vec3 accentColor(0.70f, 0.90f, 1.0f);
-    const float baseY = static_cast<float>(screenHeight) * 0.56f;
 
-    textRenderer.RenderText(title, 74.0f, static_cast<float>(screenHeight) - 92.0f, 0.66f, titleColor * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText(clue, 74.0f, static_cast<float>(screenHeight) - 130.0f, 0.42f, accentColor * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText("MAP THE EVIDENCE TRIANGLE", 74.0f, static_cast<float>(screenHeight) - 168.0f, 0.38f, textColor * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText("1-3 SELECT  ARROWS MOVE POINTS", 74.0f, static_cast<float>(screenHeight) - 200.0f, 0.35f, textColor * alpha, screenWidth, screenHeight);
+    // Left Panel status (matching Jade's design)
+    const float leftPanelX = 72.0f;
+    const float leftPanelY = static_cast<float>(screenHeight) - 340.0f;
 
+    textRenderer.RenderText("◇ MAPPING STATUS", leftPanelX, leftPanelY, 0.54f, warnColor * alpha, screenWidth, screenHeight);
+    textRenderer.RenderText("──────────────────────", leftPanelX, leftPanelY - 14.0f, 0.50f, glm::vec3(0.5f) * alpha, screenWidth, screenHeight);
+    
     for (int i = 0; i < 3; ++i) {
         std::ostringstream line;
-        line << (i + 1) << ". ITEM " << static_cast<char>('A' + i)
-             << "  COORD(" << itemPoints[i].x << "," << itemPoints[i].y << ")"
-             << (i == selectedItem ? "  <" : "");
-        const glm::vec3 color = (i == selectedItem) ? glm::vec3(1.0f, 0.6f, 0.45f) : glm::vec3(0.86f, 0.86f, 0.78f);
-        textRenderer.RenderText(line.str(), 74.0f, baseY - (static_cast<float>(i) * 28.0f), 0.42f, color * alpha, screenWidth, screenHeight);
+        line << "Item " << static_cast<char>('A' + i)
+             << " Coord: (" << itemPoints[i].x << "," << itemPoints[i].y << ")";
+        const glm::vec3 color = (i == selectedItem) ? okColor : glm::vec3(0.86f, 0.86f, 0.78f);
+        textRenderer.RenderText(line.str(), leftPanelX, leftPanelY - 40.0f - (static_cast<float>(i) * 24.0f), 0.52f, color * alpha, screenWidth, screenHeight);
     }
 
     std::ostringstream areaLine;
-    areaLine << "TRIANGLE AREA: " << TriangleArea(itemPoints[0], itemPoints[1], itemPoints[2]) << " / TARGET " << cultTerritoryArea;
-    textRenderer.RenderText(areaLine.str(), 74.0f, baseY - 118.0f, 0.40f, accentColor * alpha, screenWidth, screenHeight);
+    areaLine << "Area: " << TriangleArea(itemPoints[0], itemPoints[1], itemPoints[2]) << " / Target " << cultTerritoryArea;
+    textRenderer.RenderText(areaLine.str(), leftPanelX, leftPanelY - 120.0f, 0.50f, accentColor * alpha, screenWidth, screenHeight);
 
     if (solved) {
-        textRenderer.RenderText(solvedMessage, 74.0f, baseY - 160.0f, 0.45f, glm::vec3(1.0f, 0.35f, 0.35f) * alpha, screenWidth, screenHeight);
+        textRenderer.RenderText("Solved:", leftPanelX, leftPanelY - 150.0f, 0.50f, okColor * alpha, screenWidth, screenHeight);
+        textRenderer.RenderText("Map verified.", leftPanelX, leftPanelY - 174.0f, 0.46f, okColor * alpha, screenWidth, screenHeight);
     }
 
-    // Render a clear 9x9 coordinate grid with visible A/B/C markers (-4..4)
+    // Centered interactive board
     const float gridSize = 280.0f;
-    const float centerX = static_cast<float>(screenWidth) * 0.66f;
-    const float centerY = baseY - 60.0f;
+    const float gridCenterX = centerX;
+    const float gridCenterY = baseY + 80.0f;
     const int half = 4;
     const float cellSize = gridSize / (half * 2);
-    const float startX = centerX - gridSize * 0.5f + cellSize * 0.5f;
-    const float startY = centerY + gridSize * 0.5f - cellSize * 0.5f;
+    const float startX = gridCenterX - gridSize * 0.5f + cellSize * 0.5f;
+    const float startY = gridCenterY + gridSize * 0.5f - cellSize * 0.5f;
 
     // draw marker squares for items A/B/C
     for (int k = 0; k < 3; ++k) {
         const int gx = itemPoints[k].x;
         const int gy = itemPoints[k].y;
-        // clamp to grid
         const int cx = std::max(-half, std::min(half, gx));
         const int cy = std::max(-half, std::min(half, gy));
 
@@ -130,13 +133,13 @@ void EvidenceBoardPuzzle::Render(TextRenderer& textRenderer, int screenWidth, in
         for (int gx = -half; gx <= half; ++gx) {
             const float px = startX + (static_cast<float>(gx + half) * cellSize);
             const float py = startY - (static_cast<float>(gy + half) * cellSize);
-            // faint dot for empty cells
             textRenderer.RenderText("·", px - 4.0f, py - 6.0f, 0.48f, glm::vec3(0.78f,0.78f,0.78f) * alpha * 0.6f, screenWidth, screenHeight);
         }
     }
 
-    // Explicit control hint
-    textRenderer.RenderText("Press 1-3 to select an item  |  Arrow keys move selected item", centerX - 340.0f, centerY + gridSize * 0.6f, 0.46f, glm::vec3(0.95f,0.95f,0.9f) * alpha, screenWidth, screenHeight);
+    if (solved) {
+        textRenderer.RenderText("★ EVIDENCE ALIGNED ★", centerX - 160.0f, baseY + 260.0f, 1.25f, okColor * alpha, screenWidth, screenHeight);
+    }
 }
 
 std::string EvidenceBoardPuzzle::SerializeState() const {

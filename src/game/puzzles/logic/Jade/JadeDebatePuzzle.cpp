@@ -293,8 +293,8 @@ void JadeDebatePuzzle::Render(TextRenderer& textRenderer, int screenWidth, int s
     }
 
     const std::string footer = corrupted
-        ? "[ESC] close fail state"
-        : "[1-4] choose contradiction  [ENTER] challenge  [ESC] resist  [R] restart";
+        ? "[L] close fail state"
+        : "[1-4] choose contradiction  [ENTER] challenge  [L] resist  [R] restart";
     textRenderer.RenderText(footer,
                            72.0f, static_cast<float>(screenHeight) - 42.0f, corrupted ? 0.48f : 0.42f, white * alpha, screenWidth, screenHeight);
 }

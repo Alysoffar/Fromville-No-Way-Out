@@ -125,7 +125,7 @@ void TabithaTunnelMapPuzzle::Render(TextRenderer& textRenderer, int screenWidth,
         textRenderer.RenderText("THE FLOODED TUNNEL OPENS AGAIN", 72.0f, static_cast<float>(screenHeight) * 0.82f, 0.42f, calmColor * alpha, screenWidth, screenHeight);
     }
 
-    textRenderer.RenderText("[1-4] select valve  [ENTER] reroute  [ESC] resist  [R] restart", 72.0f, static_cast<float>(screenHeight) - 42.0f, 0.30f, titleColor * alpha, screenWidth, screenHeight);
+    textRenderer.RenderText("[1-4] select valve  [ENTER] reroute  [L] resist  [R] restart", 72.0f, static_cast<float>(screenHeight) - 42.0f, 0.30f, titleColor * alpha, screenWidth, screenHeight);
 }
 
 std::string TabithaTunnelMapPuzzle::SerializeState() const {

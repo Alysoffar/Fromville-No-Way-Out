@@ -21,44 +21,83 @@
 #include "game/quest/QuestSystem.h"
 #include "game/world/World.h"
 
-Game::Game() = default;
+Game::Game() {}
 
-bool Game::Initialize(Engine& engine) {
-    StartupTimer::Begin("Game Initialize");
+Game::~Game() {
+    Shutdown();
+}
+
+bool Game::InitializePhase0(Engine& engine) {
     camera = std::make_unique<Camera>();
     camera->Reset(spawnPosition);
 
     world = std::make_unique<World>();
     world->Initialize();
+    return true;
+}
 
+bool Game::InitializePhase1(Engine& engine) {
     hudRenderer = std::make_unique<TextRenderer>();
     if (!hudRenderer->Initialize("", 24)) {
         std::cerr << "[HUD] Falling back to no on-screen text overlay.\n";
         hudRenderer.reset();
     }
 
-    // Initialize new terrain rendering subsystems
     groundRenderer.init();
     grassRenderer.init();
-    treeRenderer.init(world->GetCollisionWorld());
-    skydomeRenderer.init();
-
-    characterMesh = std::make_unique<AnimatedMesh>("assets/models/Character 1/character.fbx");
-    animatedShader = std::make_unique<Shader>("animated");
-    animatedShader->Load("shaders/animated.vert", "shaders/animated.frag");
-
-    walkingAnimation = std::make_unique<Animation>("assets/models/Character 1/Standing Idle.fbx", characterMesh.get());
-    animator = std::make_unique<Animator>(walkingAnimation.get());
-
-    if (!walkingAnimation || walkingAnimation->GetDuration() <= 0.0f) {
-        std::cerr << "[Warning] Animation failed to load, character will show T-pose\n";
-        animator->SetAnimation(nullptr);
+    if (world) {
+        treeRenderer.init(world->GetCollisionWorld());
     }
-
-    engine.GetInput().SetCursorLocked(true);
-    StartupTimer::End("Game Initialize");
+    skydomeRenderer.init();
     return true;
 }
+
+bool Game::InitializePhase2(Engine& engine) {
+    animatedShader = std::make_unique<Shader>("animated");
+    try {
+        animatedShader->Load("shaders/animated.vert", "shaders/animated.frag");
+    } catch (const std::exception& e) {
+        std::cerr << "[Warning] animated shader failed to load: " << e.what() << "\n";
+    }
+    return true;
+}
+
+bool Game::LoadNextCharacterMesh() {
+    if (m_loadedMeshCount == 0) {
+        try {
+            characterMesh = std::make_unique<AnimatedMesh>("assets/models/Character 1/character.fbx");
+        } catch (const std::exception& e) {
+            std::cerr << "[Warning] Character mesh failed to load: " << e.what() << "\n";
+        }
+        m_loadedMeshCount = 1;
+        return true;
+    } else if (m_loadedMeshCount == 1) {
+        try {
+            if (characterMesh) {
+                walkingAnimation = std::make_unique<Animation>("assets/models/Character 1/Standing Idle.fbx", characterMesh.get());
+                animator = std::make_unique<Animator>(walkingAnimation.get());
+            } else {
+                animator = std::make_unique<Animator>(nullptr);
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "[Warning] standing animation failed to load: " << e.what() << "\n";
+            animator = std::make_unique<Animator>(nullptr);
+        }
+        m_loadedMeshCount = 2;
+        return true;
+    }
+    return false;
+}
+
+bool Game::Initialize(Engine& engine) {
+    if (!InitializePhase0(engine)) return false;
+    if (!InitializePhase1(engine)) return false;
+    if (!InitializePhase2(engine)) return false;
+    while (LoadNextCharacterMesh()) {}
+    engine.GetInput().SetCursorLocked(true);
+    return true;
+}
+
 
 void Game::UpdateHudTitle(Engine& engine) const {
     if (!world) {
@@ -647,10 +686,10 @@ void Game::Render(Engine& engine) const {
                 float pulse = 0.7f + 0.3f * std::sin(world->GetWorldClock() * 4.0f);
 
                 // --- ULTRA-SMOOTH CONTINUOUS INTERPOLATION ---
-                // Transition phase starts at 4.8f (after warning fades out completely) and finishes unfolding at 6.3s (1.5s duration)
+                // Transition phase starts at 5.5s (after warning fades out completely) and finishes unfolding at 7.0s (1.5s duration)
                 float t_smooth = 0.0f;
-                if (introElapsed >= 4.8f) {
-                    float t_raw = std::min(1.0f, (introElapsed - 4.8f) / 1.5f);
+                if (introElapsed >= 5.5f) {
+                    float t_raw = std::min(1.0f, (introElapsed - 5.5f) / 1.5f);
                     t_smooth = t_raw * t_raw * (3.0f - 2.0f * t_raw); // smoothstep s-curve
                 }
 
@@ -670,11 +709,11 @@ void Game::Render(Engine& engine) const {
                 float curX = (static_cast<float>(width) / 2.0f) - (curW / 2.0f) + floatX;
                 float curY = (static_cast<float>(height) / 2.0f) - (curH / 2.0f) + floatY;
 
-                // Fades for overall background / card (instantly fully visible!)
-                float alpha = 1.0f;
+                // Fades for overall background / card (starts at 0.0, reaches 1.0 at 1.5 seconds)
+                float paperAlpha = std::min(1.0f, introElapsed / 1.5f);
 
-                glm::vec3 darkShadow = glm::vec3(0.12f, 0.09f, 0.07f) * alpha; // card shadow
-                glm::vec3 paperColor = glm::vec3(0.88f, 0.83f, 0.73f) * alpha; // warm parchment beige
+                glm::vec3 darkShadow = glm::vec3(0.12f, 0.09f, 0.07f) * paperAlpha; // card shadow
+                glm::vec3 paperColor = glm::vec3(0.88f, 0.83f, 0.73f) * paperAlpha; // warm parchment beige
 
                 // --- PROCEDURAL TORN & WORN PAPER RENDERER ---
                 // Slices the paper horizontally and adds jagged sine/cosine wave coordinate offsets
@@ -703,7 +742,7 @@ void Game::Render(Engine& engine) const {
                         float finalSliceW = pw + edgeOffsetR - edgeOffsetL - std::abs(tearIn);
                         
                         // Notch top and bottom edges slightly to make them ragged
-                        float finalSliceH = sliceHeight;
+                        float finalSliceH = sliceHeight + 1.5f;
                         if (i == 0 || i == N - 1) {
                             finalSliceH -= 2.0f;
                         }
@@ -718,7 +757,7 @@ void Game::Render(Engine& engine) const {
                 drawTornPaper(curX, curY, curW, curH, paperColor);
 
                 // --- STAGE 2 TEXT (context story, objectives, character backgrounds) ---
-                // Fades in sequentially starting at 6.3s (when paper is fully unfolded)
+                // Fades in sequentially starting at 7.0s (when paper is fully unfolded)
                 if (t_smooth > 0.0f) {
                     // Decorative Section Separator template
                     std::string separator = "~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~";
@@ -729,62 +768,62 @@ void Game::Render(Engine& engine) const {
                     std::string title = "♦  FROMVILLE: THE NIGHTMARE BEGINS  ♦";
                     float titleScale = 1.3f;
                     float titleX = curX + (curW / 2.0f) - (title.length() * 14.0f * titleScale / 2.0f);
-                    hudRenderer->RenderText(title, titleX, curY + curH - 50.0f, titleScale, glm::vec3(0.75f, 0.10f, 0.10f), width, height, getFadeAlpha(6.3f));
+                    hudRenderer->RenderText(title, titleX, curY + curH - 50.0f, titleScale, glm::vec3(0.75f, 0.10f, 0.10f), width, height, getFadeAlpha(7.0f));
 
                     // --- 1. THE STORY BACKGROUND (Sienna brown and walnut ink) ---
                     std::string storyHeader = "THE MYSTERY & BACKGROUND";
-                    hudRenderer->RenderText(storyHeader, curX + 50.0f, curY + curH - 110.0f, 0.55f, glm::vec3(0.40f, 0.20f, 0.05f), width, height, getFadeAlpha(7.3f));
+                    hudRenderer->RenderText(storyHeader, curX + 50.0f, curY + curH - 110.0f, 0.55f, glm::vec3(0.40f, 0.20f, 0.05f), width, height, getFadeAlpha(8.0f));
 
                     std::string storyLine1 = "You are trapped in a mysterious town in middle America that traps everyone who enters.";
                     std::string storyLine2 = "The roads loop infinitely back to town. The forest is thick, dark, and alive with ancient power.";
                     std::string storyLine3 = "And at night, nightmarish monsters crawl out of the woods. They don't run, they don't hide...";
                     std::string storyLine4 = "They walk calmly. They smile. And if you let them in, they will tear you apart.";
                     
-                    hudRenderer->RenderText(storyLine1, curX + 50.0f, curY + curH - 145.0f, 0.42f, glm::vec3(0.18f, 0.15f, 0.12f), width, height, getFadeAlpha(8.3f));
-                    hudRenderer->RenderText(storyLine2, curX + 50.0f, curY + curH - 170.0f, 0.42f, glm::vec3(0.18f, 0.15f, 0.12f), width, height, getFadeAlpha(9.3f));
-                    hudRenderer->RenderText(storyLine3, curX + 50.0f, curY + curH - 195.0f, 0.42f, glm::vec3(0.18f, 0.15f, 0.12f), width, height, getFadeAlpha(10.3f));
-                    hudRenderer->RenderText(storyLine4, curX + 50.0f, curY + curH - 220.0f, 0.42f, glm::vec3(0.18f, 0.15f, 0.12f), width, height, getFadeAlpha(11.3f));
+                    hudRenderer->RenderText(storyLine1, curX + 50.0f, curY + curH - 145.0f, 0.42f, glm::vec3(0.18f, 0.15f, 0.12f), width, height, getFadeAlpha(9.0f));
+                    hudRenderer->RenderText(storyLine2, curX + 50.0f, curY + curH - 170.0f, 0.42f, glm::vec3(0.18f, 0.15f, 0.12f), width, height, getFadeAlpha(10.0f));
+                    hudRenderer->RenderText(storyLine3, curX + 50.0f, curY + curH - 195.0f, 0.42f, glm::vec3(0.18f, 0.15f, 0.12f), width, height, getFadeAlpha(11.0f));
+                    hudRenderer->RenderText(storyLine4, curX + 50.0f, curY + curH - 220.0f, 0.42f, glm::vec3(0.18f, 0.15f, 0.12f), width, height, getFadeAlpha(12.0f));
 
                     // First Separator
-                    hudRenderer->RenderText(separator, sepX, curY + curH - 250.0f, sepScale, glm::vec3(0.60f, 0.52f, 0.42f), width, height, getFadeAlpha(12.3f));
+                    hudRenderer->RenderText(separator, sepX, curY + curH - 250.0f, sepScale, glm::vec3(0.60f, 0.52f, 0.42f), width, height, getFadeAlpha(13.0f));
 
                     // --- 2. YOUR MISSIONS (Sienna brown and Prussian blue ink) ---
                     std::string missionsHeader = "YOUR SURVIVAL OBJECTIVES";
-                    hudRenderer->RenderText(missionsHeader, curX + 50.0f, curY + curH - 280.0f, 0.55f, glm::vec3(0.40f, 0.20f, 0.05f), width, height, getFadeAlpha(12.8f));
+                    hudRenderer->RenderText(missionsHeader, curX + 50.0f, curY + curH - 280.0f, 0.55f, glm::vec3(0.40f, 0.20f, 0.05f), width, height, getFadeAlpha(13.5f));
 
                     std::string mission1 = "• SURVIVE THE NOCTURNAL HUNT: Secure safety inside houses before the sun sets.";
                     std::string mission2 = "• PUZZLE SOLVING: Only Tabitha and Jade can decipher ancient talisman puzzles at night.";
                     std::string mission3 = "• MAINTAIN COMMUNITY: Watch over the townspeople who roam doing chores during the day.";
 
-                    hudRenderer->RenderText(mission1, curX + 50.0f, curY + curH - 315.0f, 0.42f, glm::vec3(0.10f, 0.22f, 0.38f), width, height, getFadeAlpha(13.8f));
-                    hudRenderer->RenderText(mission2, curX + 50.0f, curY + curH - 340.0f, 0.42f, glm::vec3(0.10f, 0.22f, 0.38f), width, height, getFadeAlpha(14.8f));
-                    hudRenderer->RenderText(mission3, curX + 50.0f, curY + curH - 365.0f, 0.42f, glm::vec3(0.10f, 0.22f, 0.38f), width, height, getFadeAlpha(15.8f));
+                    hudRenderer->RenderText(mission1, curX + 50.0f, curY + curH - 315.0f, 0.42f, glm::vec3(0.10f, 0.22f, 0.38f), width, height, getFadeAlpha(14.5f));
+                    hudRenderer->RenderText(mission2, curX + 50.0f, curY + curH - 340.0f, 0.42f, glm::vec3(0.10f, 0.22f, 0.38f), width, height, getFadeAlpha(15.5f));
+                    hudRenderer->RenderText(mission3, curX + 50.0f, curY + curH - 365.0f, 0.42f, glm::vec3(0.10f, 0.22f, 0.38f), width, height, getFadeAlpha(16.5f));
 
                     // Second Separator
-                    hudRenderer->RenderText(separator, sepX, curY + curH - 395.0f, sepScale, glm::vec3(0.60f, 0.52f, 0.42f), width, height, getFadeAlpha(17.3f));
+                    hudRenderer->RenderText(separator, sepX, curY + curH - 395.0f, sepScale, glm::vec3(0.60f, 0.52f, 0.42f), width, height, getFadeAlpha(18.0f));
 
                     // --- 3. CHARACTER BACKGROUNDS (Sienna brown and faded iron-gall ink) ---
                     std::string charHeader = "PLAYABLE SURVIVOR ROLES";
-                    hudRenderer->RenderText(charHeader, curX + 50.0f, curY + curH - 430.0f, 0.55f, glm::vec3(0.40f, 0.20f, 0.05f), width, height, getFadeAlpha(17.8f));
+                    hudRenderer->RenderText(charHeader, curX + 50.0f, curY + curH - 430.0f, 0.55f, glm::vec3(0.40f, 0.20f, 0.05f), width, height, getFadeAlpha(18.5f));
 
                     std::string charBoyd    = "• SHERIFF BOYD: The weary leader keeping order. Spawns with 100% resolve.";
                     std::string charJade    = "• JADE HERERA: Brilliant, arrogant tech-mogul. Deciphers mathematical stones.";
                     std::string charTabitha = "• TABITHA MATTHEWS: Determined mother looking for her child and the lighthouse exit.";
                     std::string charVictor  = "• VICTOR: Mysterious artist who survived here for decades. Knows hidden paths.";
 
-                    hudRenderer->RenderText(charBoyd, curX + 50.0f, curY + curH - 465.0f, 0.42f, glm::vec3(0.20f, 0.24f, 0.28f), width, height, getFadeAlpha(18.8f));
-                    hudRenderer->RenderText(charJade, curX + 50.0f, curY + curH - 490.0f, 0.42f, glm::vec3(0.20f, 0.24f, 0.28f), width, height, getFadeAlpha(19.8f));
-                    hudRenderer->RenderText(charTabitha, curX + 50.0f, curY + curH - 515.0f, 0.42f, glm::vec3(0.20f, 0.24f, 0.28f), width, height, getFadeAlpha(20.8f));
-                    hudRenderer->RenderText(charVictor, curX + 50.0f, curY + curH - 540.0f, 0.42f, glm::vec3(0.20f, 0.24f, 0.28f), width, height, getFadeAlpha(21.8f));
+                    hudRenderer->RenderText(charBoyd, curX + 50.0f, curY + curH - 465.0f, 0.42f, glm::vec3(0.20f, 0.24f, 0.28f), width, height, getFadeAlpha(19.5f));
+                    hudRenderer->RenderText(charJade, curX + 50.0f, curY + curH - 490.0f, 0.42f, glm::vec3(0.20f, 0.24f, 0.28f), width, height, getFadeAlpha(20.5f));
+                    hudRenderer->RenderText(charTabitha, curX + 50.0f, curY + curH - 515.0f, 0.42f, glm::vec3(0.20f, 0.24f, 0.28f), width, height, getFadeAlpha(21.5f));
+                    hudRenderer->RenderText(charVictor, curX + 50.0f, curY + curH - 540.0f, 0.42f, glm::vec3(0.20f, 0.24f, 0.28f), width, height, getFadeAlpha(22.5f));
                 }
 
                 // --- STAGE 1 TEXT (bloody typewriter warning and stamp subtitle) ---
-                // Appears ONLY after the paper card (plain) is fully visible (starts at 0.8s)
-                // Fades out completely from 3.8s to 4.8s
-                if (introElapsed >= 0.8f && introElapsed < 4.8f) {
+                // Appears ONLY after the paper card (plain) is fully visible (starts at 1.5s)
+                // Fades out completely from 4.5s to 5.5s
+                if (introElapsed >= 1.5f && introElapsed < 5.5f) {
                     float warningAlpha = 1.0f;
-                    if (introElapsed >= 3.8f) {
-                        warningAlpha = std::max(0.0f, 1.0f - (introElapsed - 3.8f) / 1.0f); // 1.0s fade out
+                    if (introElapsed >= 4.5f) {
+                        warningAlpha = std::max(0.0f, 1.0f - (introElapsed - 4.5f) / 1.0f); // 1.0s fade out
                     }
 
                     glm::vec3 phraseColor = glm::vec3(0.75f, 0.10f, 0.10f); 
@@ -792,7 +831,7 @@ void Game::Render(Engine& engine) const {
 
                     std::string phrase = "KNOWLEDGE COMES AT A COST...";
                     float typingSpeed = 14.0f;
-                    float typeElapsed = introElapsed - 0.8f; // Offset typewriter start time!
+                    float typeElapsed = introElapsed - 1.5f; // Offset typewriter start time!
                     int charsToShow = std::min(static_cast<int>(phrase.length()), static_cast<int>(typeElapsed * typingSpeed));
                     std::string typedPhrase = phrase.substr(0, charsToShow);
                     
@@ -814,13 +853,13 @@ void Game::Render(Engine& engine) const {
                     hudRenderer->RenderText(subText, sX, sY, sScale, stampColor, width, height, warningAlpha);
                 }
 
-                // --- 4. PROMPT TO CONTINUE (VISIBLE ALMOST IMMEDIATELY TO SKIP - Rich Amber ink) ---
+                // --- 4. PROMPT TO CONTINUE (VISIBLE AFTER CARD FADES IN - Rich Amber ink) ---
                 std::string prompt = "PRESS [SPACE] OR [ENTER] TO ACCESS MAIN MENU";
                 float promptScale = 0.55f;
                 float promptX = (static_cast<float>(width) / 2.0f) - (prompt.length() * 10.0f * promptScale / 2.0f);
                 
                 glm::vec3 promptBaseColor = (introElapsed < 4.0f) ? glm::vec3(1.0f, 0.72f, 0.18f) : glm::vec3(0.45f, 0.22f, 0.05f);
-                float promptAlpha = getFadeAlpha(1.0f);
+                float promptAlpha = getFadeAlpha(1.8f);
                 hudRenderer->RenderText(prompt, promptX, 50.0f, promptScale, promptBaseColor, width, height, promptAlpha * pulse);
             } else if (loadState == GameLoadState::MainMenu) {
                 // RENDER PREMIUM MAIN MENU
@@ -973,3 +1012,41 @@ void Game::Shutdown() {
 void Game::RequestAdvanceWorldClock(float seconds) {
     pendingAdvanceSeconds = seconds;
 }
+
+void Game::ApplyDifficulty(Difficulty difficulty) {
+    if (world) {
+        world->ApplyDifficulty(difficulty);
+    }
+}
+
+bool Game::HasAnyCharacterDied() const {
+    return world ? world->HasAnyCharacterDied() : false;
+}
+
+std::string Game::GetLastDeadCharacterName() const {
+    return world ? world->GetLastDeadCharacterName() : "";
+}
+
+std::string Game::GetDayTimeString() const {
+    if (!world) return "";
+    float clock = world->GetWorldClock();
+    float hour24 = 6.0f + clock;
+    if (hour24 >= 24.0f) hour24 -= 24.0f;
+    int hours = static_cast<int>(hour24);
+    int minutes = static_cast<int>((hour24 - hours) * 60.0f);
+    char buf[32];
+    std::sprintf(buf, "%02d:%02d", hours, minutes);
+    return std::string(buf) + (world->IsNight() ? " [NIGHT]" : " [DAY]");
+}
+
+bool Game::SaveGame() const {
+    return world ? world->SaveToFile("savegame.txt") : false;
+}
+
+bool Game::LoadGame() {
+    return world ? world->LoadFromFile("savegame.txt") : false;
+}
+
+void Game::SetCursorLocked(bool locked) {
+    cursorLocked = locked;
+}

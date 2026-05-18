@@ -161,7 +161,7 @@ void VictorSilentProcessionPuzzle::Render(TextRenderer& textRenderer, int screen
         textRenderer.RenderText("THE ROUTE REVEALS THE ORIGINAL CULT", x, static_cast<float>(screenHeight) * 0.82f, 0.54f, ghostColor * alpha, screenWidth, screenHeight);
     }
 
-    textRenderer.RenderText("[1-4] mark observed pattern  [W/S] lean closer/back away  [ESC] retreat  [R] restart",
+    textRenderer.RenderText("[1-4] mark observed pattern  [W/S] lean closer/back away  [L] retreat  [R] restart",
                             x, static_cast<float>(screenHeight) - 42.0f, 0.40f, titleColor * alpha, screenWidth, screenHeight);
 }
 

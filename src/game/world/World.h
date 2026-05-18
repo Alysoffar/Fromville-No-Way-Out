@@ -31,6 +31,13 @@
 #include "game/world/WorldManager.h"
 #include "engine/audio/AudioManager.h"
 
+enum class Difficulty {
+    Easy,
+    Normal,
+    Hard
+};
+
+
 class Shader;
 class Mesh;
 class TextRenderer;
@@ -69,6 +76,7 @@ struct WorldSaveState {
 class World {
 public:
     World();
+    ~World();
 
     void Initialize();
     bool LoadNextPendingMesh();
@@ -129,8 +137,14 @@ public:
     bool ConsumeSpawnRestartRequest();
     bool SaveToFile(const std::string& path) const;
     bool LoadFromFile(const std::string& path);
+    bool HasAnyCharacterDied() const;
+    std::string GetLastDeadCharacterName() const;
+    void ApplyDifficulty(Difficulty diff);
+    Difficulty GetDifficulty() const { return m_difficulty; }
+
     // Is it currently night in the world cycle?
     bool IsNight() const { return nightTime; }
+
 
 private:
     // === Terrain project: buildings and doors ===
@@ -170,6 +184,7 @@ private:
     float worldClock = 15.0f; // Start in bright morning daylight (sunrise is 0.0f)
     bool nightTime = false;
     bool playerKilled = false;
+    Difficulty m_difficulty = Difficulty::Normal;
     bool hasPreviousActivePosition = false;
     glm::vec3 previousActivePosition = glm::vec3(0.0f);
     std::array<float, 5> offscreenStoryTimers = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};

@@ -21,6 +21,8 @@ public:
     bool HasSound(const std::string& cueName) const;
     bool PlaySound(const std::string& cueName, float gain = 1.0f);
     void StopSound(const std::string& cueName);
+    void SetMasterVolume(float volume);
+
 
 private:
     struct SoundInstance {

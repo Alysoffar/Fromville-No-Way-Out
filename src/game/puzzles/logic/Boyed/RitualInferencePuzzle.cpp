@@ -97,10 +97,12 @@ void RitualInferencePuzzle::Update(float dt, const InputContext& input) {
 }
 
 void RitualInferencePuzzle::Render(TextRenderer& textRenderer, int screenWidth, int screenHeight, float alpha) const {
-    const glm::vec3 titleColor(1.0f, 0.2f, 0.2f);
-    const glm::vec3 textColor(0.92f, 0.92f, 0.85f);
+    const float centerX = static_cast<float>(screenWidth) * 0.5f;
+    const float baseY = static_cast<float>(screenHeight) * 0.28f;
+    const glm::vec3 titleColor(0.8f, 0.95f, 1.0f);
+    const glm::vec3 warnColor(1.0f, 0.82f, 0.42f);
+    const glm::vec3 okColor(0.65f, 1.0f, 0.7f);
     const glm::vec3 accentColor(0.72f, 0.9f, 1.0f);
-    const float baseY = static_cast<float>(screenHeight) * 0.58f;
 
     const bool clue1Ok = (assignment[0] == 0);
     const bool clue2Ok = (assignment[1] != 2);
@@ -112,40 +114,61 @@ void RitualInferencePuzzle::Render(TextRenderer& textRenderer, int screenWidth, 
         return ok ? glm::vec3(0.55f, 1.0f, 0.55f) : glm::vec3(1.0f, 0.55f, 0.55f);
     };
 
-    textRenderer.RenderText(title, 74.0f, static_cast<float>(screenHeight) - 92.0f, 0.66f, titleColor * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText(clue, 74.0f, static_cast<float>(screenHeight) - 130.0f, 0.42f, accentColor * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText("INFER THE COUNTER-RITUAL (logic, not speed)", 74.0f, static_cast<float>(screenHeight) - 168.0f, 0.38f, textColor * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText("HOW TO SOLVE: Pick a brazier (1-3), rotate its sigil (Q/E), then press ENTER to verify.", 74.0f, static_cast<float>(screenHeight) - 200.0f, 0.35f, textColor * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText("Goal: make ALL 4 clues green at the same time. Wrong setup will not progress.", 74.0f, static_cast<float>(screenHeight) - 230.0f, 0.35f, glm::vec3(1.0f, 0.86f, 0.62f) * alpha, screenWidth, screenHeight);
+    // Left Panel status (matching Jade's design)
+    const float leftPanelX = 72.0f;
+    const float leftPanelY = static_cast<float>(screenHeight) - 340.0f;
 
-    textRenderer.RenderText("CLUES (live status):", 74.0f, baseY + 56.0f, 0.43f, glm::vec3(1.0f, 0.86f, 0.62f) * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText(std::string(clue1Ok ? "[OK] " : "[X] ") + "1) NORTH must hold ROOT", 74.0f, baseY + 26.0f, 0.39f, clueColor(clue1Ok) * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText(std::string(clue2Ok ? "[OK] " : "[X] ") + "2) EAST cannot hold THREAD", 74.0f, baseY - 2.0f, 0.39f, clueColor(clue2Ok) * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText(std::string(clue3Ok ? "[OK] " : "[X] ") + "3) WEST may not hold MIRROR", 74.0f, baseY - 30.0f, 0.39f, clueColor(clue3Ok) * alpha, screenWidth, screenHeight);
-    textRenderer.RenderText(std::string(clue4Ok ? "[OK] " : "[X] ") + "4) MIRROR appears once and only on EAST", 74.0f, baseY - 58.0f, 0.39f, clueColor(clue4Ok) * alpha, screenWidth, screenHeight);
+    textRenderer.RenderText("◇ RITUAL LIVE STATUS", leftPanelX, leftPanelY, 0.54f, warnColor * alpha, screenWidth, screenHeight);
+    textRenderer.RenderText("──────────────────────", leftPanelX, leftPanelY - 14.0f, 0.50f, glm::vec3(0.5f) * alpha, screenWidth, screenHeight);
 
-    textRenderer.RenderText("SIGIL LEGEND: ROOT = anchor  |  MIRROR = reflect  |  THREAD = bind", 74.0f, baseY - 84.0f, 0.34f, glm::vec3(0.78f, 0.88f, 0.98f) * alpha, screenWidth, screenHeight);
-
-    for (int i = 0; i < 3; ++i) {
-        std::ostringstream line;
-        line << (i + 1) << ". " << braziers[i] << " BRAZIER -> " << sigils[assignment[i]];
-        const glm::vec3 color = (i == selectedBrazier) ? glm::vec3(1.0f, 0.64f, 0.5f) : glm::vec3(0.86f, 0.86f, 0.78f);
-        textRenderer.RenderText(line.str(), 74.0f, baseY - 112.0f - static_cast<float>(i) * 34.0f, 0.43f, color * alpha, screenWidth, screenHeight);
-    }
-
-    {
-        std::ostringstream selected;
-        selected << "Selected brazier: " << braziers[selectedBrazier] << " (press " << (selectedBrazier + 1) << ")";
-        textRenderer.RenderText(selected.str(), 74.0f, baseY - 220.0f, 0.36f, glm::vec3(1.0f, 0.72f, 0.58f) * alpha, screenWidth, screenHeight);
-    }
+    textRenderer.RenderText(std::string(clue1Ok ? "[OK] " : "[X] ") + "1) NORTH must hold ROOT", leftPanelX, leftPanelY - 40.0f, 0.39f, clueColor(clue1Ok) * alpha, screenWidth, screenHeight);
+    textRenderer.RenderText(std::string(clue2Ok ? "[OK] " : "[X] ") + "2) EAST cannot hold THREAD", leftPanelX, leftPanelY - 64.0f, 0.39f, clueColor(clue2Ok) * alpha, screenWidth, screenHeight);
+    textRenderer.RenderText(std::string(clue3Ok ? "[OK] " : "[X] ") + "3) WEST may not hold MIRROR", leftPanelX, leftPanelY - 88.0f, 0.39f, clueColor(clue3Ok) * alpha, screenWidth, screenHeight);
+    textRenderer.RenderText(std::string(clue4Ok ? "[OK] " : "[X] ") + "4) MIRROR once, only EAST", leftPanelX, leftPanelY - 112.0f, 0.39f, clueColor(clue4Ok) * alpha, screenWidth, screenHeight);
 
     std::ostringstream score;
-    score << "Current consistency: " << cluesSatisfied << "/4";
-    textRenderer.RenderText(score.str(), 74.0f, baseY - 248.0f, 0.40f, accentColor * alpha, screenWidth, screenHeight);
+    score << "Consistency: " << cluesSatisfied << "/4 satisfied";
+    textRenderer.RenderText(score.str(), leftPanelX, leftPanelY - 142.0f, 0.44f, accentColor * alpha, screenWidth, screenHeight);
 
     if (!statusLine.empty() && statusTimer > 0.0f) {
-        const glm::vec3 statusColor = solved ? glm::vec3(0.42f, 1.0f, 0.45f) : glm::vec3(1.0f, 0.9f, 0.65f);
-        textRenderer.RenderText(statusLine, 74.0f, baseY - 284.0f, 0.43f, statusColor * alpha, screenWidth, screenHeight);
+        const glm::vec3 statusColor = solved ? okColor : warnColor;
+        textRenderer.RenderText(statusLine, leftPanelX, leftPanelY - 176.0f, 0.44f, statusColor * alpha, screenWidth, screenHeight);
+    }
+
+    // Centered interactive board
+    std::ostringstream legend;
+    legend << "SIGILS: ROOT (anchor) | MIRROR (reflect) | THREAD (bind)";
+    float legendX = centerX - (static_cast<float>(legend.str().length()) * 4.4f);
+    textRenderer.RenderText(legend.str(), legendX, baseY + 180.0f, 0.48f, glm::vec3(0.78f, 0.88f, 0.98f) * alpha, screenWidth, screenHeight);
+
+    float spacing = 150.0f;
+    float markerY = baseY + 60.0f;
+    for (int i = 0; i < 3; ++i) {
+        const float markerX = centerX + (static_cast<float>(i) - 1.0f) * spacing;
+        const bool isSelected = (i == selectedBrazier);
+        const glm::vec3 bgColor = isSelected ? glm::vec3(0.18f, 0.12f, 0.08f) : glm::vec3(0.12f, 0.14f, 0.16f);
+        const glm::vec3 fgColor = isSelected ? glm::vec3(1.0f, 0.85f, 0.7f) : glm::vec3(0.9f, 0.9f, 0.86f);
+
+        // big filled square
+        textRenderer.RenderText("■", markerX - 24.0f, markerY + 8.0f, 4.4f, bgColor * alpha, screenWidth, screenHeight);
+
+        // Label on top
+        std::string label = braziers[i];
+        float labelX = markerX - (static_cast<float>(label.length()) * 5.0f);
+        textRenderer.RenderText(label, labelX, markerY - 12.0f, 0.65f, fgColor * alpha, screenWidth, screenHeight);
+
+        // Sigil under
+        std::string sigilLabel = sigils[assignment[i]];
+        float sigilX = markerX - (static_cast<float>(sigilLabel.length()) * 5.0f);
+        textRenderer.RenderText(sigilLabel, sigilX, markerY - 60.0f, 0.60f, glm::vec3(0.95f, 0.95f, 0.9f) * alpha, screenWidth, screenHeight);
+
+        if (isSelected) {
+            textRenderer.RenderText("Q/E to shift", markerX - 48.0f, markerY + 80.0f, 0.52f, glm::vec3(1.0f, 0.85f, 0.7f) * alpha, screenWidth, screenHeight);
+        }
+    }
+
+    if (solved) {
+        textRenderer.RenderText("★ RITUAL COMPLETED ★", centerX - 160.0f, baseY + 200.0f, 1.25f, okColor * alpha, screenWidth, screenHeight);
     }
 }
 

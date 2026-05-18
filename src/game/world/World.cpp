@@ -395,9 +395,6 @@ void RegisterVoiceFolder(
 
 void InitializeVoiceCueLibrary(AudioManager& audio) {
     VoiceCueLibrary& library = GetVoiceCueLibrary();
-    if (library.initialized) {
-        return;
-    }
 
     RegisterVoiceFolder(audio, "assets/audio/voice/monster", "voice/monster", library.monster);
     RegisterVoiceFolder(audio, "assets/audio/voice/npc_female", "voice/npc_female", library.npcFemale);
@@ -1043,7 +1040,19 @@ World::World() {
     entityManager.BindStorage(&characters, &npcs, &enemies, &activeCharacterIndex);
 }
 
+World::~World() {
+    gBuildingReady = false;
+    gPlayerReady = false;
+    gCharacterReady = false;
+    gQuestMarkerReady = false;
+}
+
 void World::Initialize() {
+    gBuildingReady = false;
+    gPlayerReady = false;
+    gCharacterReady = false;
+    gQuestMarkerReady = false;
+
     StartupTimer::Begin("World Initialize");
     // --- Terrain project: load building meshes, doors, building collision ---
     player.transform.position = glm::vec3(0.0f, 2.0f, 10.0f);
@@ -1070,6 +1079,7 @@ void World::Initialize() {
     puzzleManager.Initialize();
     audioManager = std::make_unique<AudioManager>();
     if (audioManager->Initialize()) {
+        InitializeVoiceCueLibrary(*audioManager);
         const std::array<std::pair<const char*, const char*>, 11> cueFiles = {{
             {"puzzle_tick", "assets/audio/sfx/puzzle_tick.wav"},
             {"puzzle_complete", "assets/audio/sfx/puzzle_complete.wav"},
@@ -1549,8 +1559,13 @@ void World::Update(const Camera& camera, float dt) {
                 for (std::size_t charIdx = 0; charIdx < characters.size(); ++charIdx) {
                     Character& character = *characters[charIdx];
                     if (enemy.IsInAttackRange(character.transform.position) && characterDamageCooldowns[charIdx] <= 0.0f) {
-                        // Apply damage to this character
-                        const float damageAmount = 15.0f;
+                        // Apply damage to this character based on difficulty
+                        float damageAmount = 15.0f;
+                        if (m_difficulty == Difficulty::Easy) {
+                            damageAmount = 7.5f;
+                        } else if (m_difficulty == Difficulty::Hard) {
+                            damageAmount = 20.0f;
+                        }
                         character.TakeDamage(damageAmount);
                         characterDamageCooldowns[charIdx] = 1.5f;  // 1.5 second cooldown between hits
                         
@@ -3188,3 +3203,64 @@ void World::TryExit() {
     isInsideBuilding = false;
     std::cout << "[World] Exited building.\n";
 }
+
+bool World::HasAnyCharacterDied() const {
+    for (const auto& ch : characters) {
+        if (ch && ch->GetHealth() <= 0.0f) {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::string World::GetLastDeadCharacterName() const {
+    for (const auto& ch : characters) {
+        if (ch && ch->GetHealth() <= 0.0f) {
+            return ch->GetName();
+        }
+    }
+    return "";
+}
+
+void World::ApplyDifficulty(Difficulty diff) {
+    m_difficulty = diff;
+    float maxHP = (diff == Difficulty::Easy) ? 150.0f : 100.0f;
+    for (auto& ch : characters) {
+        if (ch) {
+            ch->SetMaxHealth(maxHP);
+            ch->SetHealth(maxHP);
+        }
+    }
+
+    if (enemies.empty()) {
+        if (diff == Difficulty::Easy) {
+            enemies.emplace_back(glm::vec3(16.0f, 2.0f, 26.0f));
+            enemies.emplace_back(glm::vec3(-18.0f, 2.0f, -24.0f));
+            enemies.emplace_back(glm::vec3(22.0f, 2.0f, -20.0f));
+        } else if (diff == Difficulty::Normal) {
+            enemies.emplace_back(glm::vec3(16.0f, 2.0f, 26.0f));
+            enemies.emplace_back(glm::vec3(-18.0f, 2.0f, -24.0f));
+            enemies.emplace_back(glm::vec3(22.0f, 2.0f, -20.0f));
+            enemies.emplace_back(glm::vec3(-24.0f, 2.0f, 20.0f));
+            enemies.emplace_back(glm::vec3(10.0f, 2.0f, -28.0f));
+            enemies.emplace_back(glm::vec3(-15.0f, 2.0f, 26.0f));
+            enemies.emplace_back(glm::vec3(25.0f, 2.0f, -14.0f));
+        } else { // Hard mode
+            enemies.emplace_back(glm::vec3(16.0f, 2.0f, 26.0f));
+            enemies.emplace_back(glm::vec3(-18.0f, 2.0f, -24.0f));
+            enemies.emplace_back(glm::vec3(22.0f, 2.0f, -20.0f));
+            enemies.emplace_back(glm::vec3(-24.0f, 2.0f, 20.0f));
+            enemies.emplace_back(glm::vec3(10.0f, 2.0f, -28.0f));
+            enemies.emplace_back(glm::vec3(-15.0f, 2.0f, 26.0f));
+            enemies.emplace_back(glm::vec3(25.0f, 2.0f, -14.0f));
+            
+            enemies.emplace_back(glm::vec3(-30.0f, 2.0f, 30.0f));
+            enemies.emplace_back(glm::vec3(30.0f, 2.0f, -30.0f));
+            enemies.emplace_back(glm::vec3(0.0f, 2.0f, -35.0f));
+            enemies.emplace_back(glm::vec3(-35.0f, 2.0f, 0.0f));
+            enemies.emplace_back(glm::vec3(35.0f, 2.0f, 15.0f));
+        }
+    }
+}
+
+

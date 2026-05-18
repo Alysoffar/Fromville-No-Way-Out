@@ -138,7 +138,7 @@ void VictorMirrorCollapsePuzzle::Render(TextRenderer& textRenderer, int screenWi
         textRenderer.RenderText("THE FALSE REFLECTIONS SHATTER", x, static_cast<float>(screenHeight) * 0.82f, 0.54f, mirrorColor * alpha, screenWidth, screenHeight);
     }
 
-    textRenderer.RenderText("[1-4] inspect mirror  [ENTER] trust  [X] reject  [R] restart  [ESC] close puzzle",
+    textRenderer.RenderText("[1-4] inspect mirror  [ENTER] trust  [X] reject  [R] restart  [L] close puzzle",
                             x, static_cast<float>(screenHeight) - 42.0f, 0.40f, titleColor * alpha, screenWidth, screenHeight);
 }
 

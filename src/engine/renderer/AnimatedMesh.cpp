@@ -24,6 +24,10 @@ AnimatedMesh::~AnimatedMesh() {
 }
 
 void AnimatedMesh::draw(GLuint shaderProgram) const {
+    if (m_Vertices.empty() || m_VAO == 0) {
+        return;
+    }
+
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, m_TextureID);
     glUniform1i(glGetUniformLocation(shaderProgram, "diffuseMap"), 0);
@@ -192,6 +196,10 @@ void AnimatedMesh::extractBoneWeights(aiMesh* mesh) {
 }
 
 void AnimatedMesh::setupMesh() {
+    if (m_Vertices.empty()) {
+        return;
+    }
+
     glGenVertexArrays(1, &m_VAO);
     glGenBuffers(1, &m_VBO);
     glGenBuffers(1, &m_EBO);

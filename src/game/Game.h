@@ -24,13 +24,31 @@ class Engine;
 class Game {
 public:
     Game();
+    ~Game();
 
     bool Initialize(Engine& engine);
+    bool InitializePhase0(Engine& engine);
+    bool InitializePhase1(Engine& engine);
+    bool InitializePhase2(Engine& engine);
+    bool LoadNextCharacterMesh();
+    int GetLoadedMeshCount() const { return m_loadedMeshCount; }
+    int GetTotalMeshCount() const { return 2; }
+    void ApplyDifficulty(Difficulty difficulty);
+    bool HasAnyCharacterDied() const;
+    std::string GetLastDeadCharacterName() const;
+    std::string GetDayTimeString() const;
+    bool SaveGame() const;
+    bool LoadGame();
+    World* GetWorld() { return world.get(); }
+    const World* GetWorld() const { return world.get(); }
+    void SetLoadStateToReady() { loadState = GameLoadState::Ready; }
+    void SetCursorLocked(bool locked);
     void Update(float dt, Engine& engine);
     void Render(Engine& engine) const;
     void Shutdown();
     // Debug: request advancing world clock by given seconds on next update
     void RequestAdvanceWorldClock(float seconds);
+
 
 private:
     std::unique_ptr<Camera> camera;
@@ -98,4 +116,5 @@ private:
     float introElapsed = 0.0f;
     // Debug: seconds to advance world clock on next update
     float pendingAdvanceSeconds = 0.0f;
+    int m_loadedMeshCount = 0;
 };

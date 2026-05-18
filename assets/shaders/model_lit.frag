@@ -13,9 +13,12 @@ uniform vec3 uViewPos;
 uniform vec3 uFogColor;
 uniform float uFogDensity;
 
+uniform vec3 color = vec3(1.0);
+uniform bool uUseFlatColor = false;
+
 void main()
 {
-    vec3 baseColor = vertexColor;
+    vec3 baseColor = uUseFlatColor ? color : vertexColor;
     vec3 norm = normalize(normal);
     vec3 lightDir = normalize(uLightDir);
 

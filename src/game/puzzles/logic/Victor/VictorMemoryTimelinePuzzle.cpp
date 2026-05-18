@@ -120,7 +120,7 @@ void VictorMemoryTimelinePuzzle::Render(TextRenderer& textRenderer, int screenWi
         textRenderer.RenderText("THE ERASED PERSON RETURNS TO MEMORY", 72.0f, static_cast<float>(screenHeight) * 0.82f, 0.42f, calmColor * alpha, screenWidth, screenHeight);
     }
 
-    textRenderer.RenderText("[1-4] select person  [ENTER] test absence  [ESC] steady  [R] restart", 72.0f, static_cast<float>(screenHeight) - 42.0f, 0.30f, titleColor * alpha, screenWidth, screenHeight);
+    textRenderer.RenderText("[1-4] select person  [ENTER] test absence  [L] steady  [R] restart", 72.0f, static_cast<float>(screenHeight) - 42.0f, 0.30f, titleColor * alpha, screenWidth, screenHeight);
 }
 
 std::string VictorMemoryTimelinePuzzle::SerializeState() const {
