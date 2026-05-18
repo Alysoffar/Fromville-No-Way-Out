@@ -244,15 +244,14 @@ void InteractionSystem::MarkQuestStepSolved(CharacterType characterType, int obj
 void InteractionSystem::Update(float dt, QuestSystem& questSystem, const glm::vec3& activeCharPos, float activeCharRotY) {
     (void)dt;
     (void)questSystem;
-
-    // Attach followsActiveCharacter nodes 3.0f units in front of the active character
-    float rad = glm::radians(activeCharRotY);
-    glm::vec3 lookDir(std::sin(rad), 0.0f, std::cos(rad));
-    glm::vec3 offset = lookDir * 3.0f;
+    (void)activeCharRotY;
 
     for (auto& node : nodes) {
-        if (node.followsActiveCharacter) {
-            node.position = activeCharPos + offset;
+        if (node.followsActiveCharacter && node.active) {
+            node.position.x = activeCharPos.x;
+            node.position.z = activeCharPos.z;
+            node.position.y = activeCharPos.y + 0.5f;
+            node.radius = 2.5f;
         }
     }
 }

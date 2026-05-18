@@ -3,6 +3,8 @@
 #include <cstdlib>
 #include <iostream>
 #include <vector>
+#include <fstream>
+#include <filesystem>
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -33,41 +35,79 @@ void GrassRenderer::init() {
         { glm::vec3(-w, h,    0.0f), glm::vec2(0.0f, 0.8f) },
     };
 
-    // Generate random instance positions on XZ plane within the ground area
-    std::vector<glm::vec3> instancePositions(GRASS_COUNT);
-    std::srand(42);
-    for (int i = 0; i < GRASS_COUNT; ++i) {
-        float x, z;
-        bool inHouseArea = true;
-        while (inHouseArea) {
-            x = (static_cast<float>(std::rand()) / RAND_MAX) * 200.0f - 100.0f;
-            z = (static_cast<float>(std::rand()) / RAND_MAX) * 200.0f - 100.0f;
+    const uint32_t CACHE_VERSION = 1;
+    std::string cachePath = "assets/cache/grass_instances.bin";
+    std::vector<glm::vec3> instancePositions;
+    bool loadedFromCache = false;
 
-            bool inAnyHouse = false;
-            glm::vec2 houseCenters[] = {
-                {-29.0f, 0.0f},
-                {29.0f, 0.0f},
-                {-29.0f, 20.0f},
-                {29.0f, 20.0f},
-                {-29.0f, -20.0f},
-                {29.0f, -20.0f},
-                {0.0f, 24.0f},
-                {9.0f, 12.0f}
-            };
-            for (const auto& center : houseCenters) {
-                if (glm::distance(glm::vec2(x, z), center) < 17.0f) {
-                    inAnyHouse = true;
-                    break;
+    if (std::filesystem::exists(cachePath)) {
+        try {
+            std::ifstream file(cachePath, std::ios::in | std::ios::binary);
+            uint32_t version = 0;
+            uint32_t count = 0;
+            if (file.read(reinterpret_cast<char*>(&version), sizeof(version)) &&
+                file.read(reinterpret_cast<char*>(&count), sizeof(count))) {
+                if (version == CACHE_VERSION && count == GRASS_COUNT) {
+                    instancePositions.resize(count);
+                    if (file.read(reinterpret_cast<char*>(instancePositions.data()), count * sizeof(glm::vec3))) {
+                        loadedFromCache = true;
+                        std::cout << "[GrassRenderer] Loaded " << count << " grass instances from cache.\n";
+                    }
                 }
             }
-            bool inDinner = glm::distance(glm::vec2(x, z), glm::vec2(-19.32f, -42.84f)) < 17.18f;
-            bool inPolice = glm::distance(glm::vec2(x, z), glm::vec2(-65.84f, 15.84f)) < 11.3f;
-
-            if (!inAnyHouse && !inDinner && !inPolice) {
-                inHouseArea = false;
-            }
+        } catch (const std::exception& e) {
+            std::cout << "[GrassRenderer] Failed to read cache: " << e.what() << "\n";
         }
-        instancePositions[i] = glm::vec3(x, 0.0f, z);
+    }
+
+    if (!loadedFromCache) {
+        instancePositions.resize(GRASS_COUNT);
+        std::srand(42);
+        for (int i = 0; i < GRASS_COUNT; ++i) {
+            float x, z;
+            bool inHouseArea = true;
+            while (inHouseArea) {
+                x = (static_cast<float>(std::rand()) / RAND_MAX) * 200.0f - 100.0f;
+                z = (static_cast<float>(std::rand()) / RAND_MAX) * 200.0f - 100.0f;
+
+                bool inAnyHouse = false;
+                glm::vec2 houseCenters[] = {
+                    {-29.0f, 0.0f},
+                    {29.0f, 0.0f},
+                    {-29.0f, 20.0f},
+                    {29.0f, 20.0f},
+                    {-29.0f, -20.0f},
+                    {29.0f, -20.0f},
+                    {0.0f, 24.0f},
+                    {9.0f, 12.0f}
+                };
+                for (const auto& center : houseCenters) {
+                    if (glm::distance(glm::vec2(x, z), center) < 17.0f) {
+                        inAnyHouse = true;
+                        break;
+                    }
+                }
+                bool inDinner = glm::distance(glm::vec2(x, z), glm::vec2(-19.32f, -42.84f)) < 17.18f;
+                bool inPolice = glm::distance(glm::vec2(x, z), glm::vec2(-65.84f, 15.84f)) < 11.3f;
+
+                if (!inAnyHouse && !inDinner && !inPolice) {
+                    inHouseArea = false;
+                }
+            }
+            instancePositions[i] = glm::vec3(x, 0.0f, z);
+        }
+
+        try {
+            std::filesystem::create_directories("assets/cache");
+            std::ofstream file(cachePath, std::ios::out | std::ios::binary);
+            uint32_t count = GRASS_COUNT;
+            file.write(reinterpret_cast<const char*>(&CACHE_VERSION), sizeof(CACHE_VERSION));
+            file.write(reinterpret_cast<const char*>(&count), sizeof(count));
+            file.write(reinterpret_cast<const char*>(instancePositions.data()), count * sizeof(glm::vec3));
+            std::cout << "[GrassRenderer] Saved procedurally generated grass instances to cache.\n";
+        } catch (const std::exception& e) {
+            std::cout << "[GrassRenderer] Failed to write cache: " << e.what() << "\n";
+        }
     }
 
     // Create VAO

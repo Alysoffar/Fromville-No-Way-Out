@@ -1,4 +1,5 @@
 #include "game/entities/NPC.h"
+#include "engine/physics/CollisionWorld.h"
 #include "engine/renderer/Animation.h"
 #include "engine/renderer/Animator.h"
 
@@ -15,7 +16,9 @@ NPC::NPC(std::string displayName, glm::vec3 home)
     : Entity(std::move(displayName)), homePosition(home) {
     transform.position = homePosition;
     BuildRoute();
+}
 
+void NPC::LoadDeferredMesh() {
     std::string lowerName = name;
     std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(), [](unsigned char c){ return std::tolower(c); });
     LoadMesh("assets/models/characters/" + lowerName + "/" + lowerName + ".fbx",
@@ -151,6 +154,22 @@ void NPC::Update(float dt) {
     lastPosition = transform.position;
 
     ApplyPhysics(dt);
+
+    if (wantsToMove && m_FramePosHistory.size() == 12 && glm::distance(m_FramePosHistory.front(), transform.position) < 0.02f) {
+        glm::vec3 testPos = transform.position + glm::vec3(0.0f, 0.4f, 0.0f);
+        if (collisionWorld && !collisionWorld->IsPositionOccupied(testPos, 0.5f)) {
+            transform.position = testPos;
+            m_FramePosHistory.clear();
+            
+            // Choose a new target position or destination
+            if (aiState == NPCAIState::Routine) {
+                AdvanceRoute();
+            } else {
+                wanderAngle = static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * 2.0f * glm::pi<float>();
+                wanderTimer = wanderChangeInterval;
+            }
+        }
+    }
 }
 
 void NPC::UpdateAnimation(float dt) {

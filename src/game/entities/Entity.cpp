@@ -135,6 +135,11 @@ void Entity::TryConsumeJump() {
 }
 
 void Entity::ApplyPhysics(float dt) {
+    m_FramePosHistory.push_back(transform.position);
+    if (m_FramePosHistory.size() > 12) {
+        m_FramePosHistory.erase(m_FramePosHistory.begin());
+    }
+
     // Calculate horizontal speed
     glm::vec3 moved = transform.position - lastFramePosition;
     moved.y = 0.0f;

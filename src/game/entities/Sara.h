@@ -8,6 +8,7 @@ public:
 
     void OnSwitchedTo() override;
     void ActivateAbility() override;  // Ghost Step
+    void LoadDeferredMesh() override;
 
     bool IsGhostStepping() const { return ghostStepActive; }
     float GetRedemptionScore() const { return redemptionScore; }

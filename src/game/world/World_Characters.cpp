@@ -90,3 +90,25 @@ Character* World::GetCharacter(int index) {
     }
     return nullptr;
 }
+
+bool World::LoadNextPendingMesh() {
+    for (auto& character : characters) {
+        if (character && !character->IsMeshLoaded()) {
+            character->LoadDeferredMesh();
+            return true;
+        }
+    }
+    for (auto& npc : npcs) {
+        if (!npc.IsMeshLoaded()) {
+            npc.LoadDeferredMesh();
+            return true;
+        }
+    }
+    for (auto& enemy : enemies) {
+        if (!enemy.IsMeshLoaded()) {
+            enemy.LoadDeferredMesh();
+            return true;
+        }
+    }
+    return false;
+}

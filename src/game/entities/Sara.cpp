@@ -7,6 +7,9 @@
 
 Sara::Sara(glm::vec3 startPos)
     : Character(CharacterType::Sara, "Sara", startPos) {
+}
+
+void Sara::LoadDeferredMesh() {
     if (std::filesystem::exists("assets/models/characters/sara/sara.fbx")) {
         LoadMesh("assets/models/characters/sara/sara.fbx", "assets/models/characters/sara/sara_Walking.fbx");
     } else {

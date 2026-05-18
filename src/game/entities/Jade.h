@@ -8,6 +8,7 @@ public:
 
     void OnSwitchedTo() override;
     void ActivateAbility() override;  // Symbol Sight
+    void LoadDeferredMesh() override;
 
     bool IsSymbolSightActive() const { return symbolSightActive; }
     float GetVisionTimer() const { return visionTimer; }

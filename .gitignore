@@ -15,6 +15,7 @@ _deps/
 *.a
 *.lib
 *.obj
+*.fbx
 
 
 # IDE and editor

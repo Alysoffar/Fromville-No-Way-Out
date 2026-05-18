@@ -82,4 +82,12 @@ private:
     void HandleCharacterInput(float dt, Engine& engine);
     void UpdateHudTitle(Engine& engine) const;
     void RenderHud(const Engine& engine) const;
+
+    enum class GameLoadState {
+        LoadingCharacters,
+        ReadyToStart,
+        Ready
+    };
+    GameLoadState loadState = GameLoadState::LoadingCharacters;
+    float readyToStartTimer = 0.0f;
 };

@@ -34,6 +34,7 @@ public:
 
     void Update(float dt) override;
     bool IsEnemy() const override { return true; }
+    void LoadDeferredMesh() override;
     void SetNight(bool night);
 
     void SetTarget(const glm::vec3& targetPosition);

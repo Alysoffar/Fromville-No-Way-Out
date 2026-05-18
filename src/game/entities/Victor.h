@@ -8,6 +8,7 @@ public:
 
     void OnSwitchedTo() override;
     void ActivateAbility() override;  // Memory Mode
+    void LoadDeferredMesh() override;
 
     bool IsInMemoryMode() const { return memoryModeActive; }
     float GetDetectionRadius() const { return 8.0f; }  // Smallest of all

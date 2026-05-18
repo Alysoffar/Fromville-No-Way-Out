@@ -86,24 +86,19 @@ void AudioManager::Shutdown() {
     initialized = false;
 }
 
-bool AudioManager::LoadSound(const std::string& cueName, const std::string& filePath) {
-    if (!initialized) {
-        std::cout << "[Audio] LoadSound called before Initialize for cue: " << cueName << "\n";
-        return false;
-    }
-
+ALuint AudioManager::DecodeWavToBuffer(const std::string& filePath) {
     SF_INFO info{};
     SNDFILE* sndFile = sf_open(filePath.c_str(), SFM_READ, &info);
     if (!sndFile) {
         std::cout << "[Audio] Failed to open sound file: " << filePath << "\n";
-        return false;
+        return 0;
     }
 
     ALenum format = ResolveFormat(info.channels);
     if (format == AL_NONE) {
         std::cout << "[Audio] Unsupported channel count in " << filePath << ": " << info.channels << "\n";
         sf_close(sndFile);
-        return false;
+        return 0;
     }
 
     std::vector<short> samples(static_cast<std::size_t>(info.frames) * static_cast<std::size_t>(info.channels));
@@ -112,37 +107,38 @@ bool AudioManager::LoadSound(const std::string& cueName, const std::string& file
 
     if (readCount <= 0) {
         std::cout << "[Audio] No samples read from: " << filePath << "\n";
-        return false;
+        return 0;
     }
 
-    SoundInstance instance;
-    alGenBuffers(1, &instance.buffer);
-    if (instance.buffer == 0) {
-        std::cout << "[Audio] Failed to create buffer for cue: " << cueName << "\n";
-        return false;
+    ALuint buffer = 0;
+    alGenBuffers(1, &buffer);
+    if (buffer == 0) {
+        std::cout << "[Audio] Failed to create buffer for: " << filePath << "\n";
+        return 0;
     }
 
     alBufferData(
-        instance.buffer,
+        buffer,
         format,
         samples.data(),
         static_cast<ALsizei>(readCount * static_cast<sf_count_t>(sizeof(short))),
         info.samplerate
     );
 
-    alGenSources(1, &instance.source);
-    if (instance.source == 0) {
-        std::cout << "[Audio] Failed to create source for cue: " << cueName << "\n";
-        alDeleteBuffers(1, &instance.buffer);
-        instance.buffer = 0;
+    return buffer;
+}
+
+bool AudioManager::LoadSound(const std::string& cueName, const std::string& filePath) {
+    if (!initialized) {
+        std::cout << "[Audio] LoadSound called before Initialize for cue: " << cueName << "\n";
         return false;
     }
 
-    alSourcei(instance.source, AL_BUFFER, static_cast<ALint>(instance.buffer));
-    alSourcef(instance.source, AL_GAIN, 1.0f);
-    alSourcef(instance.source, AL_PITCH, 1.0f);
-    alSourcei(instance.source, AL_LOOPING, AL_FALSE);
+    SoundInstance instance;
+    instance.buffer = 0;
+    instance.source = 0;
     instance.path = filePath;
+    instance.loaded = false;
 
     auto existing = sounds.find(cueName);
     if (existing != sounds.end()) {
@@ -156,7 +152,6 @@ bool AudioManager::LoadSound(const std::string& cueName, const std::string& file
     }
 
     sounds[cueName] = instance;
-    std::cout << "[Audio] Loaded cue '" << cueName << "' from " << filePath << "\n";
     return true;
 }
 
@@ -169,13 +164,36 @@ bool AudioManager::PlaySound(const std::string& cueName, float gain) {
         return false;
     }
 
-    const auto found = sounds.find(cueName);
+    auto found = sounds.find(cueName);
     if (found == sounds.end()) {
         return false;
     }
 
+    SoundInstance& instance = found->second;
+    if (!instance.loaded) {
+        instance.buffer = DecodeWavToBuffer(instance.path);
+        if (instance.buffer == 0) {
+            std::cout << "[Audio] Lazy load failed for cue: " << cueName << "\n";
+            return false;
+        }
+
+        alGenSources(1, &instance.source);
+        if (instance.source == 0) {
+            std::cout << "[Audio] Failed to create source for lazy cue: " << cueName << "\n";
+            alDeleteBuffers(1, &instance.buffer);
+            instance.buffer = 0;
+            return false;
+        }
+
+        alSourcei(instance.source, AL_BUFFER, static_cast<ALint>(instance.buffer));
+        alSourcef(instance.source, AL_GAIN, 1.0f);
+        alSourcef(instance.source, AL_PITCH, 1.0f);
+        alSourcei(instance.source, AL_LOOPING, AL_FALSE);
+        instance.loaded = true;
+    }
+
     const float clampedGain = std::clamp(gain, 0.0f, 1.0f);
-    ALuint source = found->second.source;
+    ALuint source = instance.source;
     alSourcef(source, AL_GAIN, clampedGain);
     alSourceRewind(source);
     alSourcePlay(source);

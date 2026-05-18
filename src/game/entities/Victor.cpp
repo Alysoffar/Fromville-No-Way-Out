@@ -5,6 +5,9 @@
 
 Victor::Victor(glm::vec3 startPos)
     : Character(CharacterType::Victor, "Victor", startPos) {
+}
+
+void Victor::LoadDeferredMesh() {
     LoadMesh("assets/models/characters/victor/victor.fbx", "assets/models/characters/victor/victor_Walking.fbx");
 }
 

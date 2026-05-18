@@ -46,6 +46,7 @@ void InputContext::ConfigureGameplayDefaults() {
     SetBinding(InputAction::Crouch, {GLFW_KEY_C});
     SetBinding(InputAction::Jump, {GLFW_KEY_SPACE});
     SetBinding(InputAction::Interact, {GLFW_KEY_F});
+    SetBinding(InputAction::TalkOrQuest, {GLFW_KEY_E});
     SetBinding(InputAction::Pickup, {GLFW_KEY_G});
     SetBinding(InputAction::SaveGame, {GLFW_KEY_F5});
     SetBinding(InputAction::LoadGame, {GLFW_KEY_F9});

@@ -3,6 +3,7 @@
 #include <cfloat>
 #include <cmath>
 #include <cctype>
+#include "engine/core/StartupTimer.h"
 #include <iomanip>
 #include <filesystem>
 #include <fstream>
@@ -346,7 +347,11 @@ void RegisterVoiceFolder(
         return;
     }
 
+    int count = 0;
     for (const auto& entry : std::filesystem::directory_iterator(folder)) {
+        if (count >= 50) {
+            break;
+        }
         if (!entry.is_regular_file() || entry.path().extension() != ".wav") {
             continue;
         }
@@ -361,6 +366,7 @@ void RegisterVoiceFolder(
         const std::string cueName = cuePrefix + "/" + entry.path().filename().string();
         if (audio.LoadSound(cueName, entry.path().string())) {
             outMap[slug] = cueName;
+            count++;
         }
     }
 }
@@ -1016,6 +1022,7 @@ World::World() {
 }
 
 void World::Initialize() {
+    StartupTimer::Begin("World Initialize");
     // --- Terrain project: load building meshes, doors, building collision ---
     player.transform.position = glm::vec3(0.0f, 2.0f, 10.0f);
     LoadBuildingMeshes(&collisionWorld, doors);
@@ -1030,8 +1037,12 @@ void World::Initialize() {
     questSystem = std::make_unique<QuestSystem>(&worldClock);
     interactionSystem.Initialize();
     for (auto& node : interactionSystem.GetNodes()) {
+        node.followsActiveCharacter = false;
         if (node.questObjectiveIndex >= 0 || node.id.find("checkpoint") != std::string::npos) {
-            node.followsActiveCharacter = true;
+            float rx = -35.0f + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX) / 70.0f);
+            float rz = -35.0f + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX) / 70.0f);
+            node.position = glm::vec3(rx, 0.0f, rz);
+            node.originalPosition = node.position;
         }
     }
     puzzleManager.Initialize();
@@ -1075,6 +1086,7 @@ void World::Initialize() {
         ApplyPuzzleConsequence(consequence);
     });
     puzzleManager.SetCompletionCallback([this](CharacterType characterType, int objectiveIndex) {
+        m_puzzleStartedBeforeNight = false;
         eventBus.Publish(PuzzleCompletedEvent{characterType, objectiveIndex});
 
         if (questSystem) {
@@ -1110,13 +1122,11 @@ void World::Initialize() {
         checkpoint.id = idstream.str();
         checkpoint.type = InteractionType::Trigger;
         checkpoint.name = "Checkpoint Flag";
-        // Place at current active character position if available
-        if (activeCharacterIndex >= 0 && activeCharacterIndex < static_cast<int>(characters.size())) {
-            checkpoint.position = characters[activeCharacterIndex]->transform.position + glm::vec3(0.0f, 0.0f, 0.0f);
-        } else {
-            checkpoint.position = glm::vec3(0.0f);
-        }
-        checkpoint.radius = 2.0f;
+        // Randomize checkpoint position in the world boundary
+        float rx = -35.0f + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX) / 70.0f);
+        float rz = -35.0f + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX) / 70.0f);
+        checkpoint.position = glm::vec3(rx, 0.0f, rz);
+        checkpoint.radius = 2.5f;
         checkpoint.prompt = "[Checkpoint]";
         
         // Create objective-specific messages
@@ -1127,16 +1137,16 @@ void World::Initialize() {
             checkpointMessage += "\nNEXT OBJECTIVE: Gather 3 pieces of evidence\n\nUse COMPASS (top-left) to find items:\n• BLOODY KNIFE\n• CULT LEDGER\n• STRANGE IDOL\n\nPress G to inspect each item.\nThen return to EVIDENCE BOARD.";
             feedbackMsg = "◆ CHECKPOINT SAVED! Follow COMPASS to gather evidence.";
         } else if (objectiveIndex == 1) {
-            checkpointMessage += "\nNEXT OBJECTIVE: Discover cult gathering place\n\nUse COMPASS (top-left) to locate the\nCULT TRAIL MARKER where the ritual\nceremony takes place.\n\nPress F to investigate.";
+            checkpointMessage += "\nNEXT OBJECTIVE: Discover cult gathering place\n\nUse COMPASS (top-left) to locate the\nCULT TRAIL MARKER where the ritual\nceremony takes place.\n\nPress E to investigate.";
             feedbackMsg = "◆ CHECKPOINT SAVED! Follow COMPASS to cult gathering place.";
         } else if (objectiveIndex == 2) {
-            checkpointMessage += "\nNEXT OBJECTIVE: Confront the leader\n\nUse COMPASS (top-left) to find\nLEADER CLUE.\n\nPress F to trigger the confrontation puzzle.";
+            checkpointMessage += "\nNEXT OBJECTIVE: Confront the leader\n\nUse COMPASS (top-left) to find\nLEADER CLUE.\n\nPress E to trigger the confrontation puzzle.";
             feedbackMsg = "◆ CHECKPOINT SAVED! Follow COMPASS to LEADER CLUE.";
         } else if (objectiveIndex == 3) {
-            checkpointMessage += "\nNEXT OBJECTIVE: Prevent the ritual\n\nUse COMPASS (top-left) to reach\nRITUAL CIRCLE.\n\nPress F to disrupt the ritual.";
+            checkpointMessage += "\nNEXT OBJECTIVE: Prevent the ritual\n\nUse COMPASS (top-left) to reach\nRITUAL CIRCLE.\n\nPress E to disrupt the ritual.";
             feedbackMsg = "◆ CHECKPOINT SAVED! Follow COMPASS to RITUAL CIRCLE.";
         } else {
-            checkpointMessage += "\nNEXT OBJECTIVE: Continue investigation\n\nUse COMPASS (top-left) for guidance.\nFollow the waypoint and press F.";
+            checkpointMessage += "\nNEXT OBJECTIVE: Continue investigation\n\nUse COMPASS (top-left) for guidance.\nFollow the waypoint and press E.";
             feedbackMsg = "◆ CHECKPOINT SAVED! Follow COMPASS waypoint.";
         }
         
@@ -1145,7 +1155,7 @@ void World::Initialize() {
         checkpoint.requiredFlag = "";
         checkpoint.questObjectiveIndex = -1;
         checkpoint.requiredCharacter = "";
-        checkpoint.followsActiveCharacter = true;
+        checkpoint.followsActiveCharacter = false;
         interactionSystem.AddNode(checkpoint);
         std::cout << "[World] Spawned checkpoint: " << checkpoint.id << " at " << checkpoint.position.x << "," << checkpoint.position.y << "," << checkpoint.position.z << "\n";
         lastInteractionFeedback = feedbackMsg;
@@ -1189,6 +1199,7 @@ void World::Initialize() {
 
     initialSpawnState = CaptureSaveState();
     hasInitialSpawnState = true;
+    StartupTimer::End("World Initialize");
 }
 
 
@@ -1617,9 +1628,9 @@ void World::UpdateQuestAndInteractionPhase(float dt) {
     }
 
     // If it's night and the active character is exposed (not inside a talisman shelter),
-    // pause quest progression and cancel any active puzzles until morning.
+    // pause quest progression and cancel any active puzzles until morning, unless started before night.
     Character* activeChar = GetActiveCharacter();
-    if (nightTime && activeChar && !IsProtectedByShelter(activeChar->transform.position)) {
+    if (nightTime && activeChar && !IsProtectedByShelter(activeChar->transform.position) && !m_puzzleStartedBeforeNight) {
         if (puzzleManager.IsActive()) {
             puzzleManager.CancelActivePuzzle();
         }
@@ -1706,7 +1717,7 @@ void World::UpdateQuestAndInteractionPhase(float dt) {
                                 runtimeNode.position = activeCharForSpawn->transform.position + glm::vec3(2.0f, 0.0f, 0.0f);
                                 runtimeNode.radius = 3.0f;
                                 runtimeNode.prompt = "Confront";
-                                runtimeNode.successMessage = "The cult leader appears. Press F to confront him.";
+                                runtimeNode.successMessage = "The cult leader appears. Press E to confront him.";
                                 runtimeNode.questFlag = "runtime_combat_start_" + requiredCharacter;
                                 runtimeNode.requiredFlag = "";
                                 runtimeNode.questObjectiveIndex = nextObjectiveIndex;
@@ -1767,17 +1778,53 @@ void World::Render(const Camera& camera, float aspectRatio, const DayNightCycle&
         const int activeObjectiveIndex = activeQuest ? activeQuest->GetNextIncompleteObjectiveIndex() : -1;
         const std::string activeQuestCharacterName = activeQuest ? CharacterTypeToName(activeQuestCharacter) : "";
 
-        const auto renderQuestBeacon = [&](const glm::vec3& basePosition, bool highlighted) {
+        const auto renderQuestBeacon = [&](const glm::vec3& basePosition, bool highlighted, bool isCheckpoint) {
             if (!gQuestMarkerReady) {
                 return;
             }
 
-            // Smaller floating marker with a soft pulse to draw attention without overwhelming
             const float seed = std::fmod(std::abs(basePosition.x * 31.0f + basePosition.z * 17.0f), 10.0f);
-            const float pulse = 1.0f + 0.06f * std::sin(worldClock * 4.0f + seed);
-            const glm::vec3 markerColor = highlighted ? glm::vec3(0.72f, 0.28f, 1.0f) : glm::vec3(0.35f, 0.12f, 0.12f);
-            const glm::vec3 markerScale = highlighted ? glm::vec3(0.55f, 0.85f, 0.55f) * pulse : glm::vec3(0.38f, 0.50f, 0.38f) * pulse;
-            RenderCharacterCube(gCharacterShader, gQuestMarkerMesh, camera, aspectRatio, basePosition + glm::vec3(0.0f, 1.25f, 0.0f), markerScale, markerColor);
+            const float pulse = 1.0f + 0.25f * std::sin(worldClock * 3.5f + seed);
+            const float spinAngle = worldClock * 2.0f + seed;
+
+            // Colors: Cyan for checkpoint, Golden Yellow for active quest step, Dim Grey for inactive
+            glm::vec3 markerColor = glm::vec3(0.4f, 0.4f, 0.4f);
+            if (isCheckpoint) {
+                markerColor = glm::vec3(0.0f, 0.95f, 1.0f); // Bright Cyan
+            } else if (highlighted) {
+                markerColor = glm::vec3(1.0f, 0.84f, 0.0f); // Golden Yellow
+            }
+
+            // Exclamation mark components
+            glm::vec3 barScale = (highlighted || isCheckpoint) ? glm::vec3(0.4f, 2.2f, 0.4f) * pulse : glm::vec3(0.2f, 0.9f, 0.2f);
+            glm::vec3 barPos = basePosition + ((highlighted || isCheckpoint) ? glm::vec3(0.0f, 3.2f, 0.0f) : glm::vec3(0.0f, 1.5f, 0.0f));
+
+            glm::vec3 dotScale = (highlighted || isCheckpoint) ? glm::vec3(0.4f, 0.4f, 0.4f) * pulse : glm::vec3(0.2f, 0.2f, 0.2f);
+            glm::vec3 dotPos = basePosition + ((highlighted || isCheckpoint) ? glm::vec3(0.0f, 1.5f, 0.0f) : glm::vec3(0.0f, 0.7f, 0.0f));
+
+            const glm::mat4 projection = camera.GetProjectionMatrix(aspectRatio);
+            const glm::mat4 view = camera.GetViewMatrix();
+
+            gCharacterShader.Bind();
+            gCharacterShader.SetMat4("projection", projection);
+            gCharacterShader.SetMat4("view", view);
+            gCharacterShader.SetVec3("color", markerColor);
+
+            // Render top bar
+            glm::mat4 barModel = glm::translate(glm::mat4(1.0f), barPos) * 
+                                 glm::rotate(glm::mat4(1.0f), spinAngle, glm::vec3(0.0f, 1.0f, 0.0f)) * 
+                                 glm::scale(glm::mat4(1.0f), barScale);
+            gCharacterShader.SetMat4("model", barModel);
+            gQuestMarkerMesh.Draw();
+
+            // Render bottom dot
+            glm::mat4 dotModel = glm::translate(glm::mat4(1.0f), dotPos) * 
+                                 glm::rotate(glm::mat4(1.0f), spinAngle, glm::vec3(0.0f, 1.0f, 0.0f)) * 
+                                 glm::scale(glm::mat4(1.0f), dotScale);
+            gCharacterShader.SetMat4("model", dotModel);
+            gQuestMarkerMesh.Draw();
+
+            gCharacterShader.Unbind();
         };
 
         for (const InteractionNode& node : interactionSystem.GetNodes()) {
@@ -1789,24 +1836,14 @@ void World::Render(const Camera& camera, float aspectRatio, const DayNightCycle&
                 continue;
             }
 
-            const bool isNightOnlyQuest = !nightTime && (activeQuestCharacter == CharacterType::Jade || activeQuestCharacter == CharacterType::Tabitha);
-            if (isNightOnlyQuest) {
-                continue;
-            }
-
             const bool isActiveStep = activeQuest && node.questObjectiveIndex == activeObjectiveIndex;
-            const glm::vec3 offsetPosition = node.originalPosition;
-            renderQuestBeacon(offsetPosition, isActiveStep && node.questObjectiveIndex >= 0);
+            renderQuestBeacon(node.position, isActiveStep, false);
         }
 
         // Render any runtime checkpoints (ids starting with "checkpoint_")
         for (const InteractionNode& node : interactionSystem.GetNodes()) {
             if (node.id.rfind("checkpoint_", 0) != 0) continue;
-            const glm::vec3 offsetPosition = node.originalPosition;
-            // Highlight color and scale for checkpoint flags (smaller but distinct)
-            const glm::vec3 checkpointColor = glm::vec3(1.0f, 0.85f, 0.0f);
-            const glm::vec3 checkpointScale = glm::vec3(1.0f, 1.3f, 0.8f);
-            RenderCharacterCube(gCharacterShader, gQuestMarkerMesh, camera, aspectRatio, offsetPosition + glm::vec3(0.0f, 1.4f, 0.0f), checkpointScale, checkpointColor);
+            renderQuestBeacon(node.position, false, true);
         }
     }
     
@@ -1900,23 +1937,23 @@ bool World::HandleInteractionOutcome(Character& activeChar, bool didInteract, co
         eventBus.Publish(InteractionTriggeredEvent{activeChar.GetType(), "world_interaction"});
 
         if (interactionSystem.HasLastQuestObjective()) {
-            // Prevent starting/continuing quests or puzzles at night if the active character is exposed
-            if (nightTime && !IsProtectedByShelter(activeChar.transform.position)) {
-                lastInteractionFeedback = "Quests and puzzles are paused until morning.";
+            CharacterType questChar = interactionSystem.GetLastInteractionQuestCharacter();
+
+            if (nightTime && (questChar == CharacterType::Boyd || questChar == CharacterType::Victor)) {
+                lastInteractionFeedback = "Boyd and Victor quest objectives are blocked at night.";
                 lastInteractionFeedbackTimer.Start(2.5f);
                 return true;
             }
 
-            CharacterType questChar = interactionSystem.GetLastInteractionQuestCharacter();
-            
-            // Check day/night puzzle restrictions
-            if (nightTime && (questChar == CharacterType::Boyd || questChar == CharacterType::Victor)) {
-                lastInteractionFeedback = "It's too dangerous to focus on this at night.";
+            if (!nightTime && (questChar == CharacterType::Jade || questChar == CharacterType::Tabitha)) {
+                lastInteractionFeedback = "Jade and Tabitha quest objectives are blocked during the day.";
                 lastInteractionFeedbackTimer.Start(2.5f);
                 return true;
             }
-            if (!nightTime && (questChar == CharacterType::Tabitha || questChar == CharacterType::Jade)) {
-                lastInteractionFeedback = "The clues only reveal themselves in the dark.";
+
+            // Prevent starting/continuing quests or puzzles at night if the active character is exposed
+            if (nightTime && !IsProtectedByShelter(activeChar.transform.position)) {
+                lastInteractionFeedback = "Quests and puzzles are paused until morning.";
                 lastInteractionFeedbackTimer.Start(2.5f);
                 return true;
             }
@@ -1932,6 +1969,7 @@ bool World::HandleInteractionOutcome(Character& activeChar, bool didInteract, co
                     const int subObjectiveIndex = interactionSystem.GetLastInteractionQuestSubObjectiveIndex();
                     if (objective.type != ObjectiveType::Collect || (objectiveIndex == 1 && subObjectiveIndex == 1)) {
                         if (puzzleManager.StartPuzzle(interactionSystem.GetLastInteractionQuestCharacter(), objectiveIndex, subObjectiveIndex, objective, quest->GetTitle())) {
+                            m_puzzleStartedBeforeNight = !nightTime;
                             lastInteractionFeedback = "Puzzle opened: " + objective.description;
                             lastInteractionFeedbackTimer.Start(2.5f);
                             std::cout << "[Quest] Puzzle opened for objective " << objectiveIndex << "\n";
@@ -1957,7 +1995,7 @@ bool World::HandleInteractionOutcome(Character& activeChar, bool didInteract, co
                         if (foundCollectNode && allCollected) {
                             questSystem->AdvanceObjective(interactionSystem.GetLastInteractionQuestCharacter(), objectiveIndex);
                             interactionSystem.MarkQuestStepSolved(interactionSystem.GetLastInteractionQuestCharacter(), objectiveIndex);
-                            lastInteractionFeedback = "Evidence complete. Go to the Evidence Board and press F.";
+                            lastInteractionFeedback = "Evidence complete. Go to the Evidence Board and press E.";
                             lastInteractionFeedbackTimer.Start(3.5f);
                             std::cout << "[Quest] Collect objective complete via evidence flags for objective " << objectiveIndex << "\n";
                         }
@@ -2212,6 +2250,19 @@ void World::EnsureTabithaWhisperRouteNodes() {
         node.requiredCharacter = "Tabitha";
         interactionSystem.AddNode(node);
     }
+
+    // Randomize static route node positions and set followsActiveCharacter = false
+    for (auto& n : interactionSystem.GetNodes()) {
+        if (n.id == "tabitha_whisper_hidden_route_door" || n.id == "tabitha_whisper_child_memory" || n.id == "tabitha_whisper_false_chamber") {
+            n.followsActiveCharacter = false;
+            if (n.position.x == -9.2f || n.position.x == -6.7f || n.position.x == -10.5f) {
+                float rx = -35.0f + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX) / 70.0f);
+                float rz = -35.0f + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX) / 70.0f);
+                n.position = glm::vec3(rx, 0.0f, rz);
+                n.originalPosition = n.position;
+            }
+        }
+    }
 }
 
 WorldSaveState World::CaptureSaveState() const {
@@ -2323,7 +2374,7 @@ void World::SetActiveQuest(CharacterType characterType) {
     std::cout << "[Quest] Active quest set for character type " << static_cast<int>(characterType) << "\n";
     // Provide explicit instruction when a quest is chosen
     if (quest) {
-        lastInteractionFeedback = std::string("Quest started: ") + quest->GetTitle() + ". Follow the helper and collect glyphs with F to progress.";
+        lastInteractionFeedback = std::string("Quest started: ") + quest->GetTitle() + ". Follow the helper and collect glyphs with E to progress.";
         lastInteractionFeedbackTimer.Start(4.0f);
     }
 }
@@ -2358,9 +2409,7 @@ std::string World::GetQuestHelperText() const {
         return "";
     }
 
-    if (!nightTime && (questCharacter == CharacterType::Jade || questCharacter == CharacterType::Tabitha)) {
-        return "";
-    }
+    // Day/night quest helper restriction removed — all characters see helper text at all times.
 
     const int nextObjectiveIndex = quest->GetNextIncompleteObjectiveIndex();
     const auto& objectives = quest->GetObjectives();
@@ -2391,7 +2440,7 @@ std::string World::GetQuestHelperText() const {
         if (activeNode->type == InteractionType::ItemPickup) {
             return "HELP: go to " + activeNode->name + " and press G to collect: " + objective + distanceText;
         }
-        return "HELP: go to " + activeNode->name + " and press F to complete: " + objective + distanceText;
+        return "HELP: go to " + activeNode->name + " and press E to complete: " + objective + distanceText;
     }
 
     return "HELP: " + objective;
@@ -2417,9 +2466,7 @@ std::string World::GetQuestWaypointText() const {
         return "";
     }
 
-    if (!nightTime && (questCharacter == CharacterType::Jade || questCharacter == CharacterType::Tabitha)) {
-        return "";
-    }
+    // Day/night waypoint restriction removed — all characters see waypoints at all times.
 
     const int nextObjectiveIndex = quest->GetNextIncompleteObjectiveIndex();
     const auto& objectives = quest->GetObjectives();
@@ -2440,8 +2487,8 @@ std::string World::GetQuestWaypointText() const {
 
     if (activeNode && !characters.empty()) {
         const Character* playerChar = characters[activeCharacterIndex].get();
-        const glm::vec3 delta = activeNode->originalPosition - playerChar->transform.position;
-        const float distance = HorizontalDistance(playerChar->transform.position, activeNode->originalPosition);
+        const glm::vec3 delta = activeNode->position - playerChar->transform.position;
+        const float distance = HorizontalDistance(playerChar->transform.position, activeNode->position);
         
         // Determine cardinal direction
         std::string direction = "?";
@@ -2816,9 +2863,6 @@ void World::TryInteract() {
             return;
         }
     }
-
-    // Also try the game logic interaction system
-    TryActiveCharacterInteraction();
 }
 
 void World::TryExit() {

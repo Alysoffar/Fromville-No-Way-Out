@@ -22,7 +22,7 @@ private:
     GLuint shaderProgram = 0;
     GLuint texGrass = 0;
 
-    static constexpr int GRASS_COUNT = 20000;
+    static constexpr int GRASS_COUNT = 8000;
 
     GLuint loadTexture(const char* path);
 };

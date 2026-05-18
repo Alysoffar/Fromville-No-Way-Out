@@ -1,0 +1,51 @@
+Window created: Fromville: Engine/Game Split (1280x720)
+OpenGL Version: 4.5.0 Core Profile Context 24.9.1.240813
+Renderer: AMD Radeon(TM) Graphics
+Vendor: ATI Technologies Inc.
+[World] Loading building meshes...
+[ShaderCache] Loaded shader binary from cache: BuildingModel
+[Timing] Shader Load: BuildingModel took 1 ms
+[World] Buildings loaded (13 doors).
+[Loader] Parsing OBJ with tinyobjloader: assets/models/boyd.obj
+[ShaderCache] Loaded shader binary from cache: PlayerModel
+[Timing] Shader Load: PlayerModel took 0 ms
+[ShaderCache] Loaded shader binary from cache: CharacterCubes
+[Timing] Shader Load: CharacterCubes took 0 ms
+[World] Placeholder story locations and talisman shelter zones initialized.
+[InteractionSystem] Loaded 33 interaction nodes from config.
+[ShaderCache] Loaded shader binary from cache: PuzzleOverlay
+[Timing] Shader Load: PuzzleOverlay took 0 ms
+[Audio] OpenAL initialized
+[Audio] Missing cue file: assets/audio/sfx/puzzle_tick.wav
+[Audio] Missing cue file: assets/audio/sfx/puzzle_complete.wav
+[Audio] Missing cue file: assets/audio/sfx/puzzle_fail.wav
+[Quest] Started: Solve the Conspiracy
+[Quest] Started: Decode the Symbols
+[Quest] Started: Map the Tunnel Network
+[Quest] Started: Recall the Past Events
+[QuestSystem] All character quests initialized and started.
+CollisionWorld triangle count before BVH: 15376
+[Boyd] Switched to. Curse level: 0
+[Timing] World Initialize took 1212 ms
+[ShaderCache] Loaded shader binary from cache: HUDText
+[Timing] Shader Load: HUDText took 0 ms
+[GroundRenderer] Loaded texture: assets/models/textures/coast_sand_rocks_02_diff_2k.jpg (2048x2048, ch=3)
+[GroundRenderer] Loaded texture: assets/models/textures/coast_sand_rocks_02_nor_gl_2k.png (2048x2048, ch=3)
+[GroundRenderer] Loaded texture: assets/models/textures/coast_sand_rocks_02_rough_2k.png (2048x2048, ch=1)
+[GroundRenderer] Initialized successfully.
+[GrassRenderer] Loaded 8000 grass instances from cache.
+[GrassRenderer] Loaded texture: assets/models/vegetation_grass_card_03.png (1024x256, ch=4)
+[GrassRenderer] Initialized with 8000 instances.
+[TreeRenderer] Loaded all tree instances from cache successfully.
+[Loader] Loaded from binary cache: assets/models/BirchTree_1.bin
+  Vertices: 3433, Indices: 5112
+[Loader] Loaded from binary cache: assets/models/BirchTree_2.bin
+  Vertices: 3172, Indices: 4704
+[Loader] Loaded from binary cache: assets/models/BirchTree_3.bin
+  Vertices: 3510, Indices: 5190
+CollisionWorld triangle count before BVH: 596312
+[TreeRenderer] Initialized with 900 trees.
+[SkydomeRenderer] Initialized (16 stacks, 24 slices, 2304 indices).
+[ShaderCache] Loaded shader binary from cache: animated
+[Timing] Shader Load: animated took 1 ms
+[Timing] Game Initialize took 1708 ms

@@ -22,6 +22,7 @@ public:
 
     void Update(float dt) override;
     void UpdateAnimation(float dt) override;
+    void LoadDeferredMesh() override;
     void SetNight(bool night);
     void SetPOIs(const std::vector<glm::vec3>& pois);
     void StartConversation(float seconds);

@@ -30,5 +30,5 @@ private:
     std::vector<TreeModel> treeModels;
     GLuint shaderProgram = 0;
 
-    static constexpr int TREES_PER_MODEL = 5000;
+    static constexpr int TREES_PER_MODEL = 1000;
 };

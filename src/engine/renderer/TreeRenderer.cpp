@@ -3,6 +3,8 @@
 #include <cstdlib>
 #include <iostream>
 #include <vector>
+#include <fstream>
+#include <filesystem>
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -18,7 +20,109 @@ void TreeRenderer::init(CollisionWorld* cw) {
         "assets/models/BirchTree_3.obj"
     };
 
-    std::srand(12345); // deterministic seed
+    const uint32_t CACHE_VERSION = 1;
+    std::string cachePath = "assets/cache/tree_instances.bin";
+    bool loadedFromCache = false;
+    std::vector<std::vector<glm::mat4>> allInstanceMatrices(3);
+
+    if (std::filesystem::exists(cachePath)) {
+        try {
+            std::ifstream file(cachePath, std::ios::in | std::ios::binary);
+            uint32_t version = 0;
+            uint32_t numModels = 0;
+            if (file.read(reinterpret_cast<char*>(&version), sizeof(version)) &&
+                file.read(reinterpret_cast<char*>(&numModels), sizeof(numModels))) {
+                if (version == CACHE_VERSION && numModels == 3) {
+                    bool ok = true;
+                    for (int m = 0; m < 3; ++m) {
+                        uint32_t count = 0;
+                        if (file.read(reinterpret_cast<char*>(&count), sizeof(count)) && count == TREES_PER_MODEL) {
+                            allInstanceMatrices[m].resize(count);
+                            if (!file.read(reinterpret_cast<char*>(allInstanceMatrices[m].data()), count * sizeof(glm::mat4))) {
+                                ok = false;
+                                break;
+                            }
+                        } else {
+                            ok = false;
+                            break;
+                        }
+                    }
+                    if (ok) {
+                        loadedFromCache = true;
+                        std::cout << "[TreeRenderer] Loaded all tree instances from cache successfully.\n";
+                    }
+                }
+            }
+        } catch (const std::exception& e) {
+            std::cout << "[TreeRenderer] Failed to read cache: " << e.what() << "\n";
+        }
+    }
+
+    if (!loadedFromCache) {
+        std::srand(12345); // deterministic seed
+        for (int modelIdx = 0; modelIdx < 3; ++modelIdx) {
+            allInstanceMatrices[modelIdx].resize(TREES_PER_MODEL);
+            for (int i = 0; i < TREES_PER_MODEL; ++i) {
+                float x, z;
+                bool inHouseArea = true;
+                while (inHouseArea) {
+                    x = (static_cast<float>(std::rand()) / RAND_MAX) * 300.0f - 150.0f;
+                    z = (static_cast<float>(std::rand()) / RAND_MAX) * 300.0f - 150.0f;
+
+                    bool inAnyHouse = false;
+                    glm::vec2 houseCenters[] = {
+                        {-29.0f, 0.0f},
+                        {29.0f, 0.0f},
+                        {-29.0f, 20.0f},
+                        {29.0f, 20.0f},
+                        {-29.0f, -20.0f},
+                        {29.0f, -20.0f},
+                        {0.0f, 24.0f},
+                        {9.0f, 12.0f}
+                    };
+                    for (const auto& center : houseCenters) {
+                        if (glm::distance(glm::vec2(x, z), center) < 17.0f) {
+                            inAnyHouse = true;
+                            break;
+                        }
+                    }
+                    bool inDinner = glm::distance(glm::vec2(x, z), glm::vec2(-19.32f, -42.84f)) < 17.18f;
+                    bool inColony = (x > 4.0f && x < 14.0f && z > 2.0f && z < 14.0f);
+                    bool inPolice = glm::distance(glm::vec2(x, z), glm::vec2(-65.84f, 15.84f)) < 11.3f;
+
+                    if (!inAnyHouse && !inDinner && !inColony && !inPolice) {
+                        inHouseArea = false;
+                    }
+                }
+
+                float scale = 0.8f + (static_cast<float>(std::rand()) / RAND_MAX) * 0.7f; // 0.8 to 1.5
+                float rotation = (static_cast<float>(std::rand()) / RAND_MAX) * 360.0f;
+
+                glm::mat4 model = glm::mat4(1.0f);
+                model = glm::translate(model, glm::vec3(x, 0.0f, z));
+                model = glm::rotate(model, glm::radians(rotation), glm::vec3(0.0f, 1.0f, 0.0f));
+                model = glm::scale(model, glm::vec3(scale * 5.5f));
+
+                allInstanceMatrices[modelIdx][i] = model;
+            }
+        }
+
+        try {
+            std::filesystem::create_directories("assets/cache");
+            std::ofstream file(cachePath, std::ios::out | std::ios::binary);
+            uint32_t numModels = 3;
+            file.write(reinterpret_cast<const char*>(&CACHE_VERSION), sizeof(CACHE_VERSION));
+            file.write(reinterpret_cast<const char*>(&numModels), sizeof(numModels));
+            for (int m = 0; m < 3; ++m) {
+                uint32_t count = TREES_PER_MODEL;
+                file.write(reinterpret_cast<const char*>(&count), sizeof(count));
+                file.write(reinterpret_cast<const char*>(allInstanceMatrices[m].data()), count * sizeof(glm::mat4));
+            }
+            std::cout << "[TreeRenderer] Saved procedurally generated tree instances to cache.\n";
+        } catch (const std::exception& e) {
+            std::cout << "[TreeRenderer] Failed to write cache: " << e.what() << "\n";
+        }
+    }
 
     for (int modelIdx = 0; modelIdx < 3; ++modelIdx) {
         std::vector<MeshVertex> vertices;
@@ -49,51 +153,7 @@ void TreeRenderer::init(CollisionWorld* cw) {
         treeModel.mesh.Create(vertices, indices);
         treeModel.instanceCount = TREES_PER_MODEL;
 
-        std::vector<glm::mat4> instanceMatrices(TREES_PER_MODEL);
-        for (int i = 0; i < TREES_PER_MODEL; ++i) {
-            float x, z;
-            bool inHouseArea = true;
-            while (inHouseArea) {
-                x = (static_cast<float>(std::rand()) / RAND_MAX) * 1000.0f - 500.0f;
-                z = (static_cast<float>(std::rand()) / RAND_MAX) * 1000.0f - 500.0f;
-
-                bool inAnyHouse = false;
-                glm::vec2 houseCenters[] = {
-                    {-29.0f, 0.0f},
-                    {29.0f, 0.0f},
-                    {-29.0f, 20.0f},
-                    {29.0f, 20.0f},
-                    {-29.0f, -20.0f},
-                    {29.0f, -20.0f},
-                    {0.0f, 24.0f},
-                    {9.0f, 12.0f}
-                };
-                for (const auto& center : houseCenters) {
-                    if (glm::distance(glm::vec2(x, z), center) < 17.0f) {
-                        inAnyHouse = true;
-                        break;
-                    }
-                }
-                bool inDinner = glm::distance(glm::vec2(x, z), glm::vec2(-19.32f, -42.84f)) < 17.18f;
-                bool inColony = (x > 4.0f && x < 14.0f && z > 2.0f && z < 14.0f);
-                bool inPolice = glm::distance(glm::vec2(x, z), glm::vec2(-65.84f, 15.84f)) < 11.3f;
-
-                if (!inAnyHouse && !inDinner && !inColony && !inPolice) {
-                    inHouseArea = false;
-                }
-            }
-
-            float scale = 0.8f + (static_cast<float>(std::rand()) / RAND_MAX) * 0.7f; // 0.8 to 1.5
-            float rotation = (static_cast<float>(std::rand()) / RAND_MAX) * 360.0f;
-
-            glm::mat4 model = glm::mat4(1.0f);
-            model = glm::translate(model, glm::vec3(x, 0.0f, z));
-            model = glm::rotate(model, glm::radians(rotation), glm::vec3(0.0f, 1.0f, 0.0f));
-            model = glm::scale(model, glm::vec3(scale * 5.5f));
-
-            instanceMatrices[i] = model;
-        }
-
+        std::vector<glm::mat4> instanceMatrices = allInstanceMatrices[modelIdx];
         treeModel.instanceTransforms = instanceMatrices;
 
         if (cw) {

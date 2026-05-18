@@ -8,6 +8,7 @@ public:
 
     void OnSwitchedTo() override;
     void ActivateAbility() override;  // Listen at walls
+    void LoadDeferredMesh() override;
 
     int GetTunnelsExplored() const { return tunnelsExplored; }
     bool HasListeningAbility() const { return true; }

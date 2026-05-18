@@ -26,7 +26,10 @@ private:
         ALuint buffer = 0;
         ALuint source = 0;
         std::string path;
+        bool loaded = false;
     };
+
+    ALuint DecodeWavToBuffer(const std::string& filePath);
 
     std::unordered_map<std::string, SoundInstance> sounds;
     ALCdevice* device = nullptr;

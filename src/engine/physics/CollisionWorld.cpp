@@ -97,18 +97,99 @@ void CollisionWorld::AddAABB(const AABB& box, const glm::mat4& transform) {
 }
 
 void CollisionWorld::BuildBVH() {
+    printf("CollisionWorld triangle count before BVH: %d\n", (int)m_AllTriangles.size());
+    DeduplicateTriangles();
     m_MapBVH.Build(m_AllTriangles);
 }
 
+void CollisionWorld::DeduplicateTriangles() {
+    std::vector<Triangle> uniqueTriangles;
+    uniqueTriangles.reserve(m_AllTriangles.size());
+    for (const auto& tri : m_AllTriangles) {
+        float area = 0.5f * glm::length(glm::cross(tri.b - tri.a, tri.c - tri.a));
+        if (area < 0.001f) {
+            continue;
+        }
+        uniqueTriangles.push_back(tri);
+    }
+    m_AllTriangles = std::move(uniqueTriangles);
+}
+
 bool CollisionWorld::RaycastMap(glm::vec3 origin, glm::vec3 dir, float maxDist, HitResult& out) const {
-    return m_MapBVH.Raycast(origin, dir, maxDist, out);
+    bool hitPlane = false;
+    float planeT = maxDist;
+    glm::vec3 planeNormal(0.0f, 1.0f, 0.0f);
+    
+    if (m_hasFlatGround && std::abs(dir.y) > 0.0001f) {
+        float t = (m_groundY - origin.y) / dir.y;
+        if (t >= 0.0f && t <= maxDist) {
+            hitPlane = true;
+            planeT = t;
+            if (dir.y > 0.0f) {
+                planeNormal = glm::vec3(0.0f, -1.0f, 0.0f);
+            }
+        }
+    }
+
+    bool bvhHit = m_MapBVH.Raycast(origin, dir, hitPlane ? planeT : maxDist, out);
+    if (bvhHit) {
+        return true;
+    }
+
+    if (hitPlane) {
+        out.hit = true;
+        out.t = planeT;
+        out.point = origin + dir * planeT;
+        out.normal = planeNormal;
+        return true;
+    }
+
+    return false;
 }
 
 bool CollisionWorld::SweepAABB(const AABB& box, glm::vec3 delta, HitResult& out) const {
-    return m_MapBVH.SweepAABB(box, delta, out);
+    bool hitPlane = false;
+    float planeT = 1.0f;
+    glm::vec3 planeNormal(0.0f, 1.0f, 0.0f);
+
+    if (m_hasFlatGround) {
+        if (delta.y < -0.0001f) {
+            float t = (m_groundY - box.min.y) / delta.y;
+            if (t >= 0.0f && t <= 1.0f) {
+                hitPlane = true;
+                planeT = t;
+                planeNormal = glm::vec3(0.0f, 1.0f, 0.0f);
+            }
+        } else if (delta.y > 0.0001f) {
+            float t = (m_groundY - box.max.y) / delta.y;
+            if (t >= 0.0f && t <= 1.0f) {
+                hitPlane = true;
+                planeT = t;
+                planeNormal = glm::vec3(0.0f, -1.0f, 0.0f);
+            }
+        }
+    }
+
+    bool bvhHit = m_MapBVH.SweepAABB(box, delta, out);
+    if (bvhHit && out.t < (hitPlane ? planeT : 1.0f)) {
+        return true;
+    }
+
+    if (hitPlane) {
+        out.hit = true;
+        out.t = planeT;
+        out.point = box.GetCenter() + delta * planeT;
+        out.normal = planeNormal;
+        return true;
+    }
+
+    return bvhHit;
 }
 
 bool CollisionWorld::OverlapAABB(const AABB& box) const {
+    if (m_hasFlatGround && box.min.y <= m_groundY && box.max.y >= m_groundY) {
+        return true;
+    }
     return m_MapBVH.OverlapAABB(box);
 }
 
@@ -146,4 +227,57 @@ bool CollisionWorld::IsGrounded(const AABB& box, float skinWidth) const {
     HitResult hit;
     // Small downward sweep from the bottom face
     return SweepAABB(box, glm::vec3(0.0f, -skinWidth, 0.0f), hit);
+}
+
+bool CollisionWorld::IsPositionOccupied(const glm::vec3& position, float checkRadius) const {
+    AABB queryBox;
+    queryBox.min = position - glm::vec3(checkRadius);
+    queryBox.max = position + glm::vec3(checkRadius);
+
+    for (const auto& tri : m_AllTriangles) {
+        float area = 0.5f * glm::length(glm::cross(tri.b - tri.a, tri.c - tri.a));
+        if (area > 0.001f) {
+            // Check triangle bounding box overlap first
+            AABB triBounds = tri.GetBounds();
+            if (triBounds.max.x < queryBox.min.x || triBounds.min.x > queryBox.max.x ||
+                triBounds.max.y < queryBox.min.y || triBounds.min.y > queryBox.max.y ||
+                triBounds.max.z < queryBox.min.z || triBounds.min.z > queryBox.max.z) {
+                continue;
+            }
+
+            // Approximate distance check to the triangle's vertices or center
+            float distA = glm::distance(position, tri.a);
+            float distB = glm::distance(position, tri.b);
+            float distC = glm::distance(position, tri.c);
+            float distCenter = glm::distance(position, tri.GetCenter());
+            if (distA < checkRadius || distB < checkRadius || distC < checkRadius || distCenter < checkRadius) {
+                return true;
+            }
+
+            // Distance to the triangle plane:
+            glm::vec3 normal = glm::normalize(glm::cross(tri.b - tri.a, tri.c - tri.a));
+            float distToPlane = std::abs(glm::dot(position - tri.a, normal));
+            if (distToPlane < checkRadius) {
+                // Check if projection of position onto plane lies within triangle
+                glm::vec3 proj = position - normal * glm::dot(position - tri.a, normal);
+                // Barycentric check:
+                glm::vec3 v0 = tri.b - tri.a, v1 = tri.c - tri.a, v2 = proj - tri.a;
+                float d00 = glm::dot(v0, v0);
+                float d01 = glm::dot(v0, v1);
+                float d11 = glm::dot(v1, v1);
+                float d20 = glm::dot(v2, v0);
+                float d21 = glm::dot(v2, v1);
+                float denom = d00 * d11 - d01 * d01;
+                if (std::abs(denom) > 0.0001f) {
+                    float v = (d11 * d20 - d01 * d21) / denom;
+                    float w = (d00 * d21 - d01 * d20) / denom;
+                    float u = 1.0f - v - w;
+                    if (u >= 0.0f && v >= 0.0f && w >= 0.0f) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    return false;
 }

@@ -6,6 +6,9 @@
 
 Boyd::Boyd(glm::vec3 startPos)
     : Character(CharacterType::Boyd, "Boyd", startPos) {
+}
+
+void Boyd::LoadDeferredMesh() {
     LoadMesh("assets/models/characters/boyd/boyd.fbx", "assets/models/characters/boyd/boyd_Walking.fbx");
 }
 

@@ -8,6 +8,7 @@ public:
 
     void OnSwitchedTo() override;
     void ActivateAbility() override;  // Interrogate NPCs
+    void LoadDeferredMesh() override;
 
     float GetCurseLevel() const { return curseLevel; }
     void AddCurseCharge(float amount) { curseLevel = glm::clamp(curseLevel + amount, 0.0f, 100.0f); }

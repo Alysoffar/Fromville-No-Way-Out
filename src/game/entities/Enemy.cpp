@@ -1,4 +1,5 @@
 #include "game/entities/Enemy.h"
+#include "engine/physics/CollisionWorld.h"
 
 #include <algorithm>
 #include <cmath>
@@ -14,11 +15,12 @@ Enemy::Enemy(glm::vec3 spawnPosition)
     : Entity("Monster"), spawnPosition(spawnPosition), lastKnownTargetPosition(spawnPosition) {
     transform.position = spawnPosition;
     BuildPatrolRoute();
+}
 
-    // Dynamically assign enemy1 or enemy2 based on spawn coordinates for great visual variety
+void Enemy::LoadDeferredMesh() {
     std::string enemyDir = (static_cast<int>(std::abs(spawnPosition.x) + std::abs(spawnPosition.z)) % 2 == 0) ? "enemy1" : "enemy2";
     LoadMesh("assets/models/characters/" + enemyDir + "/" + enemyDir + ".fbx",
-             "assets/models/characters/" + enemyDir + "/" + enemyDir + "_walk.fbx");
+             "assets/models/characters/" + enemyDir + "/" + enemyDir + "_Walking.fbx");
 }
 
 void Enemy::Update(float dt) {
@@ -91,6 +93,22 @@ void Enemy::Update(float dt) {
     }
 
     ApplyPhysics(dt);
+
+    bool isMovingState = (aiState != EnemyAIState::Attack && !playerKilled && nightMode);
+    if (isMovingState && m_FramePosHistory.size() == 12 && glm::distance(m_FramePosHistory.front(), transform.position) < 0.02f) {
+        glm::vec3 testPos = transform.position + glm::vec3(0.0f, 0.4f, 0.0f);
+        if (collisionWorld && !collisionWorld->IsPositionOccupied(testPos, 0.5f)) {
+            transform.position = testPos;
+            m_FramePosHistory.clear();
+            
+            // Choose a new target position or destination
+            if (aiState == EnemyAIState::Patrol) {
+                patrolIndex = (patrolIndex + 1) % 4;
+            } else {
+                wanderTimer = 0.0f; // Reset wander/sway cycle
+            }
+        }
+    }
 }
 
 void Enemy::SetNight(bool night) {

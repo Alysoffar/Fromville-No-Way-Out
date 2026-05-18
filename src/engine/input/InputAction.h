@@ -11,6 +11,7 @@ enum class InputAction {
     Crouch,
     Jump,
     Interact,
+    TalkOrQuest,
     Pickup,
     Ability,
     Pause,

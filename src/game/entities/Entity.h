@@ -2,6 +2,7 @@
 
 #include <string>
 #include <memory>
+#include <vector>
 
 #include "engine/physics/Collision.h"
 #include "game/entities/BaseEntity.h"
@@ -51,6 +52,8 @@ public:
 
     // 3D animated mesh pipeline methods
     void LoadMesh(const std::string& fbxPath, const std::string& animFbxPath);
+    bool IsMeshLoaded() const { return meshLoaded; }
+    virtual void LoadDeferredMesh() {}
     void RenderMesh(const Camera& camera, float aspectRatio, const DayNightCycle& dayNight, float fogDensity);
 
 protected:
@@ -93,4 +96,5 @@ protected:
     float animSpeedMultiplier = 1.0f;
     std::string lastLoadedAnimationPath;
     glm::vec3 lastFramePosition = glm::vec3(0.0f);
+    std::vector<glm::vec3> m_FramePosHistory;
 };

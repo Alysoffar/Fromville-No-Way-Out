@@ -1,0 +1,122 @@
+PROJECT TODO — Next Fixes (Fromville)
+========================================
+
+Goal
+- Address the gameplay/runtime issues reported: quest visibility for only the first character, poor offscreen character movement, lack of night home respawn behavior for characters/NPCs, and day/night cycle correctness.
+
+----------------------------------------
+1) Quest UI only shows first character quests
+----------------------------------------
+Problem
+- HUD/quest marker/quest helper appear to show only the quests of the first character.
+
+Likely cause areas to inspect
+- World::GetQuestHelperText()
+- World::GetQuestWaypointText()
+- World::Render(...) logic for quest beacons/markers (uses activeQuestCharacter and objective indices)
+- Game::RenderHud(...) logic gating (may tie display to activeQuestCharacter / active character / IsNight rules)
+
+Concrete tasks
+- Verify which character type is used when rendering quest helper text and quest beacons:
+  - if hasActiveQuest: uses activeQuestCharacter
+  - else: uses characters[activeCharacterIndex]
+- Confirm activeQuestCharacter / hasActiveQuest are updated correctly when switching characters:
+  - World::SwitchCharacter(int index)
+  - World::SetActiveQuest(CharacterType)
+- Ensure that when switching active character:
+  - activeQuestCharacter should either change to the newly active character’s quest OR the UI should always derive from the current active character if no explicit quest is active.
+- If quest system stores quest per character, confirm correct indexing/serialization.
+
+Acceptance criteria
+- Switching to Character #2/#3/#4 shows quest helper/waypoint and markers for that character (when appropriate per day/night gating).
+
+----------------------------------------
+2) Offscreen characters movement when not used is not good
+----------------------------------------
+Problem
+- Characters that are not actively controlled move poorly.
+
+Likely cause areas to inspect
+- World::UpdateOffscreenCharacters(float dt)
+- World::MoveCharacterToward(Character&, target, dt)
+- Character movement and collision response:
+  - game/entities/Character.*
+  - any AI pathing/targeting used for offscreen goals
+
+Concrete tasks
+- Confirm goal selection logic:
+  - goal = nightTime ? GetNearestShelterCenter(pos) : GetCharacterStoryGoal(type)
+- Improve movement behavior:
+  - check if movement direction normalization + dt usage causes sliding/stuttering
+  - ensure character.Move(...) updates velocity/grounding properly
+- Add arrival behavior (stop/idle) when within threshold.
+- If offscreen characters should avoid doors/buildings, incorporate collision constraints or nav approximation.
+
+Acceptance criteria
+- Offscreen characters move smoothly toward shelters/goals and stop near targets instead of jittering.
+
+----------------------------------------
+3) Characters + NPCs need to respawn at home when night comes
+----------------------------------------
+Problem
+- When night starts, characters and NPCs should return to home/shelter.
+
+Likely cause areas to inspect
+- World::UpdateTimeOfDay(float dt)
+  - currently updates nightTime and sets npc.SetNight/enemy.SetNight
+- World::UpdateOffscreenCharacters(float dt)
+  - currently steers offscreen characters toward shelter center, but does not “respawn”
+- NPC behavior on night:
+  - game/entities/NPC.*
+
+Concrete tasks
+- Define what “home” means in code:
+  - likely ShelterZone centers or a mapping for each character type
+- Implement respawn/teleport at night transition:
+  - in UpdateTimeOfDay when nightTime toggles from day->night:
+    - teleport each Character (including active one?) to its nearest appropriate shelter/home
+    - teleport/override NPC positions to corresponding shelter points OR force NPC AI to move there immediately
+- Ensure this does not break puzzles/quests:
+  - if puzzle is active, decide whether respawn is delayed/cancelled.
+
+Acceptance criteria
+- At the moment night begins, characters and NPCs are at shelter/home positions rather than wandering mid-route.
+
+----------------------------------------
+4) Day and night cycle need to be fixed
+----------------------------------------
+Problem
+- Day/night cycle isn’t matching expected behavior.
+
+Likely cause areas to inspect
+- World::UpdateTimeOfDay(float dt)
+- DayNightCycle class syncing:
+  - dayNightCycle.syncToWorldClock(world->GetWorldClock())
+
+Concrete tasks
+- Correct the cycle math:
+  - currently:
+    - dayNightCycle = 120.0f
+    - sunsetTime = 60.0f
+    - nightTime = cyclePosition >= sunsetTime
+  - verify how DayNightCycle interprets worldClock (its internal definition of sunrise/sunset)
+- Ensure nightTime state matches DayNightCycle lighting:
+  - sun direction, fog color, etc should switch at the same time.
+- Fix edge cases on boundary crossing:
+  - if dt causes skipping over the toggle frame, verify you still detect state change.
+
+Acceptance criteria
+- Lighting, fog, and gameplay night gating (quest pauses, shelter protection, enemy behavior) switch at the same moments.
+
+----------------------------------------
+Execution order (recommended)
+- Step 1: Fix day/night cycle math so gating is consistent (4)
+- Step 2: Add night respawn-to-home logic (3)
+- Step 3: Fix quest UI character selection (1)
+- Step 4: Improve offscreen movement (2)
+
+----------------------------------------
+Done marker
+- As each section is fixed, append a line:
+  - [DONE] Section #X — <date> — <note>
+

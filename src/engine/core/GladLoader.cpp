@@ -28,6 +28,7 @@ PFNGLENABLEVERTEXATTRIBARRAYPROC glad_glEnableVertexAttribArray = nullptr;
 PFNGLDELETEBUFFERSPROC glad_glDeleteBuffers = nullptr;
 PFNGLDRAWARRAYSPROC glad_glDrawArrays = nullptr;
 PFNGLDRAWELEMENTSPROC glad_glDrawElements = nullptr;
+PFNGLGETINTEGERVPROC glad_glGetIntegerv = nullptr;
 
 PFNGLUNIFORMMATRIX4FVPROC glad_glUniformMatrix4fv = nullptr;
 PFNGLUNIFORMMATRIX3FVPROC glad_glUniformMatrix3fv = nullptr;
@@ -91,6 +92,7 @@ static void LoadCoreFunctions(GLADloadproc loader) {
 	glad_glDeleteBuffers = reinterpret_cast<PFNGLDELETEBUFFERSPROC>(loader("glDeleteBuffers"));
 	glad_glDrawArrays = reinterpret_cast<PFNGLDRAWARRAYSPROC>(loader("glDrawArrays"));
 	glad_glDrawElements = reinterpret_cast<PFNGLDRAWELEMENTSPROC>(loader("glDrawElements"));
+	glad_glGetIntegerv = reinterpret_cast<PFNGLGETINTEGERVPROC>(loader("glGetIntegerv"));
 
 	glad_glUniformMatrix4fv = reinterpret_cast<PFNGLUNIFORMMATRIX4FVPROC>(loader("glUniformMatrix4fv"));
 	glad_glUniformMatrix3fv = reinterpret_cast<PFNGLUNIFORMMATRIX3FVPROC>(loader("glUniformMatrix3fv"));

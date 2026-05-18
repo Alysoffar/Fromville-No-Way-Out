@@ -71,6 +71,7 @@ public:
     World();
 
     void Initialize();
+    bool LoadNextPendingMesh();
     void Update(const Camera& camera, float dt);
     void Render(const Camera& camera, float aspectRatio, const DayNightCycle& dayNight, float fogDensity);
     float GetWorldClock() const { return worldClock; }
@@ -188,6 +189,7 @@ private:
     WorldSaveState initialSpawnState;
     bool hasInitialSpawnState = false;
     bool spawnRestartRequested = false;
+    bool m_puzzleStartedBeforeNight = false;
     float tabithaWhisperTempRouteTimer = 0.0f;
     float tabithaWhisperFalseChamberTimer = 0.0f;
     static constexpr float kScreamDisplayDuration = 2.5f;

@@ -1,4 +1,5 @@
 #include "game/Game.h"
+#include "engine/core/StartupTimer.h"
 
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
@@ -22,6 +23,7 @@
 Game::Game() = default;
 
 bool Game::Initialize(Engine& engine) {
+    StartupTimer::Begin("Game Initialize");
     camera = std::make_unique<Camera>();
     camera->Reset(spawnPosition);
 
@@ -53,6 +55,7 @@ bool Game::Initialize(Engine& engine) {
     }
 
     engine.GetInput().SetCursorLocked(true);
+    StartupTimer::End("Game Initialize");
     return true;
 }
 
@@ -95,11 +98,11 @@ void Game::UpdateHudTitle(Engine& engine) const {
         if (world->NearestInteractionIsPickup()) {
             title << " | " << interactionPrompt << " (G)";
         } else {
-            title << " | " << interactionPrompt << " (F)";
+            title << " | " << interactionPrompt << " (E)";
         }
     }
 
-    title << " | 1-5 switch | WASD move | F interact | Q abandon quest | Space jump | C crouch | Shift sprint";
+    title << " | 1-5 switch | WASD move | F teleport | E interact | Q abandon quest | Space jump | C crouch | Shift sprint";
     engine.GetWindow().SetTitle(title.str());
 }
 
@@ -296,11 +299,11 @@ void Game::RenderHud(const Engine& engine) const {
         hudRenderer->RenderText(feedbackMsg, 32.0f, static_cast<float>(height) / 2.0f + 50.0f, 0.88f, glm::vec3(0.2f, 1.0f, 0.3f), width, height);
     }
 
-    hudRenderer->RenderText("1-4 SWITCH  WASD MOVE  SPACE JUMP  C CROUCH  SHIFT SPRINT  Q ABANDON QUEST  F INTERACT", 24.0f, 28.0f, 0.40f, glm::vec3(0.82f, 0.82f, 0.82f), width, height);
+    hudRenderer->RenderText("1-4 SWITCH  WASD MOVE  SPACE JUMP  C CROUCH  SHIFT SPRINT  Q ABANDON QUEST  F TELEPORT  E INTERACT", 24.0f, 28.0f, 0.40f, glm::vec3(0.82f, 0.82f, 0.82f), width, height);
 
     if (!interactionPrompt.empty() && world) {
         const bool isPickup = world->NearestInteractionIsPickup();
-        const std::string key = isPickup ? "[G] " : "[F] ";
+        const std::string key = isPickup ? "[G] " : "[E] ";
         const std::string centerPrompt = key + interactionPrompt;
         hudRenderer->RenderText(centerPrompt, static_cast<float>(width) * 0.12f, 120.0f, 1.0f, glm::vec3(1.0f, 0.9f, 0.6f), width, height);
     }
@@ -382,6 +385,9 @@ void Game::HandleCharacterInput(float dt, Engine& engine) {
 
     if (input.IsActionPressed(InputAction::Interact)) {
         world->TryInteract();
+    }
+    if (input.IsActionPressed(InputAction::TalkOrQuest)) {
+        world->TryActiveCharacterInteraction();
     }
     if (input.IsActionPressed(InputAction::Pickup)) {
         world->TryActiveCharacterPickup();
@@ -487,6 +493,26 @@ void Game::Update(float dt, Engine& engine) {
     if (!camera || !world) {
         return;
     }
+
+    if (loadState == GameLoadState::LoadingCharacters) {
+        bool moreToLoad = world->LoadNextPendingMesh();
+        if (!moreToLoad) {
+            loadState = GameLoadState::ReadyToStart;
+            std::cout << "[LoadState] Characters fully loaded. Ready to start.\n";
+        }
+        dayNightCycle.syncToWorldClock(world->GetWorldClock());
+        return;
+    }
+
+    if (loadState == GameLoadState::ReadyToStart) {
+        readyToStartTimer += dt;
+        if (readyToStartTimer > 0.5f && engine.GetInput().IsKeyPressed(GLFW_KEY_ENTER)) {
+            loadState = GameLoadState::Ready;
+            std::cout << "[LoadState] Gameplay READY.\n";
+        }
+        dayNightCycle.syncToWorldClock(world->GetWorldClock());
+        return;
+    }
     // Debug teleport: press F9 to jump to the colony house for verification
     if (engine.GetInput().IsKeyPressed(GLFW_KEY_F9)) {
         glm::vec3 debugCam = glm::vec3(9.0f, 1.8f, 8.0f);
@@ -546,6 +572,40 @@ void Game::Update(float dt, Engine& engine) {
 
 void Game::Render(Engine& engine) const {
     if (!camera || !world) {
+        return;
+    }
+
+    if (loadState == GameLoadState::LoadingCharacters || loadState == GameLoadState::ReadyToStart) {
+        int width = engine.GetWindow().GetWidth();
+        int height = engine.GetWindow().GetHeight();
+        
+        glClearColor(0.04f, 0.05f, 0.08f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        if (hudRenderer) {
+            std::string title = "FROMVILLE";
+            float titleScale = 1.6f;
+            float titleX = (static_cast<float>(width) / 2.0f) - (title.length() * 14.0f * titleScale / 2.0f);
+            hudRenderer->RenderText(title, titleX, static_cast<float>(height) / 2.0f + 40.0f, titleScale, glm::vec3(0.95f, 0.96f, 0.98f), width, height);
+
+            std::string status = (loadState == GameLoadState::ReadyToStart) ? "ALL SYSTEMS OPERATIONAL" : "DECOMPRESSING 3D ASSETS & ANIMATIONS...";
+            float statusScale = 0.5f;
+            float statusX = (static_cast<float>(width) / 2.0f) - (status.length() * 10.0f * statusScale / 2.0f);
+            glm::vec3 statusColor = (loadState == GameLoadState::ReadyToStart) ? glm::vec3(0.25f, 0.90f, 0.65f) : glm::vec3(0.45f, 0.65f, 0.95f);
+            hudRenderer->RenderText(status, statusX, static_cast<float>(height) / 2.0f - 20.0f, statusScale, statusColor, width, height);
+
+            std::string prompt = "PLEASE STAND BY";
+            glm::vec3 promptColor = glm::vec3(0.5f, 0.55f, 0.65f);
+            if (loadState == GameLoadState::ReadyToStart) {
+                prompt = "PRESS ENTER TO START";
+                float t = static_cast<float>(glfwGetTime());
+                float alpha = 0.4f + 0.6f * std::abs(std::sin(t * 3.0f));
+                promptColor = glm::vec3(0.95f * alpha, 0.78f * alpha, 0.26f * alpha);
+            }
+            float promptScale = 0.4f;
+            float promptX = (static_cast<float>(width) / 2.0f) - (prompt.length() * 10.0f * promptScale / 2.0f);
+            hudRenderer->RenderText(prompt, promptX, static_cast<float>(height) / 2.0f - 80.0f, promptScale, promptColor, width, height);
+        }
         return;
     }
 

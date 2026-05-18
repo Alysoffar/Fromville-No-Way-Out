@@ -5,6 +5,9 @@
 
 Jade::Jade(glm::vec3 startPos)
     : Character(CharacterType::Jade, "Jade", startPos) {
+}
+
+void Jade::LoadDeferredMesh() {
     LoadMesh("assets/models/characters/jade/jade.fbx", "assets/models/characters/jade/jade_Walking.fbx");
 }
 
